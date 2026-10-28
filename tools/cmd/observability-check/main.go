@@ -4,12 +4,12 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
-	"log/slog"
 	"net"
 	"os"
 	"path/filepath"
@@ -18,9 +18,6 @@ import (
 	"strings"
 
 	"github.com/prometheus/common/model"
-	"github.com/prometheus/prometheus/model/labels"
-	"github.com/prometheus/prometheus/model/rulefmt"
-	"github.com/prometheus/prometheus/promql/parser"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -111,7 +108,7 @@ func checkRepository(root string) error {
 		case "prometheus-rules.yaml":
 			err = checkRules(root, data, contract)
 		case "grafana-dashboard.json":
-			err = checkDashboard(data, contract)
+			err = checkDashboard(root, data, contract)
 		}
 		if err != nil {
 			return fmt.Errorf("%s: %w", name, err)
@@ -132,82 +129,67 @@ func knownLabel(name string, contract metricContract) bool {
 	return false
 }
 
-func checkQuery(query string, contract metricContract) error {
-	expr, err := parser.NewParser(parser.Options{}).ParseExpr(query)
+func checkQuery(root, query string, contract metricContract) error {
+	facts, err := parseQueryFacts(context.Background(), root, query)
 	if err != nil {
-		return errors.New("invalid PromQL syntax or type")
+		return err
 	}
-	var problem error
-	parser.Inspect(expr, func(node parser.Node, ancestors []parser.Node) error {
-		if problem != nil {
-			return problem
+	for _, raw := range append(slices.Clone(facts.Grouping), facts.Matching...) {
+		label, err := promToken(raw)
+		if err != nil || !knownLabel(label, contract) {
+			return errors.New("unknown aggregation or vector-matching label")
 		}
-		fail := func(message string) error { problem = errors.New(message); return problem }
-		switch n := node.(type) {
-		case *parser.AggregateExpr:
-			for _, label := range n.Grouping {
-				if !knownLabel(label, contract) {
-					return fail("unknown aggregation label")
-				}
+	}
+	for _, call := range facts.Calls {
+		if !call.DirectMatrix {
+			return errors.New("apply reset-aware functions to individual process series before aggregation")
+		}
+	}
+	for _, selector := range facts.Selectors {
+		name, err := promToken(selector.Name)
+		if err != nil {
+			return err
+		}
+		matchers := make([]labelMatcher, 0, len(selector.Matchers))
+		for _, fact := range selector.Matchers {
+			matcher, err := makeLabelMatcher(fact)
+			if err != nil {
+				return err
 			}
-		case *parser.BinaryExpr:
-			if n.VectorMatching != nil {
-				for _, label := range append(slices.Clone(n.VectorMatching.MatchingLabels), n.VectorMatching.Include...) {
-					if !knownLabel(label, contract) {
-						return fail("unknown vector-matching label")
-					}
-				}
-			}
-		case *parser.Call:
-			if slices.Contains([]string{"rate", "irate", "increase", "resets"}, n.Func.Name) {
-				if _, ok := n.Args[0].(*parser.MatrixSelector); !ok {
-					return fail("apply reset-aware functions to individual process series before aggregation")
-				}
-			}
-		case *parser.VectorSelector:
-			name := n.Name
-			if name == "" {
-				for _, matcher := range n.LabelMatchers {
-					if matcher.Name == model.MetricNameLabel && matcher.Type == labels.MatchEqual {
-						name = matcher.Value
-					}
-				}
-			}
-			metric, ok := contract.Metrics[name]
-			if name == "up" {
-				metric, ok = metricSeries{Type: "gauge"}, true
-			}
-			if !ok {
-				return fail("query references a metric absent from the exporter contract")
-			}
-			for _, matcher := range n.LabelMatchers {
-				if matcher.Name == model.MetricNameLabel {
-					if matcher.Type != labels.MatchEqual || matcher.Value != name {
-						return fail("metric selection must use one explicit emitted name")
-					}
-					continue
-				}
-				if !slices.Contains(metric.Labels, matcher.Name) && !slices.Contains([]string{"job", "instance", "deployment"}, matcher.Name) {
-					return fail("query references a label absent from this metric")
-				}
-				if values, bounded := metric.Values[matcher.Name]; bounded {
-					if !slices.ContainsFunc(values, matcher.Matches) {
-						return fail("query cannot match any code-owned value for this label")
-					}
-				}
-			}
-			for _, ancestor := range ancestors {
-				if aggregate, ok := ancestor.(*parser.AggregateExpr); ok && aggregate.Op == parser.SUM && strings.HasPrefix(name, "evydence_queue_") {
-					return fail("shared database queue gauges must not be summed across scrape targets")
-				}
-				if call, ok := ancestor.(*parser.Call); ok && slices.Contains([]string{"rate", "irate", "increase", "resets"}, call.Func.Name) && metric.Type == "gauge" {
-					return fail("reset-aware counter functions cannot interpret a retained-state gauge")
-				}
+			matchers = append(matchers, matcher)
+			if name == "" && matcher.name == model.MetricNameLabel && matcher.op == "=" {
+				name = matcher.value
 			}
 		}
-		return nil
-	})
-	return problem
+		metric, ok := contract.Metrics[name]
+		if name == "up" {
+			metric, ok = metricSeries{Type: "gauge"}, true
+		}
+		if !ok {
+			return errors.New("query references a metric absent from the exporter contract")
+		}
+		for _, matcher := range matchers {
+			if matcher.name == model.MetricNameLabel {
+				if matcher.op != "=" || matcher.value != name {
+					return errors.New("metric selection must use one explicit emitted name")
+				}
+				continue
+			}
+			if !slices.Contains(metric.Labels, matcher.name) && !slices.Contains([]string{"job", "instance", "deployment"}, matcher.name) {
+				return errors.New("query references a label absent from this metric")
+			}
+			if values, bounded := metric.Values[matcher.name]; bounded && !slices.ContainsFunc(values, matcher.matches) {
+				return errors.New("query cannot match any code-owned value for this label")
+			}
+		}
+		if selector.Sum && strings.HasPrefix(name, "evydence_queue_") {
+			return errors.New("shared database queue gauges must not be summed across scrape targets")
+		}
+		if selector.Counter && metric.Type == "gauge" {
+			return errors.New("reset-aware counter functions cannot interpret a retained-state gauge")
+		}
+	}
+	return nil
 }
 
 func checkRunbook(root, reference string) error {
@@ -233,12 +215,11 @@ func checkRunbook(root, reference string) error {
 }
 
 func checkRules(root string, data []byte, contract metricContract) error {
-	var document yaml.Node
-	if err := strictYAML(data, &document); err != nil {
+	var groups ruleGroups
+	if err := strictYAML(data, &groups); err != nil {
 		return err
 	}
-	groups, errs := rulefmt.Parse(data, false, model.UTF8Validation, parser.NewParser(parser.Options{}), slog.New(slog.NewTextHandler(io.Discard, nil)))
-	if len(errs) != 0 || groups == nil || len(groups.Groups) == 0 {
+	if err := groups.validate(); err != nil {
 		return errors.New("invalid Prometheus rule file")
 	}
 	seen := make(map[string]bool)
@@ -257,7 +238,7 @@ func checkRules(root string, data []byte, contract metricContract) error {
 			if err := checkRunbook(root, rule.Annotations["runbook_url"]); err != nil {
 				return err
 			}
-			if err := checkQuery(rule.Expr, contract); err != nil {
+			if err := checkQuery(root, rule.Expr, contract); err != nil {
 				return err
 			}
 		}
@@ -333,7 +314,7 @@ func checkScrape(data []byte) error {
 	return nil
 }
 
-func checkDashboard(data []byte, contract metricContract) error {
+func checkDashboard(root string, data []byte, contract metricContract) error {
 	var dashboard struct {
 		UID    string `json:"uid"`
 		Title  string `json:"title"`
@@ -373,7 +354,7 @@ func checkDashboard(data []byte, contract metricContract) error {
 				return errors.New("dashboard target requires a unique reference")
 			}
 			refs[target.RefID] = true
-			if err := checkQuery(target.Expr, contract); err != nil {
+			if err := checkQuery(root, target.Expr, contract); err != nil {
 				return err
 			}
 		}

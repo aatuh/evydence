@@ -757,7 +757,10 @@ docs-check: python-qa-check fixture-provenance-check dependency-updates-check de
 deployment-config-check: ## Verify rendered inputs through actual command startup paths; requires Helm and Compose
 	@$(GO) test -tags=deployment ./internal/platform/deploymentcheck ./cmd/evydence-api ./cmd/evydence-worker ./cmd/evydence-migrate ./cmd/evydence -run '^TestDeployment' -count=1 -timeout=10m
 
-.PHONY: observability-check
+.PHONY: observability-tools observability-check
+observability-tools: ## Install checksum-locked offline PromQL QA dependencies (Node 22)
+	@npm ci --prefix site/marketing --ignore-scripts --no-audit --no-fund
+
 observability-check: ## Validate exporter contract, monitoring examples and diagnostic runbooks offline
 	@$(GO) test ./internal/adapters/telemetry/metrics -run '^TestObservabilityMetricContract$$' -count=1
 	@GOWORK=off $(GO) -C tools test -mod=readonly ./cmd/observability-check -count=1

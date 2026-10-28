@@ -7,8 +7,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/prometheus/prometheus/model/labels"
-	"github.com/prometheus/prometheus/promql/parser"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -36,10 +34,13 @@ func TestQueryContract(t *testing.T) {
 		{"unknown aggregation label", `sum by (tenant) (rate(evydence_operations_total[5m]))`, false},
 		{"gauge increase", `increase(evydence_queue_jobs[5m])`, false},
 		{"duplicate queue sum", `sum by (deployment) (evydence_queue_jobs{state="queued"})`, false},
+		{"uppercase queue sum", `SUM by (deployment) (evydence_queue_jobs{state="queued"})`, false},
+		{"uppercase process sum", `SUM by (deployment) (rate(evydence_operations_total[5m]))`, true},
+		{"uppercase experimental aggregation", `LIMITK(1, evydence_operations_total)`, false},
 		{"aggregate before reset handling", `rate((sum by (deployment) (evydence_operations_total))[5m:])`, false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			err := checkQuery(tc.query, testContract())
+			err := checkQuery(repositoryRoot(t), tc.query, testContract())
 			if (err == nil) != tc.valid {
 				t.Fatalf("valid=%v: %v", tc.valid, err)
 			}
@@ -159,6 +160,10 @@ func TestRuleDiagnosticsAndDashboardRegressions(t *testing.T) {
 		{"missing runbook", "#exporter", "#does-not-exist"},
 		{"unknown rule field", "        for:", "        unknown_hold:"},
 		{"placeholder metric", "evydence_queue_overdue_jobs", "evydence_worker_last_success_timestamp_seconds"},
+		{"template syntax", "summary: Evydence operational scrape is unavailable", "summary: '{{ if $value }}'"},
+		{"unknown template function", "summary: Evydence operational scrape is unavailable", "summary: '{{ unknownFunction $value }}'"},
+		{"negative hold", "for: 2m", "for: -2m"},
+		{"duplicate group", "  - name: evydence-runtime", "  - name: evydence-runtime\n    rules: []\n  - name: evydence-runtime"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			changed := strings.ReplaceAll(string(rules), tc.from, tc.to)
@@ -178,7 +183,7 @@ func TestRuleDiagnosticsAndDashboardRegressions(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			changed := strings.ReplaceAll(string(dashboard), tc.from, tc.to)
-			if changed == string(dashboard) || checkDashboard([]byte(changed), contract) == nil {
+			if changed == string(dashboard) || checkDashboard(root, []byte(changed), contract) == nil {
 				t.Fatal("invalid dashboard accepted or mutation did not apply")
 			}
 		})
@@ -218,22 +223,24 @@ func TestHTTPFailureAlertKeepsSignalAfterDetailedSeriesOverflow(t *testing.T) {
 			if rule.Alert != "EvydenceHTTPServerFailures" {
 				continue
 			}
-			expr, err := parser.NewParser(parser.Options{}).ParseExpr(rule.Expr)
+			facts, err := parseQueryFacts(t.Context(), root, rule.Expr)
 			if err != nil {
 				t.Fatal(err)
 			}
-			parser.Inspect(expr, func(node parser.Node, _ []parser.Node) error {
-				selector, ok := node.(*parser.VectorSelector)
-				if !ok || selector.Name != "evydence_http_outcomes_total" {
-					return nil
+			for _, selector := range facts.Selectors {
+				if selector.Name != "evydence_http_outcomes_total" {
+					continue
 				}
-				for _, matcher := range selector.LabelMatchers {
-					if matcher.Name == "outcome" && matcher.Type == labels.MatchEqual && matcher.Value == "failed" {
+				for _, fact := range selector.Matchers {
+					matcher, err := makeLabelMatcher(fact)
+					if err != nil {
+						t.Fatal(err)
+					}
+					if matcher.name == "outcome" && matcher.op == "=" && matcher.value == "failed" {
 						found = true
 					}
 				}
-				return nil
-			})
+			}
 		}
 	}
 	if !found {

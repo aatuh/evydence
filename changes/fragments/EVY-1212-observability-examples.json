@@ -12,7 +12,7 @@
     "api": "unchanged",
     "sdk": "unchanged",
     "migrations": "none",
-    "notes": "Runtime metric names and scrape authorization are unchanged. Example alerts and dashboard queries replace the prior tenant-only placeholders; operators must review routing, topology and credential-file mounts. The official Prometheus parser is a pinned QA-only dependency."
+    "notes": "Runtime metric names and scrape authorization are unchanged. Example alerts and dashboard queries replace the prior tenant-only placeholders; operators must review routing, topology and credential-file mounts. Offline validation requires Node 22 and make observability-tools for the pinned official Prometheus editor grammar/type linter; the Go server-module dependency has been removed."
   },
   "security": "Use distinct credential-file references without reading secrets; preserve instance authority, bounded labels and restricted operator diagnostics.",
   "limitations": [

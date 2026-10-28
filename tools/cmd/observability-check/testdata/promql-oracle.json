@@ -1,0 +1,458 @@
+[
+  {
+    "query": "up",
+    "valid": true
+  },
+  {
+    "query": "up{job=\"evydence-api\"}",
+    "valid": true
+  },
+  {
+    "query": "up{job=~\"(?=x)\"}",
+    "valid": false
+  },
+  {
+    "query": "up{job=~\"x(.)\"}",
+    "valid": true
+  },
+  {
+    "query": "rate(up[0s])",
+    "valid": false
+  },
+  {
+    "query": "rate(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "rate(up[30])",
+    "valid": true
+  },
+  {
+    "query": "rate(up[0.5])",
+    "valid": true
+  },
+  {
+    "query": "rate(up[1m30s])",
+    "valid": true
+  },
+  {
+    "query": "rate(up[0.5m])",
+    "valid": false
+  },
+  {
+    "query": "rate(up[1m+1m])",
+    "valid": false
+  },
+  {
+    "query": "rate(up[step()])",
+    "valid": false
+  },
+  {
+    "query": "up offset 0s",
+    "valid": true
+  },
+  {
+    "query": "up offset -5m",
+    "valid": true
+  },
+  {
+    "query": "up offset 1e309",
+    "valid": false
+  },
+  {
+    "query": "up[5m:1m]",
+    "valid": true
+  },
+  {
+    "query": "up[5m:]",
+    "valid": true
+  },
+  {
+    "query": "up[5m:0s]",
+    "valid": false
+  },
+  {
+    "query": "up[0s:]",
+    "valid": false
+  },
+  {
+    "query": "sum(\"literal\")",
+    "valid": false
+  },
+  {
+    "query": "rate(1)",
+    "valid": false
+  },
+  {
+    "query": "rate(up)",
+    "valid": false
+  },
+  {
+    "query": "up + \"literal\"",
+    "valid": false
+  },
+  {
+    "query": "missing_fn(up)",
+    "valid": false
+  },
+  {
+    "query": "vector(1e309)",
+    "valid": false
+  },
+  {
+    "query": "vector(Inf)",
+    "valid": true
+  },
+  {
+    "query": "vector(NaN)",
+    "valid": true
+  },
+  {
+    "query": "info(up)",
+    "valid": false
+  },
+  {
+    "query": "sort_by_label(up,\"job\")",
+    "valid": false
+  },
+  {
+    "query": "limitk(1,up)",
+    "valid": false
+  },
+  {
+    "query": "limit_ratio(0.5,up)",
+    "valid": false
+  },
+  {
+    "query": "up{job=\"a\\x5fb\"}",
+    "valid": true
+  },
+  {
+    "query": "up{job='a\\x5fb'}",
+    "valid": true
+  },
+  {
+    "query": "up{job=`literal`}",
+    "valid": true
+  },
+  {
+    "query": "up{job=\"bad\\z\"}",
+    "valid": false
+  },
+  {
+    "query": "sum by (\"job\") (up)",
+    "valid": true
+  },
+  {
+    "query": "{\"up\",job=\"x\"}",
+    "valid": true
+  },
+  {
+    "query": "up{__name__=\"other\"}",
+    "valid": false
+  },
+  {
+    "query": "sum by(deployment) (rate(http_requests_total[5m]))",
+    "valid": true
+  },
+  {
+    "query": "up unless on (job) group_left (instance) up",
+    "valid": false
+  },
+  {
+    "query": "up / on (job) group_left (instance) up",
+    "valid": true
+  },
+  {
+    "query": "avg_over_time(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "cos(up)",
+    "valid": true
+  },
+  {
+    "query": "floor(up)",
+    "valid": true
+  },
+  {
+    "query": "pi()",
+    "valid": true
+  },
+  {
+    "query": "sinh(up)",
+    "valid": true
+  },
+  {
+    "query": "stdvar_over_time(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "clamp_min(up,1)",
+    "valid": true
+  },
+  {
+    "query": "days_in_month(up)",
+    "valid": true
+  },
+  {
+    "query": "histogram_stddev(up)",
+    "valid": true
+  },
+  {
+    "query": "log10(up)",
+    "valid": true
+  },
+  {
+    "query": "max_over_time(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "sqrt(up)",
+    "valid": true
+  },
+  {
+    "query": "stddev_over_time(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "asinh(up)",
+    "valid": true
+  },
+  {
+    "query": "cosh(up)",
+    "valid": true
+  },
+  {
+    "query": "absent_over_time(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "deg(up)",
+    "valid": true
+  },
+  {
+    "query": "absent(up)",
+    "valid": true
+  },
+  {
+    "query": "acos(up)",
+    "valid": true
+  },
+  {
+    "query": "min_over_time(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "predict_linear(up[5m],1)",
+    "valid": true
+  },
+  {
+    "query": "rate(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "time()",
+    "valid": true
+  },
+  {
+    "query": "day_of_year(up)",
+    "valid": true
+  },
+  {
+    "query": "deriv(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "histogram_quantile(1,up)",
+    "valid": true
+  },
+  {
+    "query": "hour(up)",
+    "valid": true
+  },
+  {
+    "query": "sgn(up)",
+    "valid": true
+  },
+  {
+    "query": "tanh(up)",
+    "valid": true
+  },
+  {
+    "query": "timestamp(up)",
+    "valid": true
+  },
+  {
+    "query": "ceil(up)",
+    "valid": true
+  },
+  {
+    "query": "histogram_count(up)",
+    "valid": true
+  },
+  {
+    "query": "increase(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "label_join(up,\"label\",\"label\",\"label\")",
+    "valid": true
+  },
+  {
+    "query": "present_over_time(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "sin(up)",
+    "valid": true
+  },
+  {
+    "query": "sort(up)",
+    "valid": true
+  },
+  {
+    "query": "clamp_max(up,1)",
+    "valid": true
+  },
+  {
+    "query": "month(up)",
+    "valid": true
+  },
+  {
+    "query": "year(up)",
+    "valid": true
+  },
+  {
+    "query": "changes(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "exp(up)",
+    "valid": true
+  },
+  {
+    "query": "histogram_fraction(1,1,up)",
+    "valid": true
+  },
+  {
+    "query": "resets(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "vector(1)",
+    "valid": true
+  },
+  {
+    "query": "acosh(up)",
+    "valid": true
+  },
+  {
+    "query": "day_of_week(up)",
+    "valid": true
+  },
+  {
+    "query": "histogram_stdvar(up)",
+    "valid": true
+  },
+  {
+    "query": "idelta(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "irate(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "label_replace(up,\"label\",\"label\",\"label\",\"label\")",
+    "valid": true
+  },
+  {
+    "query": "quantile_over_time(1,up[5m])",
+    "valid": true
+  },
+  {
+    "query": "scalar(up)",
+    "valid": true
+  },
+  {
+    "query": "last_over_time(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "log2(up)",
+    "valid": true
+  },
+  {
+    "query": "delta(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "round(up,1)",
+    "valid": true
+  },
+  {
+    "query": "atan(up)",
+    "valid": true
+  },
+  {
+    "query": "count_over_time(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "first_over_time(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "histogram_sum(up)",
+    "valid": true
+  },
+  {
+    "query": "rad(up)",
+    "valid": true
+  },
+  {
+    "query": "sum_over_time(up[5m])",
+    "valid": true
+  },
+  {
+    "query": "tan(up)",
+    "valid": true
+  },
+  {
+    "query": "clamp(up,1,1)",
+    "valid": true
+  },
+  {
+    "query": "histogram_avg(up)",
+    "valid": true
+  },
+  {
+    "query": "ln(up)",
+    "valid": true
+  },
+  {
+    "query": "minute(up)",
+    "valid": true
+  },
+  {
+    "query": "sort_desc(up)",
+    "valid": true
+  },
+  {
+    "query": "abs(up)",
+    "valid": true
+  },
+  {
+    "query": "asin(up)",
+    "valid": true
+  },
+  {
+    "query": "atanh(up)",
+    "valid": true
+  },
+  {
+    "query": "day_of_month(up)",
+    "valid": true
+  }
+]

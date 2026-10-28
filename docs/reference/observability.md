@@ -584,11 +584,19 @@ append-only evidence ledger or its backup/restore policy.
 ### Repository validation
 
 ```sh
+make observability-tools # once after checkout/lock changes; requires Node 22 and npm
 make observability-check
 ```
 
 The offline gate first compares real exporter snapshots with the committed
-metric contract, then checks PromQL with the pinned official Prometheus parser,
+metric contract, then checks PromQL with the pinned official Prometheus editor
+grammar and type linter (`@prometheus-io/codemirror-promql` and `lezer-promql`
+`0.313.4`). These QA-only packages share the existing marketing npm workspace;
+they are not application runtime dependencies. The checker rejects grammar
+recovery nodes and supplements the linter with Go RE2/string, positive-duration
+and disabled-feature checks. Recorded comparison controls cover every stable
+function from the Go `v0.315.1` parser plus syntax/type and feature negatives;
+this is not a claim of exhaustive language equivalence. It also checks
 rule syntax/templates, metric and label references, finite label matches,
 reset-aware aggregation, shared queue gauges, the narrow local scrape profile,
 dashboard structure and local runbook sections. It opens no credential files,

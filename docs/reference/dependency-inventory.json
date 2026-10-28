@@ -2416,6 +2416,7 @@
       ],
       "license_status": "candidate",
       "locations": [
+        ".github/workflows/ci.yml#jobs/production-check/steps/8",
         ".github/workflows/marketing-site-pages.yml#jobs/build/steps/1"
       ],
       "name": "actions/setup-node",
@@ -2474,7 +2475,7 @@
       ],
       "license_status": "candidate",
       "locations": [
-        ".github/workflows/ci.yml#jobs/production-check/steps/11",
+        ".github/workflows/ci.yml#jobs/production-check/steps/13",
         ".github/workflows/ci.yml#jobs/race-and-stress/steps/3",
         ".github/workflows/container-image.yml#jobs/publish-image/steps/9",
         ".github/workflows/container-image.yml#jobs/sign-image/steps/9",
@@ -5004,6 +5005,35 @@
         }
       ],
       "license_status": "candidate",
+      "name": "cloud.google.com/go/bigquery",
+      "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:J5hqkt3O0uAFnINi6JXValWIb1v0goeZM77hZzJN/fQ=",
+        "sum": "h1:PQcPefKFdaIzjQFbiyOgAqyx8q5djaE7x9Sqe712DPA=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.8.0",
+      "version_published_at": "2020-05-19T17:02:07Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
       "name": "cloud.google.com/go/bigtable",
       "origins": [
         "fixture-minio",
@@ -6510,6 +6540,35 @@
       },
       "version": "v0.9.7",
       "version_published_at": "2025-05-06T17:30:28Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "cloud.google.com/go/datastore",
+      "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:umbIZjpQpHh4hmRpGhH4tLFup+FVzqBi1b3c64qFpCk=",
+        "sum": "h1:/May9ojXjRkPBNVrq+oWLqmWCkr4OU5uRY29bu0mRyQ=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.1.0",
+      "version_published_at": "2020-02-12T23:20:43Z"
     },
     {
       "ecosystem": "gomod",
@@ -9816,6 +9875,35 @@
       "license_status": "candidate",
       "name": "cloud.google.com/go/pubsub",
       "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:i+ucay31+CNRpDW4Lu78I4xXG+O1r/MAHgjpRVR+TSU=",
+        "sum": "h1:ukjixP1wl0LpnZ6LWtZJ0mX5tBmjp1f8Sqer8Z2OMUU=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.3.1",
+      "version_published_at": "2020-03-12T23:07:35Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "cloud.google.com/go/pubsub",
+      "origins": [
         "fixture-minio"
       ],
       "source": {
@@ -12903,6 +12991,7 @@
       "license_status": "candidate",
       "name": "dmitri.shuralyov.com/gpu/mtl",
       "origins": [
+        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -13735,12 +13824,12 @@
         "qa"
       ],
       "source": {
-        "go_mod_sum": "h1:iptorS+VYKFL2N6PnebpS91dubG35eAOEERnT4PJbQU=",
-        "sum": "h1:zvXfGJCWvywnCA814d8ZiVyt+fm9nnTE8xSb99zRyfo=",
+        "go_mod_sum": "h1:/WYEx9pcM9Y+Dd/APJaNlSvVSvzl54rrMdZT5+Oi2LM=",
+        "sum": "h1:aokoqcHvaGjiM3VpjKDfMMnF/8epJ+Q1HLJ7CudztqE=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.23.1",
-      "version_published_at": "2026-08-27T17:04:46Z"
+      "version": "v1.22.0",
+      "version_published_at": "2026-06-04T17:26:12Z"
     },
     {
       "ecosystem": "gomod",
@@ -13823,12 +13912,12 @@
         "qa"
       ],
       "source": {
-        "go_mod_sum": "h1:oXtinPO4OLj9d1DOTrqrL1oRwGhcqadvAmrl6wTeGlk=",
-        "sum": "h1:u93s+zU2JD62im61Bm5CZIc1ZrOJaIAWEg0WOrMVkEo=",
+        "go_mod_sum": "h1:q0+UTSRvShwUCrR/s5HtyInYphN7Wvxb7snFM3u+SLA=",
+        "sum": "h1:CU4+EJeJi3TKYWEcYuSdWsjzw0nVsK/H0MSQOiPcymU=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.14.1",
-      "version_published_at": "2026-08-27T21:05:55Z"
+      "version": "v1.14.0",
+      "version_published_at": "2026-06-15T18:33:15Z"
     },
     {
       "ecosystem": "gomod",
@@ -14084,35 +14173,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v8",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:E7HnKr5NCwakxjN2GtTSE3eh+JIlSW44w6pnrRf1fMI=",
-        "sum": "h1:9fxsQhv25YpYDqNV4EIuEOJWInhrJX0I2DS5kOaHLlo=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v8.3.0",
-      "version_published_at": "2026-08-18T14:25:39Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "MIT",
-      "license_evidence": [
-        {
-          "coverage_percent": 98.83040935672514,
-          "file": "LICENSE.txt",
-          "ids": [
-            "MIT"
-          ],
-          "kind": "license",
-          "license": "MIT",
-          "sha256": "8f3b85643422256a936daede0159c60fe5d140ace61a4fbb7de8b912e1274260",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v4",
       "origins": [
         "fixture-mc",
@@ -14125,35 +14185,6 @@
       },
       "version": "v4.3.0",
       "version_published_at": "2023-11-23T07:42:46Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "MIT",
-      "license_evidence": [
-        {
-          "coverage_percent": 98.83040935672514,
-          "file": "LICENSE.txt",
-          "ids": [
-            "MIT"
-          ],
-          "kind": "license",
-          "license": "MIT",
-          "sha256": "8f3b85643422256a936daede0159c60fe5d140ace61a4fbb7de8b912e1274260",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/network/armnetwork/v8",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:mCqeYzwyjn/pw0JVqHJMIzfUQJrlcV0YjTg5b0NK+F0=",
-        "sum": "h1:7QO7GhGat25QEYL4h607O9zNNTUlAv8PbSesW6Ol5Gg=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v8.0.0",
-      "version_published_at": "2025-12-23T03:43:39Z"
     },
     {
       "ecosystem": "gomod",
@@ -14823,12 +14854,12 @@
         "qa"
       ],
       "source": {
-        "go_mod_sum": "h1:Y33QHnf0FfdVewFFISOGe20mkZbxX4H839o955/PoeI=",
-        "sum": "h1:Nljr4q1GRA/5vCrMONS+g4u4LRHNgOXVSh3O43J2CnI=",
+        "go_mod_sum": "h1:HKpQxkWaGLJ+D/5H8QRpyQXA1eKjxkFlOMwck5+33Jk=",
+        "sum": "h1:RHK7bS+HQMslb1sZpAokUt+zTVmue0hKSs2C791hhzU=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.8.0",
-      "version_published_at": "2026-07-27T20:06:52Z"
+      "version": "v1.7.2",
+      "version_published_at": "2026-05-11T16:20:31Z"
     },
     {
       "ecosystem": "gomod",
@@ -14912,6 +14943,7 @@
       "license_status": "ambiguous",
       "name": "github.com/BurntSushi/xgb",
       "origins": [
+        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -15001,8 +15033,7 @@
       "name": "github.com/Code-Hex/go-generics-cache",
       "origins": [
         "fixture-mc",
-        "fixture-minio",
-        "qa"
+        "fixture-minio"
       ],
       "source": {
         "go_mod_sum": "h1:qxcC9kRVrct9rHeiYpFWSoW1vxyillCVzX13KZG8dl4=",
@@ -16470,35 +16501,6 @@
       "license": "MIT",
       "license_evidence": [
         {
-          "coverage_percent": 98.81656804733728,
-          "file": "LICENSE",
-          "ids": [
-            "MIT"
-          ],
-          "kind": "license",
-          "license": "MIT",
-          "sha256": "28576a98c02916f720f05aa4a9e30dabfb91cc153efeecd63d34616694d9ff60",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/KimMachineGun/automemlimit",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:QZxpHaGOQoYvFhv/r4u3U0JTC2ZcOwbSr11UZF46UBM=",
-        "sum": "h1:RkbaC0MwhjL1ZuBKunGDjE/ggwAX43DwZrJqVwyveTk=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.7.5",
-      "version_published_at": "2025-10-08T05:39:30Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "MIT",
-      "license_evidence": [
-        {
           "coverage_percent": 97.67441860465117,
           "file": "LICENSE",
           "ids": [
@@ -16901,7 +16903,6 @@
       "origins": [
         "application",
         "fixture-minio",
-        "qa",
         "tool-cosign"
       ],
       "source": {
@@ -17019,7 +17020,6 @@
       "license_status": "candidate",
       "name": "github.com/NYTimes/gziphandler",
       "origins": [
-        "qa",
         "tool-cosign"
       ],
       "source": {
@@ -19968,6 +19968,7 @@
       "license_status": "candidate",
       "name": "github.com/armon/go-metrics",
       "origins": [
+        "qa",
         "scanner"
       ],
       "source": {
@@ -19998,8 +19999,7 @@
       "name": "github.com/armon/go-metrics",
       "origins": [
         "fixture-mc",
-        "fixture-minio",
-        "qa"
+        "fixture-minio"
       ],
       "source": {
         "go_mod_sum": "h1:E6amYzXo6aW1tqzoZGT755KkbgrJsSdpwZ+3JqfkOG4=",
@@ -20383,7 +20383,6 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go",
       "origins": [
-        "qa",
         "tool-cosign"
       ],
       "source": {
@@ -20498,15 +20497,15 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2",
       "origins": [
-        "scanner"
+        "qa"
       ],
       "source": {
-        "go_mod_sum": "h1:bttEH6JqnUL8LepvDVfdrds/fZ5bCIxzpe3abyUrhDU=",
-        "sum": "h1:4IbaHhtzy+4h37z4JQyO9a2QsiCml3CNYHtq5hIHigo=",
+        "go_mod_sum": "h1:70vwSy16txshwG+g55WkpgPKDIByzHI8ccBsOteo3bQ=",
+        "sum": "h1:b9FTvbRwy+JCsfp2Wp6wV/KbOx3Aj7nkoFb2cRX0IhE=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.44.0",
-      "version_published_at": "2026-08-26T18:43:21Z"
+      "version": "v1.43.4",
+      "version_published_at": "2026-08-05T18:20:26Z"
     },
     {
       "ecosystem": "gomod",
@@ -20536,15 +20535,15 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2",
       "origins": [
-        "qa"
+        "scanner"
       ],
       "source": {
         "go_mod_sum": "h1:bttEH6JqnUL8LepvDVfdrds/fZ5bCIxzpe3abyUrhDU=",
-        "sum": "h1:1kt7m/EKcEHt5mlyyxx9cSlMddRPIKbjb6DIQsu4HPk=",
+        "sum": "h1:4IbaHhtzy+4h37z4JQyO9a2QsiCml3CNYHtq5hIHigo=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.46.0",
-      "version_published_at": "2026-09-04T18:16:56Z"
+      "version": "v1.44.0",
+      "version_published_at": "2026-08-26T18:43:21Z"
     },
     {
       "ecosystem": "gomod",
@@ -20739,15 +20738,15 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/config",
       "origins": [
-        "scanner"
+        "qa"
       ],
       "source": {
-        "go_mod_sum": "h1:8xOJLbe/hOj1g4PVsfJYV7O2byq+UGET1onDdUgbwqc=",
-        "sum": "h1:lAVC9gMmKusmqDRe32dPtgKl/BWvJmMJoWELKHCAObw=",
+        "go_mod_sum": "h1:KaMtJpFa2JlL2BStjjHQVwQpzZEmw+ND/EgVrfFoo2g=",
+        "sum": "h1:UEzXuET8E42lxBPijuACu/tEK7v5lFPlk0Q+GT5WD9E=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.32.40",
-      "version_published_at": "2026-08-26T18:43:21Z"
+      "version": "v1.32.35",
+      "version_published_at": "2026-08-05T18:20:26Z"
     },
     {
       "ecosystem": "gomod",
@@ -20768,15 +20767,15 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/config",
       "origins": [
-        "qa"
+        "scanner"
       ],
       "source": {
-        "go_mod_sum": "h1:YYDB1kTejxbfAbEVUqgCtkVp26xvNCHev9cLKABMGAk=",
-        "sum": "h1:h090b3O5S17bF87/0ysHZuIT/7DCb4EBRFQX2PMVPCw=",
+        "go_mod_sum": "h1:8xOJLbe/hOj1g4PVsfJYV7O2byq+UGET1onDdUgbwqc=",
+        "sum": "h1:lAVC9gMmKusmqDRe32dPtgKl/BWvJmMJoWELKHCAObw=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.33.3",
-      "version_published_at": "2026-09-04T18:16:56Z"
+      "version": "v1.32.40",
+      "version_published_at": "2026-08-26T18:43:21Z"
     },
     {
       "ecosystem": "gomod",
@@ -20855,15 +20854,15 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/credentials",
       "origins": [
-        "scanner"
+        "qa"
       ],
       "source": {
-        "go_mod_sum": "h1:GonTDBQ+mTpCVNwaHjj0PagspfrYYMEqOx7FehoEP/I=",
-        "sum": "h1:XOg8LC3Kgnsa3WiPQjc7Bi8k5IBN92cPYfIV9XMFss0=",
+        "go_mod_sum": "h1:w3dTcnDVoQIewjo7JG45hduAToikiIFLC4FIO7fndvw=",
+        "sum": "h1:y6GkSmcv5myd1ngrYbGmiLlwQqB6TQhOuN/tbSSuWDY=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.19.39",
-      "version_published_at": "2026-08-26T18:43:21Z"
+      "version": "v1.19.34",
+      "version_published_at": "2026-08-05T18:20:26Z"
     },
     {
       "ecosystem": "gomod",
@@ -20884,15 +20883,15 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/credentials",
       "origins": [
-        "qa"
+        "scanner"
       ],
       "source": {
-        "go_mod_sum": "h1:wfGneWyncO7p67wqXV2IQhPk14JqIc25woKlaArT3WI=",
-        "sum": "h1:tToOYM/LXev4NpfWlIYGDvBvjHmJ3HXpRU9ppl+pM6k=",
+        "go_mod_sum": "h1:GonTDBQ+mTpCVNwaHjj0PagspfrYYMEqOx7FehoEP/I=",
+        "sum": "h1:XOg8LC3Kgnsa3WiPQjc7Bi8k5IBN92cPYfIV9XMFss0=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.20.3",
-      "version_published_at": "2026-09-04T18:16:56Z"
+      "version": "v1.19.39",
+      "version_published_at": "2026-08-26T18:43:21Z"
     },
     {
       "ecosystem": "gomod",
@@ -20922,6 +20921,35 @@
       },
       "version": "v1.18.25",
       "version_published_at": "2026-05-29T18:20:45Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE.txt",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/aws/aws-sdk-go-v2/feature/ec2/imds",
+      "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:Ak7xXviIARfFdNUJ9Etb0bdVDt/KAvKjMGJVLWXDzik=",
+        "sum": "h1:+S7kbJoLDDQ5tE+lHrUBgMkzC8NLgsaioS2F3dVoFAE=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.18.35",
+      "version_published_at": "2026-08-05T18:20:26Z"
     },
     {
       "ecosystem": "gomod",
@@ -20980,35 +21008,6 @@
       },
       "version": "v1.18.40",
       "version_published_at": "2026-08-26T18:43:21Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE.txt",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/aws/aws-sdk-go-v2/feature/ec2/imds",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:XyK6UV8xbo66ysVqLd2783C09pBYHOm8aKTRV5DVJ30=",
-        "sum": "h1:Ldv7RPHs7qwwTscRjAl3YBud32f3BvdAGRmSvAx5L38=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.19.2",
-      "version_published_at": "2026-09-04T18:16:56Z"
     },
     {
       "ecosystem": "gomod",
@@ -21116,6 +21115,35 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/internal/configsources",
       "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:0yLx0yEI+SfqeJMPvOtIEFoZbiQYXMGszBueiutQyaI=",
+        "sum": "h1:kzVuGlatQtYinwBJEEyLAbggepCoavosiaHHX9+fD+c=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.4.35",
+      "version_published_at": "2026-08-05T18:20:26Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE.txt",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/aws/aws-sdk-go-v2/internal/configsources",
+      "origins": [
         "tool-cosign"
       ],
       "source": {
@@ -21172,17 +21200,17 @@
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/aws/aws-sdk-go-v2/internal/configsources",
+      "name": "github.com/aws/aws-sdk-go-v2/internal/endpoints/v2",
       "origins": [
-        "qa"
+        "application"
       ],
       "source": {
-        "go_mod_sum": "h1:TD1jvU2LvXkJexct5vBqcd8QlNXh5EmRUeL/Z32p0n4=",
-        "sum": "h1:q/PSLGuRWCChWg+dLnb9dWOnrCxJtnboXbBtFoqqRrI=",
+        "go_mod_sum": "h1:cKf+D+NMDK1LndD7BowHbBZPgR9V0/5HubH0PFWvA+c=",
+        "sum": "h1:r1+/l6m+WaUJF9HISEsNOLHSNj5EXYQxK8VX6Cz9NlA=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.5.2",
-      "version_published_at": "2026-09-04T18:16:56Z"
+      "version": "v2.7.25",
+      "version_published_at": "2026-05-29T18:20:45Z"
     },
     {
       "ecosystem": "gomod",
@@ -21203,15 +21231,15 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/internal/endpoints/v2",
       "origins": [
-        "application"
+        "qa"
       ],
       "source": {
-        "go_mod_sum": "h1:cKf+D+NMDK1LndD7BowHbBZPgR9V0/5HubH0PFWvA+c=",
-        "sum": "h1:r1+/l6m+WaUJF9HISEsNOLHSNj5EXYQxK8VX6Cz9NlA=",
+        "go_mod_sum": "h1:KYleN57luLoe97R7vTnx8PMcVrr9gAcRECtOjl91DNg=",
+        "sum": "h1:WK6CjihTuLisCjSKKbildJ79sGZZgbBz3iNa7VsKIhU=",
         "verification": "go-mod-verify"
       },
-      "version": "v2.7.25",
-      "version_published_at": "2026-05-29T18:20:45Z"
+      "version": "v2.7.35",
+      "version_published_at": "2026-08-05T18:20:26Z"
     },
     {
       "ecosystem": "gomod",
@@ -21270,35 +21298,6 @@
       },
       "version": "v2.7.40",
       "version_published_at": "2026-08-26T18:43:21Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE.txt",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/aws/aws-sdk-go-v2/internal/endpoints/v2",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:63HDfhFkdzBpI8WGXTSKUHPKS6mqldj4u3LJW7RZtSU=",
-        "sum": "h1:6fl86IPqKEXoySqiOWdfgbEp9OVbn44zTfEICNEBDhY=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v2.8.2",
-      "version_published_at": "2026-09-04T18:16:56Z"
     },
     {
       "ecosystem": "gomod",
@@ -21435,6 +21434,35 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/internal/v4a",
       "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:uBu/9aKsS/UQGc72RAt3y54kjgYQxmhut8ZD2dXCDNE=",
+        "sum": "h1:jbGY4CXLzZElOXgGsexlC3Hi+3YM0rSmk4opFXKqg/k=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.4.36",
+      "version_published_at": "2026-08-05T18:20:26Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE.txt",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/aws/aws-sdk-go-v2/internal/v4a",
+      "origins": [
         "tool-cosign"
       ],
       "source": {
@@ -21491,35 +21519,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/aws/aws-sdk-go-v2/internal/v4a",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:vorxDzK+n3jiv9a5ST/LG0Eu9cSv1CRdKTpG6pDMs+M=",
-        "sum": "h1:XMgIRS+uW9F3yFKnXGRrI9pkHi99CXTmoz2kz2/TGBA=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.5.2",
-      "version_published_at": "2026-09-04T18:16:56Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE.txt",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/service/dynamodb",
       "origins": [
         "scanner"
@@ -21531,35 +21530,6 @@
       },
       "version": "v1.62.1",
       "version_published_at": "2026-07-28T18:19:17Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE.txt",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/aws/aws-sdk-go-v2/service/ec2",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:mILEu29lo7lpbpkBIy4BtVFoHPLyM/ngOKYCZHEqciM=",
-        "sum": "h1:diNdfHw/832G8QYVQ6uz5kwOC0pCAZNnn+Gvz0UXPag=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.329.0",
-      "version_published_at": "2026-09-04T18:16:56Z"
     },
     {
       "ecosystem": "gomod",
@@ -21694,64 +21664,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/aws/aws-sdk-go-v2/service/ecs",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:djHxMBR2H6gax8sZIXbRic+c5O6NQKm/r7NU2kezbZk=",
-        "sum": "h1:kAOWRGbOwkvD+IQLOklSNSVY6pF2nGCmemBHG4iRLNk=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.96.0",
-      "version_published_at": "2026-09-04T18:16:56Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE.txt",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/aws/aws-sdk-go-v2/service/elasticache",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:SoFRXCmJnIMlKjLVEqpMWTaA37VqjJRrOy4VYZyB3sA=",
-        "sum": "h1:CrluVCmQeznDoFlxpqz13J8Ym4QsmxbMocoWc4TcC1Y=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.60.0",
-      "version_published_at": "2026-09-04T18:16:56Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE.txt",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/service/iam",
       "origins": [
         "scanner"
@@ -21841,7 +21753,35 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding",
       "origins": [
-        "qa",
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:lQknBIe78MVL0cQOQDlag8KGflMbMEVFx9mB6O8ENvk=",
+        "sum": "h1:JJLBQxwY+AFwuPAi5ivGc1ChnTdUt4cXMv7e76m2c/Y=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.13.15",
+      "version_published_at": "2026-07-31T20:13:11Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE.txt",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding",
+      "origins": [
         "scanner"
       ],
       "source": {
@@ -22016,6 +21956,35 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/service/internal/presigned-url",
       "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:zaZk983w//8beSruBVec/mr4CmDwgZitW/qzGhAAX0g=",
+        "sum": "h1:BBEElKh4a+rKshvjrfpajTe9CbpZvrbb4Jkg2PB7RzA=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.13.35",
+      "version_published_at": "2026-08-05T18:20:26Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE.txt",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/aws/aws-sdk-go-v2/service/internal/presigned-url",
+      "origins": [
         "tool-cosign"
       ],
       "source": {
@@ -22054,35 +22023,6 @@
       },
       "version": "v1.13.40",
       "version_published_at": "2026-08-26T18:43:21Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE.txt",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/aws/aws-sdk-go-v2/service/internal/presigned-url",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:a1NXrYpBd311gBzn1UI5UzJyyvXktM4xNh/ydPiPpqY=",
-        "sum": "h1:ZtHYnumr6QyxhzEzNZwzQTFJEXOswrZqTTkRxthwvr4=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.14.2",
-      "version_published_at": "2026-09-04T18:16:56Z"
     },
     {
       "ecosystem": "gomod",
@@ -22188,35 +22128,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/aws/aws-sdk-go-v2/service/kafka",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:0MZ/BsXlcYxOgjiFappYecMG0QtIDxI1HHPq+KM1lh4=",
-        "sum": "h1:WHsnt+uDX5Oml7DiEoZGH3zJZLWoO95C3vvfUYpY7vI=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.63.0",
-      "version_published_at": "2026-09-04T18:16:56Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE.txt",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/service/kms",
       "origins": [
         "tool-cosign"
@@ -22286,64 +22197,6 @@
       },
       "version": "v1.52.2",
       "version_published_at": "2026-05-29T18:20:45Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE.txt",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/aws/aws-sdk-go-v2/service/lightsail",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:KgoVDjK6UfFu/YzH686vZ9FPv5H0w4G8tuqmQyZ8/hU=",
-        "sum": "h1:b9XJhCPBgr39pobi+nYLprIfN/0Z75dRbuMGuCnvUs4=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.64.0",
-      "version_published_at": "2026-09-04T18:16:56Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE.txt",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/aws/aws-sdk-go-v2/service/rds",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:UjDrUggtVvjoG/JmU9SvzE+eKjnCKvn7JDsETFe4R4M=",
-        "sum": "h1:keaCViwAriS0OADwo19JlyYj69E89dVdBHUovcVYmXk=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.128.0",
-      "version_published_at": "2026-09-04T18:16:56Z"
     },
     {
       "ecosystem": "gomod",
@@ -22480,15 +22333,15 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/service/signin",
       "origins": [
-        "scanner"
+        "qa"
       ],
       "source": {
-        "go_mod_sum": "h1:qU5PxgQ4JiUOOMotzfO3+5oUda5W+8JDVKyLQqlrJik=",
-        "sum": "h1:agcr0j8YeFEzdXNo17Rg9MbbjLRjrimabwNtji4e+lU=",
+        "go_mod_sum": "h1:f4LxzKBtaTxD7xh3PiVg3CE1tchQemfmghaJr+NbK2c=",
+        "sum": "h1:cOJELVNrq5Q3Udry2GLuHUM7MhwpeaQRdYaoa6GI/yI=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.6.0",
-      "version_published_at": "2026-08-26T18:43:21Z"
+      "version": "v1.5.4",
+      "version_published_at": "2026-08-05T18:20:26Z"
     },
     {
       "ecosystem": "gomod",
@@ -22509,15 +22362,15 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/service/signin",
       "origins": [
-        "qa"
+        "scanner"
       ],
       "source": {
-        "go_mod_sum": "h1:AGIoQg99fBrOIQnF78TLx4lj18mc4gZ0hJx1UaLIFM4=",
-        "sum": "h1:c3k+k/CS4L+sAIH6fxikL+g5g2LpeNczaoyjjw1iMKI=",
+        "go_mod_sum": "h1:qU5PxgQ4JiUOOMotzfO3+5oUda5W+8JDVKyLQqlrJik=",
+        "sum": "h1:agcr0j8YeFEzdXNo17Rg9MbbjLRjrimabwNtji4e+lU=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.9.0",
-      "version_published_at": "2026-09-04T18:16:56Z"
+      "version": "v1.6.0",
+      "version_published_at": "2026-08-26T18:43:21Z"
     },
     {
       "ecosystem": "gomod",
@@ -22654,15 +22507,15 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/service/sso",
       "origins": [
-        "scanner"
+        "qa"
       ],
       "source": {
-        "go_mod_sum": "h1:vu4OY6s8LJtT8BtYG2LD6BGSZMptkYn3o5hvCPB22jc=",
-        "sum": "h1:FxaN8/sn61DTXNI6Gt678tFJUY8iUsCchm6Y/F/RjaA=",
+        "go_mod_sum": "h1:QQNsFV1DVXoXcZt18FS8lI8rtUrlDyAuWZLQ5shunv4=",
+        "sum": "h1:AMW7a7S8iQaHjBYZdU3PCq4GKRPijTPRAc7e6XtEThY=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.34.0",
-      "version_published_at": "2026-08-26T18:43:21Z"
+      "version": "v1.33.4",
+      "version_published_at": "2026-08-05T18:20:26Z"
     },
     {
       "ecosystem": "gomod",
@@ -22683,15 +22536,15 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/service/sso",
       "origins": [
-        "qa"
+        "scanner"
       ],
       "source": {
-        "go_mod_sum": "h1:XFlVwUsw3sYh8Hw37umYVJnrcWrwXWRxbNw/JY0bblw=",
-        "sum": "h1:+rqBaOq7jzInjY8M12hr+zEe85JpRll9BjMx38r33Ok=",
+        "go_mod_sum": "h1:vu4OY6s8LJtT8BtYG2LD6BGSZMptkYn3o5hvCPB22jc=",
+        "sum": "h1:FxaN8/sn61DTXNI6Gt678tFJUY8iUsCchm6Y/F/RjaA=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.37.0",
-      "version_published_at": "2026-09-04T18:16:56Z"
+      "version": "v1.34.0",
+      "version_published_at": "2026-08-26T18:43:21Z"
     },
     {
       "ecosystem": "gomod",
@@ -22770,15 +22623,15 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/service/ssooidc",
       "origins": [
-        "scanner"
+        "qa"
       ],
       "source": {
-        "go_mod_sum": "h1:HjjZVhaBz0JBR/kbWKThmNDhFKS7y6EURuk493tJk9Y=",
-        "sum": "h1:crWKPeGYTBTuBxQ3p73kjfJvt4brUIsr+Fuypko8FxY=",
+        "go_mod_sum": "h1:6imqztH0//t0mKbl6yWl7swSEl7F/w32oAmqB3vP1ag=",
+        "sum": "h1:AsbZcJAQPRmHDJG8K1N0pof/1zPWjVT8TFlTWuGLSvo=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.39.0",
-      "version_published_at": "2026-08-26T18:43:21Z"
+      "version": "v1.38.4",
+      "version_published_at": "2026-08-05T18:20:26Z"
     },
     {
       "ecosystem": "gomod",
@@ -22799,15 +22652,15 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/service/ssooidc",
       "origins": [
-        "qa"
+        "scanner"
       ],
       "source": {
-        "go_mod_sum": "h1:588e7skMkYIYkSUseT8E3WKFfbAfrA1bj3Zf+qxJtJY=",
-        "sum": "h1:hzM3GslEAOBcLn3DHH6ENToFi+vXP+n02W+x6zejAIM=",
+        "go_mod_sum": "h1:HjjZVhaBz0JBR/kbWKThmNDhFKS7y6EURuk493tJk9Y=",
+        "sum": "h1:crWKPeGYTBTuBxQ3p73kjfJvt4brUIsr+Fuypko8FxY=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.42.0",
-      "version_published_at": "2026-09-04T18:16:56Z"
+      "version": "v1.39.0",
+      "version_published_at": "2026-08-26T18:43:21Z"
     },
     {
       "ecosystem": "gomod",
@@ -22886,15 +22739,15 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/service/sts",
       "origins": [
-        "scanner"
+        "qa"
       ],
       "source": {
-        "go_mod_sum": "h1:I+rwAf3spG5dITBaAo3xXRowk8kiOhtU1kYxfvCTC44=",
-        "sum": "h1:IZ63JdogSNNjex/jsODNv7jGDcO/xJYd9FsgyfCsp1g=",
+        "go_mod_sum": "h1:WeBiAa67azG7Su9Vf+ChGDBLiAozJCXzdjXiPBUwtbc=",
+        "sum": "h1:w/AryDYMjSUANSQ2uoZxJovUsMTwWJNTv3IMex30Y+4=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.46.0",
-      "version_published_at": "2026-08-26T18:43:21Z"
+      "version": "v1.45.4",
+      "version_published_at": "2026-08-05T18:20:26Z"
     },
     {
       "ecosystem": "gomod",
@@ -22915,15 +22768,15 @@
       "license_status": "candidate",
       "name": "github.com/aws/aws-sdk-go-v2/service/sts",
       "origins": [
-        "qa"
+        "scanner"
       ],
       "source": {
-        "go_mod_sum": "h1:zMBwjSf4Pt8a1OHYiZ5rPD0PJRK1kQrUaxhS/Dbld8E=",
-        "sum": "h1:N7Ey8obY3uSui+cxl0OUzFlFmkxSucoJnrniFhw+cLc=",
+        "go_mod_sum": "h1:I+rwAf3spG5dITBaAo3xXRowk8kiOhtU1kYxfvCTC44=",
+        "sum": "h1:IZ63JdogSNNjex/jsODNv7jGDcO/xJYd9FsgyfCsp1g=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.49.0",
-      "version_published_at": "2026-09-04T18:16:56Z"
+      "version": "v1.46.0",
+      "version_published_at": "2026-08-26T18:43:21Z"
     },
     {
       "ecosystem": "gomod",
@@ -23029,7 +22882,44 @@
       "license_status": "candidate",
       "name": "github.com/aws/smithy-go",
       "origins": [
-        "qa",
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:YE2RhdIuDbA5E5bTdciG9KrW3+TiEONeUWCqxX9i1Fc=",
+        "sum": "h1:0zjT8jgK3jbrTT7JJ3EE6JsMhX8JTrZ+f1sEndYDXrA=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.27.6",
+      "version_published_at": "2026-07-31T18:46:10Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "09e8a9bcec8067104652c168685ab0931e7868f9c8284b66f5ae6edae5f1130b",
+          "status": "candidate"
+        },
+        {
+          "coverage_percent": 0,
+          "file": "NOTICE",
+          "ids": [],
+          "kind": "notice",
+          "license": null,
+          "sha256": "d4290ed64c2edd0fce1d84e3f9dfb2881240fe534def76b8cd29ed6af683e287",
+          "status": "unknown"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/aws/smithy-go",
+      "origins": [
         "scanner"
       ],
       "source": {
@@ -23283,35 +23173,6 @@
     },
     {
       "ecosystem": "gomod",
-      "license": "MIT",
-      "license_evidence": [
-        {
-          "coverage_percent": 97.6608187134503,
-          "file": "LICENSE",
-          "ids": [
-            "MIT"
-          ],
-          "kind": "license",
-          "license": "MIT",
-          "sha256": "39a67951d56adb602a1952b56251fba311ed84a6bec8b60ba1277ed232556645",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/basgys/goxml2json",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:9+nBLYNWkvPcq9ep0owWUsPTLgL9ZXTsZWcCSVGGLJ0=",
-        "sum": "h1:3swAvbzgfaI6nKuDDU7BiKfZRdF+h2ZwKgMHd8Ha4t8=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.1.1-0.20231018121955-e66ee54ceaad",
-      "version_published_at": "2023-10-18T12:19:55Z"
-    },
-    {
-      "ecosystem": "gomod",
       "license": "Apache-2.0",
       "license_evidence": [
         {
@@ -23330,8 +23191,7 @@
       "name": "github.com/bboreham/go-loser",
       "origins": [
         "fixture-mc",
-        "fixture-minio",
-        "qa"
+        "fixture-minio"
       ],
       "source": {
         "go_mod_sum": "h1:CIWtjkly68+yqLPbvwwR/fjNJA/idrtULjZWh2v1ys0=",
@@ -25071,7 +24931,6 @@
       "name": "github.com/cenkalti/backoff/v5",
       "origins": [
         "application",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -25082,6 +24941,35 @@
       },
       "version": "v5.0.3",
       "version_published_at": "2025-07-23T16:23:35Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/census-instrumentation/opencensus-proto",
+      "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:f6KPmirojxKA12rnyqOA5BBL4O983OfeGPqjHWSTneU=",
+        "sum": "h1:glEXhBS5PSLLv4IXzLA5yPRVX4bilULVyxxbrfOtDAk=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v0.2.1",
+      "version_published_at": "2019-07-18T16:27:18Z"
     },
     {
       "ecosystem": "gomod",
@@ -26304,6 +26192,23 @@
     },
     {
       "ecosystem": "gomod",
+      "license": null,
+      "license_evidence": [],
+      "license_status": "not-found",
+      "name": "github.com/chzyer/logex",
+      "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:+Ywpsq7O8HXn0nuIou7OrIPyXbp3wmkHB+jjWRnGsAI=",
+        "sum": "h1:Swpa1K6QvQznwJRcfTfQJmTE72DqScAa40E+fbHEXEE=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.1.10",
+      "version_published_at": "2015-10-10T15:13:41Z"
+    },
+    {
+      "ecosystem": "gomod",
       "license": "MIT",
       "license_evidence": [
         {
@@ -26352,6 +26257,35 @@
       "license_status": "candidate",
       "name": "github.com/chzyer/readline",
       "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:nSuG5e5PlCu98SY8svDHJxuZscDgtXS6KTTbou5AhLI=",
+        "sum": "h1:fY5BOSpyZCqRo5OhCuC+XN+r/bBCmeuuJtjz+bCNIf8=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v0.0.0-20180603132655-2972be24d48e",
+      "version_published_at": "2018-06-03T13:26:55Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 97.6470588235294,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "3e07c02046bf3c2a73f060636997e0323dbe92a2d4ba43ef9e6b05a1031ae4c4",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/chzyer/readline",
+      "origins": [
         "fixture-minio",
         "scanner",
         "tool-cosign"
@@ -26363,6 +26297,35 @@
       },
       "version": "v1.5.1",
       "version_published_at": "2022-07-15T12:48:48Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 97.6470588235294,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "b1e5f2e9cdef77a7ce0f75220327e9300050b60af054b778f65e62cb22d2bce5",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/chzyer/test",
+      "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:Q3SI9o4m/ZMnBNeIyt5eFwwo7qiLfzFZmjNmxjkiQlU=",
+        "sum": "h1:q763qf9huN11kDQavWsoZXJNW3xEE4JJyHa5Q25/sd8=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v0.0.0-20180213035817-a1ea475d72b1",
+      "version_published_at": "2018-02-13T03:58:17Z"
     },
     {
       "ecosystem": "gomod",
@@ -26591,6 +26554,7 @@
       "license_status": "candidate",
       "name": "github.com/client9/misspell",
       "origins": [
+        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -26722,6 +26686,35 @@
       },
       "version": "v1.6.3",
       "version_published_at": "2026-01-22T20:12:37Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/cncf/udpa/go",
+      "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:M8M6+tZqaGXZJjfX53e64911xZQV5JYwmTeXPW+k8Sc=",
+        "sum": "h1:WBZRG4aNOuI15bLRrCgN8fCq8E5Xuty6jGbmSNEvSsU=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v0.0.0-20191209042840-269d4d468f6f",
+      "version_published_at": "2019-12-09T04:28:40Z"
     },
     {
       "ecosystem": "gomod",
@@ -27260,7 +27253,6 @@
       "name": "github.com/containerd/errdefs",
       "origins": [
         "application",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -27292,7 +27284,6 @@
       "name": "github.com/containerd/errdefs/pkg",
       "origins": [
         "application",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -28292,6 +28283,44 @@
       "license_status": "candidate",
       "name": "github.com/coreos/go-systemd/v22",
       "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=",
+        "sum": "h1:D9/bQk5vlXQFZ6Kwuu6zaiXJ9oTPe68++AzAJc1DzSI=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v22.3.2",
+      "version_published_at": "2021-05-03T07:14:32Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68",
+          "status": "candidate"
+        },
+        {
+          "coverage_percent": 0,
+          "file": "NOTICE",
+          "ids": [],
+          "kind": "notice",
+          "license": null,
+          "sha256": "572b159624f1898b40e9f09c9e4cfb65a595044960982aa95126bc28f7d1e6c0",
+          "status": "unknown"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/coreos/go-systemd/v22",
+      "origins": [
         "application",
         "fixture-mc",
         "fixture-minio",
@@ -28333,7 +28362,6 @@
       "license_status": "candidate",
       "name": "github.com/coreos/go-systemd/v22",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -29207,8 +29235,7 @@
       "name": "github.com/dennwc/varint",
       "origins": [
         "fixture-mc",
-        "fixture-minio",
-        "qa"
+        "fixture-minio"
       ],
       "source": {
         "go_mod_sum": "h1:hnItb35rvZvJrbTALZtY/iQfDs48JKRG1RPpgziApxA=",
@@ -29515,36 +29542,6 @@
     },
     {
       "ecosystem": "gomod",
-      "license": null,
-      "license_evidence": [
-        {
-          "coverage_percent": 96.35036496350365,
-          "file": "LICENSE.txt",
-          "ids": [
-            "BSD-3-Clause",
-            "MIT"
-          ],
-          "kind": "license",
-          "license": null,
-          "sha256": "946d0e939f736a9d7061ea06591818107fb12d3cddad70ee81667b85f7f24c22",
-          "status": "ambiguous"
-        }
-      ],
-      "license_status": "ambiguous",
-      "name": "github.com/digitalocean/godo",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:xQsWpVCCbkDrWisHA72hPzPlnC+4W5w/McZY5ij9uvU=",
-        "sum": "h1:/GPyFPaT6Rk9wmT8RWlg1S5Kuq9ahuBZNEu/LvY8yB0=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.206.0",
-      "version_published_at": "2026-08-31T04:59:52Z"
-    },
-    {
-      "ecosystem": "gomod",
       "license": "MIT",
       "license_evidence": [
         {
@@ -29711,7 +29708,6 @@
       "name": "github.com/distribution/reference",
       "origins": [
         "application",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -30198,8 +30194,7 @@
       "license_status": "candidate",
       "name": "github.com/docker/go-connections",
       "origins": [
-        "application",
-        "qa"
+        "application"
       ],
       "source": {
         "go_mod_sum": "h1:no1qkHdjq7kLMGUXYAduOhYPSJxxvgWBh7ogVvptn3Q=",
@@ -30327,7 +30322,6 @@
         "application",
         "fixture-mc",
         "fixture-minio",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -30760,35 +30754,6 @@
     },
     {
       "ecosystem": "gomod",
-      "license": "BSD-3-Clause",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "BSD-3-Clause"
-          ],
-          "kind": "license",
-          "license": "BSD-3-Clause",
-          "sha256": "c2eba69f20d05414538c3a5df7694dde392e065ff70882e1625e90f5d6659fff",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/edsrzf/mmap-go",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:19H/e8pUPLicwkyNgOykDXkJ9F0MHE+Z52B8EIth78Q=",
-        "sum": "h1:I4PrRZuNMeDP3VbFrak4QsqwO5tWkQf0tqrrr1L2DsU=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.2.1-0.20241212181136-fad1cd13edbd",
-      "version_published_at": "2024-12-12T18:11:36Z"
-    },
-    {
-      "ecosystem": "gomod",
       "license": "MIT",
       "license_evidence": [
         {
@@ -31068,7 +31033,6 @@
       "license_status": "candidate",
       "name": "github.com/emicklei/go-restful/v3",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -31251,6 +31215,7 @@
       "name": "github.com/envoyproxy/go-control-plane/envoy",
       "origins": [
         "application",
+        "qa",
         "scanner"
       ],
       "source": {
@@ -31260,35 +31225,6 @@
       },
       "version": "v1.37.0",
       "version_published_at": "2026-01-13T06:26:49Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/envoyproxy/go-control-plane/envoy",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:5e4ylfTZO723MEEFsCpSW4ZEBWR8mwkEyXfwJBTCZ9c=",
-        "sum": "h1:1uwRDYPYG8BIBU9Mj1sUAebNmlM6beu/ZKKweSLDxk8=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.39.0",
-      "version_published_at": "2026-07-13T21:42:02Z"
     },
     {
       "ecosystem": "gomod",
@@ -31613,8 +31549,7 @@
       "name": "github.com/facette/natsort",
       "origins": [
         "fixture-mc",
-        "fixture-minio",
-        "qa"
+        "fixture-minio"
       ],
       "source": {
         "go_mod_sum": "h1:bH6Xx7IW64qjjJq8M2u4dxNaBiDfKK+z/3eGDpXEQhc=",
@@ -31796,7 +31731,6 @@
       "origins": [
         "fixture-mc",
         "fixture-minio",
-        "qa",
         "scanner"
       ],
       "source": {
@@ -32152,7 +32086,6 @@
       "license_status": "candidate",
       "name": "github.com/fsnotify/fsnotify",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -32213,6 +32146,7 @@
       "name": "github.com/fsnotify/fsnotify",
       "origins": [
         "application",
+        "qa",
         "tool-cosign"
       ],
       "source": {
@@ -32312,35 +32246,6 @@
       },
       "version": "v2.9.0",
       "version_published_at": "2025-07-14T04:00:34Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "MIT",
-      "license_evidence": [
-        {
-          "coverage_percent": 98.82352941176471,
-          "file": "LICENSE",
-          "ids": [
-            "MIT"
-          ],
-          "kind": "license",
-          "license": "MIT",
-          "sha256": "78cad457d5ea7318230f3d969d4cdf29cef45524a1fc8ca3a97646da1ad7a841",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/fxamacker/cbor/v2",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:vM4b+DJCtHn+zz7h3FFp/hDAI9WNWCsZj23V5ytsSxQ=",
-        "sum": "h1:2rWm8B193Ll4VdjsJY28jxs70IdDsHRWgQYAI80+rMQ=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v2.9.1",
-      "version_published_at": "2026-03-30T13:23:16Z"
     },
     {
       "ecosystem": "gomod",
@@ -33353,6 +33258,7 @@
       "license_status": "candidate",
       "name": "github.com/go-gl/glfw",
       "origins": [
+        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -33383,6 +33289,7 @@
       "license_status": "candidate",
       "name": "github.com/go-gl/glfw/v3.3/glfw",
       "origins": [
+        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -33619,6 +33526,7 @@
       "license_status": "candidate",
       "name": "github.com/go-kit/kit",
       "origins": [
+        "qa",
         "scanner"
       ],
       "source": {
@@ -33628,6 +33536,35 @@
       },
       "version": "v0.9.0",
       "version_published_at": "2019-06-24T11:05:17Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.81656804733728,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "1ea87f17c186a528a91ff8d81073d9ee434f40a3ad8067d83158f5c5188c0be2",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/go-kit/log",
+      "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:zbhenjAZHb184qTLMA9ZjW7ThYL0H2mk7Q6pNt4vbaY=",
+        "sum": "h1:DGJh0Sm43HbOeYDNnVZFl8BvcYVvjD5bqYJvp0REbwQ=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v0.1.0",
+      "version_published_at": "2021-06-02T02:03:10Z"
     },
     {
       "ecosystem": "gomod",
@@ -33744,6 +33681,35 @@
       },
       "version": "v0.4.0",
       "version_published_at": "2018-11-22T01:56:15Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 97.6608187134503,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "1b582013d963b973548e8a51b99fc2e8e1937855698c6a7b460886ac2e90017e",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/go-logfmt/logfmt",
+      "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:wCYkCAKZfumFQihp8CzCvQ3paCTfi41vtzG1KdI/P7A=",
+        "sum": "h1:TrB8swr/68K7m9CcGut2g3UOihhbcbiMAYiuTXdEih4=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v0.5.0",
+      "version_published_at": "2020-01-04T05:22:39Z"
     },
     {
       "ecosystem": "gomod",
@@ -33980,8 +33946,7 @@
       "license_status": "candidate",
       "name": "github.com/go-openapi/analysis",
       "origins": [
-        "application",
-        "qa"
+        "application"
       ],
       "source": {
         "go_mod_sum": "h1:d3UGtQC5uq5Kqqqis2VH09Km/v3vwsWrYkbp4gdm+Rc=",
@@ -34097,8 +34062,7 @@
       "license_status": "candidate",
       "name": "github.com/go-openapi/errors",
       "origins": [
-        "application",
-        "qa"
+        "application"
       ],
       "source": {
         "go_mod_sum": "h1:BuUoHcYrU6E7V9gfj1I5wLQqgtIHnup/alXZ8KdgQ0w=",
@@ -34197,8 +34161,7 @@
       "license_status": "candidate",
       "name": "github.com/go-openapi/jsonpointer",
       "origins": [
-        "application",
-        "qa"
+        "application"
       ],
       "source": {
         "go_mod_sum": "h1:Z3rw7dWu1p9IgitXCFamSlA5lmDiklEB6vkaxcNZW5Y=",
@@ -34269,8 +34232,7 @@
       "license_status": "candidate",
       "name": "github.com/go-openapi/jsonreference",
       "origins": [
-        "application",
-        "qa"
+        "application"
       ],
       "source": {
         "go_mod_sum": "h1:jtwdyGbJk0Xhe5Y+rwtglQP6Sb1WZST4rT32LWB+sv0=",
@@ -34330,8 +34292,7 @@
       "license_status": "candidate",
       "name": "github.com/go-openapi/loads",
       "origins": [
-        "application",
-        "qa"
+        "application"
       ],
       "source": {
         "go_mod_sum": "h1:JFBw4SIB9+PTIFHDfcXuSSy5h6aWzjtUCrPYyx3qWU8=",
@@ -34531,8 +34492,7 @@
       "license_status": "unknown",
       "name": "github.com/go-openapi/spec",
       "origins": [
-        "application",
-        "qa"
+        "application"
       ],
       "source": {
         "go_mod_sum": "h1:b/mNUYIOQOyIiUzUzXEE8xzyZqf93KvM9hQGP91yfl0=",
@@ -34601,35 +34561,6 @@
       },
       "version": "v0.27.0",
       "version_published_at": "2026-07-16T11:49:37Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/go-openapi/strfmt",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:M4CKsMO0Fb8qR10+1Ra75wCKNNquy+Vj+4LWZrhTo2E=",
-        "sum": "h1:SG32SlbwNy92s0KJiVxt2joJeFdqIYHvwrA0OU6HqzQ=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.27.2",
-      "version_published_at": "2026-09-03T16:13:02Z"
     },
     {
       "ecosystem": "gomod",
@@ -34764,35 +34695,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/go-openapi/swag",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:4qYnT3Cqr1p1VknOdPo70evN4rgQnAg6jwApHyxSGIg=",
-        "sum": "h1:xkgbOSKj6DZziNpyqRRAOt3GJGtgjgsd2RoyT30VWuw=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.28.0",
-      "version_published_at": "2026-07-27T19:54:38Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "github.com/go-openapi/swag/cmdutils",
       "origins": [
         "tool-cosign"
@@ -34833,35 +34735,6 @@
       },
       "version": "v0.27.0",
       "version_published_at": "2026-06-29T18:30:18Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/go-openapi/swag/cmdutils",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:Sm1MVFMkF6guJJ+pQqHnQA3N0j9qALV3NxzDSv6bETM=",
-        "sum": "h1:7TOeNtkYru1SG8Y34tDh9WBbLsMqGnptuxWiHREPZ4Q=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.28.0",
-      "version_published_at": "2026-07-27T19:54:38Z"
     },
     {
       "ecosystem": "gomod",
@@ -34938,35 +34811,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/go-openapi/swag/conv",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:mbUE+mzctnhxi864m0Q07SpN8OowD9JhxmxuYvZZD/k=",
-        "sum": "h1:GtqqbyFe7vR5Y7ehxG9W6/OvrSFdf1OLeTGp40TqxH8=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.28.0",
-      "version_published_at": "2026-07-27T19:54:38Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "github.com/go-openapi/swag/fileutils",
       "origins": [
         "tool-cosign"
@@ -35007,35 +34851,6 @@
       },
       "version": "v0.27.3",
       "version_published_at": "2026-07-20T14:59:07Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/go-openapi/swag/fileutils",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:VvJFZLTZS0AI854gEQz5tk7dBESdLjiNUMSZ/th2ry8=",
-        "sum": "h1:Z04XWQD7R8Eq+7GnOrjovBxPPmZzsS4gt2H2GPGIViU=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.28.0",
-      "version_published_at": "2026-07-27T19:54:38Z"
     },
     {
       "ecosystem": "gomod",
@@ -35170,35 +34985,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/go-openapi/swag/jsonutils",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:CYM3WlTUcagR2ZoHdz54di/cbBqt82tuxuXgAjxw+mg=",
-        "sum": "h1:YIch6FwO7RXzeAnbO8Tu7dWBZeUEH+4nA0HXltVTnv4=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.28.0",
-      "version_published_at": "2026-07-27T19:54:38Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "github.com/go-openapi/swag/jsonutils/fixtures_test",
       "origins": [
         "application"
@@ -35286,35 +35072,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/go-openapi/swag/loading",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:rXB0QiQX5mMveXEA7ouM4KiiM9jVJe4K6BVbwhD1M4k=",
-        "sum": "h1:td8QZdZC9MIYGGSnSPKShKiK22I2tU5UQvuUhIBPRLU=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.28.0",
-      "version_published_at": "2026-07-27T19:54:38Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "github.com/go-openapi/swag/mangling",
       "origins": [
         "tool-cosign"
@@ -35355,35 +35112,6 @@
       },
       "version": "v0.27.3",
       "version_published_at": "2026-07-20T14:59:07Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/go-openapi/swag/mangling",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:jtBE2+V+3pILxOR7Vgce+Cwp6A2PgZbvVqfNntbVs0w=",
-        "sum": "h1:pH8eyeNO9SLYsTMWJrurnNfKmDa28XrlA+HePVD53VM=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.28.0",
-      "version_published_at": "2026-07-27T19:54:38Z"
     },
     {
       "ecosystem": "gomod",
@@ -35460,35 +35188,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/go-openapi/swag/netutils",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:J+WYyFMLtvtCGqa6jLv+YNUmIKI3ZRQRrvfNDMoQoEQ=",
-        "sum": "h1:YXN6TALEi2pzts8/8GNm6T61HTAZsieukGZidap989k=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.28.0",
-      "version_published_at": "2026-07-27T19:54:38Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "github.com/go-openapi/swag/pools",
       "origins": [
         "application"
@@ -35500,35 +35199,6 @@
       },
       "version": "v0.27.3",
       "version_published_at": "2026-07-20T14:59:07Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/go-openapi/swag/pools",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:kVQefhSK5RWuRe7BXsL8htgBPAMpN7HDGpGEknqugeE=",
-        "sum": "h1:HPMZWSAfce3rdVTFcjFiCIBtDg9h4x2QlRrHipwhxeU=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.28.0",
-      "version_published_at": "2026-07-27T19:54:38Z"
     },
     {
       "ecosystem": "gomod",
@@ -35605,35 +35275,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/go-openapi/swag/stringutils",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:lzRN95CxXmA03XcDWHLOb6nOMcxCqR5rGY0lOgsfRoM=",
-        "sum": "h1:ixsc9iYgDPubHL/8nSkbnryEHpD2VRlBMLKpQyPXcDU=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.28.0",
-      "version_published_at": "2026-07-27T19:54:38Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "github.com/go-openapi/swag/typeutils",
       "origins": [
         "tool-cosign"
@@ -35692,35 +35333,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/go-openapi/swag/typeutils",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:Srm0xFNRZ1Y+vCxJclo5qzx8aj+1pAKda/YfFPrG0dQ=",
-        "sum": "h1:nRBKSBXjDgf01VDPB3fWeD9nQuhCOVeIYAkUx2tbkyY=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.28.0",
-      "version_published_at": "2026-07-27T19:54:38Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "github.com/go-openapi/swag/yamlutils",
       "origins": [
         "tool-cosign"
@@ -35761,35 +35373,6 @@
       },
       "version": "v0.27.3",
       "version_published_at": "2026-07-20T14:59:07Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/go-openapi/swag/yamlutils",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:x0q/yndZHEgk9Rx3DyDqzFUmHy55KTvIZldvF2dTJXs=",
-        "sum": "h1:TV3JXH6DS46KUroDtMLAYHGkdWf5VDq3wVWFirmzROY=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.28.0",
-      "version_published_at": "2026-07-27T19:54:38Z"
     },
     {
       "ecosystem": "gomod",
@@ -35913,8 +35496,7 @@
       "license_status": "candidate",
       "name": "github.com/go-openapi/validate",
       "origins": [
-        "application",
-        "qa"
+        "application"
       ],
       "source": {
         "go_mod_sum": "h1:B8UMgXiQiwwQWIbmuROlwJZDPGlikPuh7iHV1vPX9Oo=",
@@ -36281,35 +35863,6 @@
       "license": "MIT",
       "license_evidence": [
         {
-          "coverage_percent": 97.75280898876404,
-          "file": "LICENSE",
-          "ids": [
-            "MIT"
-          ],
-          "kind": "license",
-          "license": "MIT",
-          "sha256": "07089ee111422e78fad17058c12115728ded901c06185125836594d521b10967",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/go-resty/resty/v2",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:kCKZ3wWmwJaNc7S29BRtUhJwy7iqmn+2mLtQrOyQlVA=",
-        "sum": "h1:FQW5oHYcIlkCNrMD2lloGScxcHJ0gkjshV3qcQAyHQk=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v2.17.2",
-      "version_published_at": "2026-02-14T22:33:41Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "MIT",
-      "license_evidence": [
-        {
           "coverage_percent": 98.23529411764706,
           "file": "LICENSE",
           "ids": [
@@ -36472,6 +36025,7 @@
       "license_status": "candidate",
       "name": "github.com/go-stack/stack",
       "origins": [
+        "qa",
         "scanner"
       ],
       "source": {
@@ -36951,8 +36505,7 @@
       "name": "github.com/go-zookeeper/zk",
       "origins": [
         "fixture-mc",
-        "fixture-minio",
-        "qa"
+        "fixture-minio"
       ],
       "source": {
         "go_mod_sum": "h1:nOB03cncLtlp4t+UAkGSV+9beXP/akpekBwL+UX1Qcw=",
@@ -37846,6 +37399,35 @@
       "license_status": "candidate",
       "name": "github.com/golang/mock",
       "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:l3mdAwkq5BuhzHwde/uurv3sEJeZMXNpwsxVWU71h+4=",
+        "sum": "h1:l75CXGRSwbaYNpl/Z2X1XIIAMSCquvXgpVZDhwEIJsc=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.4.4",
+      "version_published_at": "2020-07-28T20:36:39Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/golang/mock",
+      "origins": [
         "fixture-minio"
       ],
       "source": {
@@ -37942,6 +37524,7 @@
       "origins": [
         "application",
         "fixture-mc",
+        "qa",
         "tool-cosign"
       ],
       "source": {
@@ -37972,7 +37555,6 @@
       "name": "github.com/golang/snappy",
       "origins": [
         "fixture-minio",
-        "qa",
         "scanner"
       ],
       "source": {
@@ -38538,6 +38120,7 @@
       "license_status": "candidate",
       "name": "github.com/google/btree",
       "origins": [
+        "qa",
         "scanner"
       ],
       "source": {
@@ -38568,7 +38151,6 @@
       "name": "github.com/google/btree",
       "origins": [
         "application",
-        "qa",
         "tool-cosign"
       ],
       "source": {
@@ -38834,7 +38416,6 @@
       "license_status": "candidate",
       "name": "github.com/google/gnostic-models",
       "origins": [
-        "qa",
         "tool-cosign"
       ],
       "source": {
@@ -39176,35 +38757,6 @@
     },
     {
       "ecosystem": "gomod",
-      "license": "BSD-3-Clause",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "BSD-3-Clause"
-          ],
-          "kind": "license",
-          "license": "BSD-3-Clause",
-          "sha256": "d906c9396b6805d16bbaaa8844c58a44c46159bfe494443c1e4cfbc791103dcc",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/google/go-querystring",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:8IFJqpSRITyJ8QhQ13bmbeMBDfmeEJZD5A0egEOmkqU=",
-        "sum": "h1:yhqkPbu2/OH+V9BfpCVPZkNmUXhb2gBxJArfhIxNtP0=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.2.0",
-      "version_published_at": "2025-11-10T17:18:24Z"
-    },
-    {
-      "ecosystem": "gomod",
       "license": "Apache-2.0",
       "license_evidence": [
         {
@@ -39537,6 +39089,7 @@
       "license_status": "candidate",
       "name": "github.com/google/martian",
       "origins": [
+        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -39715,6 +39268,7 @@
       "license_status": "candidate",
       "name": "github.com/google/pprof",
       "origins": [
+        "qa",
         "scanner"
       ],
       "source": {
@@ -39724,35 +39278,6 @@
       },
       "version": "v0.0.0-20260802141513-ef3492d7dac3",
       "version_published_at": "2026-08-02T14:15:13Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/google/pprof",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:jl5iWTm0/hd5PjEYEOuwAJ57L/CibdZfrqZ5XA5GrCk=",
-        "sum": "h1:QAinXoAFJdGQYztXn3VpFey7KCwpedbZ/EkzbplQ0cY=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.0.0-20260906184651-6331bc6350fe",
-      "version_published_at": "2026-09-06T18:46:51Z"
     },
     {
       "ecosystem": "gomod",
@@ -40403,35 +39928,6 @@
       "license_status": "candidate",
       "name": "github.com/gophercloud/gophercloud/v2",
       "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:4fs5I9VH6Wg2LyocDL9xf0ASb8VD63tyLA8sgAX/69U=",
-        "sum": "h1:xGxKCvyaOxJDc5FqrnKDNqtdYn43ocQPuJ2Cm4KX/cs=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v2.14.0",
-      "version_published_at": "2026-08-20T19:18:53Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "36208a19f74a7af9ab7342c027bb7acf6f27828137bea2919f13ee73321fa002",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/gophercloud/gophercloud/v2",
-      "origins": [
         "fixture-mc",
         "fixture-minio"
       ],
@@ -40726,7 +40222,8 @@
       "license_status": "candidate",
       "name": "github.com/gorilla/websocket",
       "origins": [
-        "fixture-minio"
+        "fixture-minio",
+        "qa"
       ],
       "source": {
         "go_mod_sum": "h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=",
@@ -40755,7 +40252,6 @@
       "license_status": "candidate",
       "name": "github.com/gorilla/websocket",
       "origins": [
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -41003,35 +40499,6 @@
       },
       "version": "v0.0.0-20240518133315-a468a5bfb3bc",
       "version_published_at": "2024-05-18T13:33:15Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "BSD-3-Clause",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "BSD-3-Clause"
-          ],
-          "kind": "license",
-          "license": "BSD-3-Clause",
-          "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/grafana/regexp",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:+JKpmjMGhpgPL+rXZ5nsZieVzvarn86asRlBg4uNGnk=",
-        "sum": "h1:cLN4IBkmkYZNnk7EAJ0BHIethd+J6LqxFNw5mSiI2bM=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.0.0-20250905093917-f7b3be9d1853",
-      "version_published_at": "2025-09-05T09:39:17Z"
     },
     {
       "ecosystem": "gomod",
@@ -41400,7 +40867,6 @@
       "license_status": "candidate",
       "name": "github.com/grpc-ecosystem/grpc-gateway/v2",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -41481,23 +40947,22 @@
           ],
           "kind": "license",
           "license": "MPL-2.0",
-          "sha256": "71221abdf10fd93ad9513b4636fa29a7d8465569e641b96c764063f0cd022be3",
+          "sha256": "bef1747eda88b9ed46e94830b0d978c3499dad5dfe38d364971760881901dadd",
           "status": "candidate"
         }
       ],
       "license_status": "candidate",
       "name": "github.com/hashicorp/consul/api",
       "origins": [
-        "fixture-mc",
-        "fixture-minio"
+        "qa"
       ],
       "source": {
-        "go_mod_sum": "h1:Z8YgY0eVPukT/17ejW+l+C7zJmKwgPHtjU1q16v/Y40=",
-        "sum": "h1:NicObVJHcCmyOIl7Z9iHPvvFrocgTYo9cITSGg0/7pw=",
+        "go_mod_sum": "h1:6pVBMo0ebnYdt2S3H87XhekM/HHrUoTD2XXb/VrZVy0=",
+        "sum": "h1:k3y1FYv6nuKyNTqj6w9gXOx5r5CfLj/k/euUeBXj1OY=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.31.2",
-      "version_published_at": "2025-02-18T14:56:45Z"
+      "version": "v1.12.0",
+      "version_published_at": "2021-12-14T17:37:25Z"
     },
     {
       "ecosystem": "gomod",
@@ -41518,15 +40983,16 @@
       "license_status": "candidate",
       "name": "github.com/hashicorp/consul/api",
       "origins": [
-        "qa"
+        "fixture-mc",
+        "fixture-minio"
       ],
       "source": {
-        "go_mod_sum": "h1:vz5gBNeycefpAAVNVbLBFObUu3isju6EK8UVZjXSTWc=",
-        "sum": "h1:0U4YZ1Yp7K9WK9ex0gTJraFim26l02wCvsmf2ukalVE=",
+        "go_mod_sum": "h1:Z8YgY0eVPukT/17ejW+l+C7zJmKwgPHtjU1q16v/Y40=",
+        "sum": "h1:NicObVJHcCmyOIl7Z9iHPvvFrocgTYo9cITSGg0/7pw=",
         "verification": "go-mod-verify"
       },
-      "version": "v1.34.4",
-      "version_published_at": "2026-07-07T14:45:50Z"
+      "version": "v1.31.2",
+      "version_published_at": "2025-02-18T14:56:45Z"
     },
     {
       "ecosystem": "gomod",
@@ -41589,35 +41055,6 @@
     },
     {
       "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/hashicorp/cronexpr",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:P4wA0KBl9C5q2hABiMO7cp6jcIg96CDh1Efb3g1PWA4=",
-        "sum": "h1:rl5IkxXN2m681EfivTlccqIryzYJSXRGRNa0xeG7NA4=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.1.3",
-      "version_published_at": "2025-08-28T19:03:39Z"
-    },
-    {
-      "ecosystem": "gomod",
       "license": "MPL-2.0",
       "license_evidence": [
         {
@@ -41638,7 +41075,6 @@
         "application",
         "fixture-mc",
         "fixture-minio",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -41718,6 +41154,35 @@
       "license": "MIT",
       "license_evidence": [
         {
+          "coverage_percent": 98.80952380952381,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "b8ce983c0e0b1410115d42b65d5471b3666a8d4f4334a52f29f457a39a71b463",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/hashicorp/go-hclog",
+      "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:whpDNt7SSdeAju8AWKIWsul05p54N/39EeqMAyrmvFQ=",
+        "sum": "h1:La19f8d7WIlm4ogzNHB0JGqs5AUDAZ2UfCY4sJXcJdM=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.2.0",
+      "version_published_at": "2022-03-03T03:51:25Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "MIT",
+      "license_evidence": [
+        {
           "coverage_percent": 100,
           "file": "LICENSE",
           "ids": [
@@ -41734,7 +41199,6 @@
       "origins": [
         "fixture-mc",
         "fixture-minio",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -41807,35 +41271,6 @@
       },
       "version": "v2.1.0",
       "version_published_at": "2023-11-21T15:50:58Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "MIT",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "MIT"
-          ],
-          "kind": "license",
-          "license": "MIT",
-          "sha256": "a3b02225bcb80e2f466208dca787c847ae7d4587b0375979c33fb9cccecebe1a",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/hashicorp/go-metrics",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:0B52B5pZ7+qm5Zhzs8Fygr87isvmUgr0Zv9rmJ9qsnQ=",
-        "sum": "h1:+kjWqHRH2HxAocneVfB/BI6EeWUUHyPhyQZozMT8Ed4=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.6.0",
-      "version_published_at": "2026-06-24T14:41:23Z"
     },
     {
       "ecosystem": "gomod",
@@ -41917,7 +41352,6 @@
         "application",
         "fixture-mc",
         "fixture-minio",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -41979,7 +41413,6 @@
       "name": "github.com/hashicorp/go-retryablehttp",
       "origins": [
         "application",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -42314,6 +41747,7 @@
       "license_status": "candidate",
       "name": "github.com/hashicorp/golang-lru",
       "origins": [
+        "qa",
         "scanner"
       ],
       "source": {
@@ -42372,8 +41806,7 @@
       "license_status": "candidate",
       "name": "github.com/hashicorp/golang-lru",
       "origins": [
-        "fixture-minio",
-        "qa"
+        "fixture-minio"
       ],
       "source": {
         "go_mod_sum": "h1:iADmTwqILo4mZ8BN3D2Q6+9jd8WM5uGBxy+E8yxSoD4=",
@@ -42662,35 +42095,6 @@
           ],
           "kind": "license",
           "license": "MPL-2.0",
-          "sha256": "e9cae3f79a16031a296c7dd82821cac88dfe464b39aa7cb00abaddef7973129d",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/hashicorp/nomad/api",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:x/V7eEDwMx7UTOAb/Bc4mMsTfy5GdOP4sQY0a4Mmm1g=",
-        "sum": "h1:5EVD5vuGBqAKSrcR1+hD8XTIHcDgu0jLfwjNqnI4ExU=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.0.0-20260907080526-08ef8f3d26da",
-      "version_published_at": "2026-09-07T08:05:26Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "MPL-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "MPL-2.0"
-          ],
-          "kind": "license",
-          "license": "MPL-2.0",
           "sha256": "bef1747eda88b9ed46e94830b0d978c3499dad5dfe38d364971760881901dadd",
           "status": "candidate"
         }
@@ -42750,22 +42154,22 @@
           ],
           "kind": "license",
           "license": "MPL-2.0",
-          "sha256": "cdac356782ac15f1f37b8afc2a9ed38fb8b42fe2a9b600aa88ee0f841f59be12",
+          "sha256": "bef1747eda88b9ed46e94830b0d978c3499dad5dfe38d364971760881901dadd",
           "status": "candidate"
         }
       ],
       "license_status": "candidate",
       "name": "github.com/hashicorp/serf",
       "origins": [
-        "qa"
+        "scanner"
       ],
       "source": {
-        "go_mod_sum": "h1:l+s5Q1OSPWU6b9l9m7ODJzTp7mLevSaVzAI03Nka2F0=",
-        "sum": "h1:TCQOrJXHZ1Xf80c4WBhMM9OwUFgDaIP0R+YvoQUKadI=",
+        "go_mod_sum": "h1:TXZNMjZQijwlDvp+r0b63xZ45H7JmCmgg4gpTwn9UV4=",
+        "sum": "h1:uuEX1kLR6aoda1TBttmJQKDLZE1Ob7KN0NPdE7EtCDc=",
         "verification": "go-mod-verify"
       },
-      "version": "v0.10.4",
-      "version_published_at": "2026-07-07T13:52:03Z"
+      "version": "v0.9.6",
+      "version_published_at": "2021-11-12T22:27:52Z"
     },
     {
       "ecosystem": "gomod",
@@ -42786,15 +42190,15 @@
       "license_status": "candidate",
       "name": "github.com/hashicorp/serf",
       "origins": [
-        "scanner"
+        "qa"
       ],
       "source": {
         "go_mod_sum": "h1:TXZNMjZQijwlDvp+r0b63xZ45H7JmCmgg4gpTwn9UV4=",
-        "sum": "h1:uuEX1kLR6aoda1TBttmJQKDLZE1Ob7KN0NPdE7EtCDc=",
+        "sum": "h1:hkdgbqizGQHuU5IPqYM1JdSMV8nKfpuOnZYXssk9muY=",
         "verification": "go-mod-verify"
       },
-      "version": "v0.9.6",
-      "version_published_at": "2021-11-12T22:27:52Z"
+      "version": "v0.9.7",
+      "version_published_at": "2022-01-12T21:35:45Z"
     },
     {
       "ecosystem": "gomod",
@@ -42942,35 +42346,6 @@
       },
       "version": "v2.19.1",
       "version_published_at": "2025-02-04T09:31:31Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "MIT",
-      "license_evidence": [
-        {
-          "coverage_percent": 98.83040935672514,
-          "file": "LICENSE",
-          "ids": [
-            "MIT"
-          ],
-          "kind": "license",
-          "license": "MIT",
-          "sha256": "7da603f982fa9d1e5a067a6c60e162c22326d9c034df9e1ea5a9e79c15fa33c8",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/hetznercloud/hcloud-go/v2",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:pdG7fFGlYsCAaJ9r0QOIF0O6wQcpbJxT2VT8aP6XlIc=",
-        "sum": "h1:SI7C4cvdYReb2aHUEQ8KBMOqxNnmd4hOZti1SbPq3Qk=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v2.47.0",
-      "version_published_at": "2026-07-27T09:17:41Z"
     },
     {
       "ecosystem": "gomod",
@@ -43150,6 +42525,35 @@
       },
       "version": "v0.3.0",
       "version_published_at": "2023-07-13T00:09:19Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "BSD-3-Clause",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "BSD-3-Clause"
+          ],
+          "kind": "license",
+          "license": "BSD-3-Clause",
+          "sha256": "b73277f7730993ef8e7f80aed83e5309762fed4d77eced982abb2c00657c074d",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/ianlancetaylor/demangle",
+      "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=",
+        "sum": "h1:UDMh68UUwekSh5iP2OMhRRZJiiBccgV7axzUG8vi56c=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v0.0.0-20181102032728-5e5cf60278f6",
+      "version_published_at": "2018-11-02T03:27:28Z"
     },
     {
       "ecosystem": "gomod",
@@ -43448,35 +42852,6 @@
       },
       "version": "v0.14.0",
       "version_published_at": "2026-04-23T15:03:54Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "d6b7a2e1b95cce03b7e1aeb0f5a15794be4d41931336e6dad2fbf9b9f50ad396",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/ionos-cloud/sdk-go/v6",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:nUGHP4kZHAZngCVr4v6C8nuargFrtvt7GrzH/hqn7c4=",
-        "sum": "h1:m4mX03vflm631znIPutojJxLZvxD5Mt3xv/soy0kLIc=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v6.3.11",
-      "version_published_at": "2026-07-15T10:58:45Z"
     },
     {
       "ecosystem": "gomod",
@@ -44620,8 +43995,7 @@
       "name": "github.com/jmespath/go-jmespath",
       "origins": [
         "fixture-mc",
-        "fixture-minio",
-        "qa"
+        "fixture-minio"
       ],
       "source": {
         "go_mod_sum": "h1:T8mJZnbsbmF+m6zOOFylbeCJqk5+pHWvzYPziyZiYoo=",
@@ -44937,6 +44311,7 @@
       "license_status": "candidate",
       "name": "github.com/jstemmer/go-junit-report",
       "origins": [
+        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -45419,6 +44794,7 @@
       "origins": [
         "fixture-mc",
         "fixture-minio",
+        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -45521,37 +44897,6 @@
       },
       "version": "v1.18.0",
       "version_published_at": "2025-02-19T09:26:03Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": null,
-      "license_evidence": [
-        {
-          "coverage_percent": 99.12971404890177,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0",
-            "BSD-3-Clause",
-            "MIT"
-          ],
-          "kind": "license",
-          "license": null,
-          "sha256": "0d9e582ee4bff57bf1189c9e514e6da7ce277f9cd3bc2d488b22fbb39a6d87cf",
-          "status": "ambiguous"
-        }
-      ],
-      "license_status": "ambiguous",
-      "name": "github.com/klauspost/compress",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:LUdAzn7YLVvxLpc7y3V1m40wESHTgc1422pwwBSKYuI=",
-        "sum": "h1:a3C1ke2ohxFymNlb2HWAHjDeKCI90scRskErZkR0ezA=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.20.0",
-      "version_published_at": "2026-09-02T12:08:18Z"
     },
     {
       "ecosystem": "gomod",
@@ -45926,35 +45271,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/knadh/koanf/maps",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:npD/QZY3V6ghQDdcQzl1W4ICNVTkohC8E73eI2xW4yI=",
-        "sum": "h1:P1z7EvTqdFBrPYbzSvorvrpib+sjkUMxf0FVvA5NKK4=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.1.3",
-      "version_published_at": "2026-08-09T18:06:15Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "MIT",
-      "license_evidence": [
-        {
-          "coverage_percent": 98.27586206896552,
-          "file": "LICENSE",
-          "ids": [
-            "MIT"
-          ],
-          "kind": "license",
-          "license": "MIT",
-          "sha256": "0c357461bc271757f92410aef4a6e7c5fa65493a94bea0c8136c1e7b6f79af9e",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "github.com/knadh/koanf/providers/confmap",
       "origins": [
         "fixture-mc",
@@ -45985,35 +45301,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/knadh/koanf/providers/confmap",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:txHYHiI2hAtF0/0sCmcuol4IDcuQbKTybiB1nOcUo1A=",
-        "sum": "h1:L15hbvMqlvhwUuCtL9BkL+rqiMAjk6cZc8O9XoDtE3A=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.0.1",
-      "version_published_at": "2026-08-04T05:43:03Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "MIT",
-      "license_evidence": [
-        {
-          "coverage_percent": 98.27586206896552,
-          "file": "LICENSE",
-          "ids": [
-            "MIT"
-          ],
-          "kind": "license",
-          "license": "MIT",
-          "sha256": "0c357461bc271757f92410aef4a6e7c5fa65493a94bea0c8136c1e7b6f79af9e",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "github.com/knadh/koanf/v2",
       "origins": [
         "fixture-mc",
@@ -46026,35 +45313,6 @@
       },
       "version": "v2.1.2",
       "version_published_at": "2024-11-06T08:48:20Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "MIT",
-      "license_evidence": [
-        {
-          "coverage_percent": 98.27586206896552,
-          "file": "LICENSE",
-          "ids": [
-            "MIT"
-          ],
-          "kind": "license",
-          "license": "MIT",
-          "sha256": "0c357461bc271757f92410aef4a6e7c5fa65493a94bea0c8136c1e7b6f79af9e",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/knadh/koanf/v2",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:gRb40VRAbd4iJMYYD5IxZ6hfuopFcXBpc9bbQpZwo28=",
-        "sum": "h1:JoQPSJmvS4aP0xNc8xMDr5tcrkSEInL23/Il7pITAKo=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v2.3.6",
-      "version_published_at": "2026-08-04T05:43:03Z"
     },
     {
       "ecosystem": "gomod",
@@ -46105,8 +45363,7 @@
       "name": "github.com/kolo/xmlrpc",
       "origins": [
         "fixture-mc",
-        "fixture-minio",
-        "qa"
+        "fixture-minio"
       ],
       "source": {
         "go_mod_sum": "h1:pcaDhQK0/NJZEvtCO0qQPPropqV0sJOJ6YW7X+9kRwM=",
@@ -46148,6 +45405,35 @@
     },
     {
       "ecosystem": "gomod",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.28571428571429,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "95b8ef9c4137a8f75ddd3101ffdc4cfd594fa875b261697b68baddc16b0e537c",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/konsorten/go-windows-terminal-sequences",
+      "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:T0+1ngSBFLxvqU3pZ+m/2kptfBszLMUkC4ZK/EgS/cQ=",
+        "sum": "h1:CE8S1cTafDpPvMhIxNJKvHsGVBgn1xWYf1NbHQhywc8=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.0.3",
+      "version_published_at": "2020-04-28T12:16:39Z"
+    },
+    {
+      "ecosystem": "gomod",
       "license": "BSD-3-Clause",
       "license_evidence": [
         {
@@ -46184,6 +45470,7 @@
       "license_status": "not-found",
       "name": "github.com/kr/logfmt",
       "origins": [
+        "qa",
         "scanner"
       ],
       "source": {
@@ -46249,6 +45536,7 @@
       "origins": [
         "fixture-mc",
         "fixture-minio",
+        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -47696,35 +46984,6 @@
     },
     {
       "ecosystem": "gomod",
-      "license": "MIT",
-      "license_evidence": [
-        {
-          "coverage_percent": 98.82352941176471,
-          "file": "LICENSE",
-          "ids": [
-            "MIT"
-          ],
-          "kind": "license",
-          "license": "MIT",
-          "sha256": "71384d6fbe949c656fc9b7879c2f061439dab20ceb2720c5cb8a8bb6aa68fcde",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/linode/linodego",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:Fha0NYsQSx5VZK1HQNJY/z/dIxxkFp+vb5veawbmAUw=",
-        "sum": "h1:f45N2MHR/oece2/ktTTCYmrlfse4//k3NgwcF5zbGZ0=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.69.1",
-      "version_published_at": "2026-05-12T19:05:02Z"
-    },
-    {
-      "ecosystem": "gomod",
       "license": null,
       "license_evidence": [
         {
@@ -48727,12 +47986,12 @@
         "qa"
       ],
       "source": {
-        "go_mod_sum": "h1:nMCL3Zebbrt45jsMDgnfIwz6ydEQApk5oEI3HqDio6A=",
-        "sum": "h1:cYwCQTQf3HB6xUC+BtyCLZNr7IzbOmoZbmssVNzSyiQ=",
+        "go_mod_sum": "h1:ZXfXG4SQHsB/w3ZeOYbR0PrPwLy+n6xiMrJlRFqopa4=",
+        "sum": "h1:j8l17JJ9i6VGPUFUYoTUKPSgKe/83EYU2zBC7YNKMw4=",
         "verification": "go-mod-verify"
       },
-      "version": "v0.0.23",
-      "version_published_at": "2026-07-16T06:19:57Z"
+      "version": "v0.0.22",
+      "version_published_at": "2026-04-27T03:32:30Z"
     },
     {
       "ecosystem": "gomod",
@@ -49203,7 +48462,6 @@
       "license_status": "candidate",
       "name": "github.com/mdlayher/socket",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -49263,7 +48521,6 @@
       "license_status": "candidate",
       "name": "github.com/mdlayher/vsock",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -49579,44 +48836,6 @@
       },
       "version": "v1.1.65",
       "version_published_at": "2025-04-06T14:24:20Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": null,
-      "license_evidence": [
-        {
-          "coverage_percent": 0,
-          "file": "COPYRIGHT",
-          "ids": [],
-          "kind": "license",
-          "license": null,
-          "sha256": "66550c0ad5ca7ec1e08683e5f872cc45c741f311eee3b8ee484206ecbf9c740d",
-          "status": "unknown"
-        },
-        {
-          "coverage_percent": 98.2905982905983,
-          "file": "LICENSE",
-          "ids": [
-            "BSD-3-Clause"
-          ],
-          "kind": "license",
-          "license": "BSD-3-Clause",
-          "sha256": "f200ff9bad73385db2ed81e23ee2c1fe069eb5776e17fae4ee85ad0a9e1361a5",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "unknown",
-      "name": "github.com/miekg/dns",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:RW2Obtfd5NZHvOFe3zYG0W8koWOQtAzyHaLo8vASBuQ=",
-        "sum": "h1:uhT8nJxmTrPJYClxVxTCX+CVn6qnzSiybRk72Z6DgrE=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.1.73",
-      "version_published_at": "2026-08-19T05:07:32Z"
     },
     {
       "ecosystem": "gomod",
@@ -51126,7 +50345,6 @@
       "origins": [
         "fixture-mc",
         "fixture-minio",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -51343,7 +50561,6 @@
       "origins": [
         "fixture-mc",
         "fixture-minio",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -51377,7 +50594,6 @@
         "application",
         "fixture-mc",
         "fixture-minio",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -51467,7 +50683,6 @@
       "license_status": "candidate",
       "name": "github.com/moby/moby/api",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -51526,7 +50741,6 @@
       "license_status": "candidate",
       "name": "github.com/moby/moby/client",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -51603,7 +50817,6 @@
       "license_status": "candidate",
       "name": "github.com/moby/spdystream",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -51992,7 +51205,8 @@
       "origins": [
         "application",
         "fixture-mc",
-        "fixture-minio"
+        "fixture-minio",
+        "qa"
       ],
       "source": {
         "go_mod_sum": "h1:yWuevngMOJpCy52FWWMvUC8ws7m/LJsjYzDa0/r8luk=",
@@ -52021,7 +51235,6 @@
       "license_status": "candidate",
       "name": "github.com/modern-go/reflect2",
       "origins": [
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -52506,7 +51719,6 @@
         "application",
         "fixture-mc",
         "fixture-minio",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -52629,7 +51841,6 @@
       "license_status": "candidate",
       "name": "github.com/mxk/go-flowrate",
       "origins": [
-        "qa",
         "tool-cosign"
       ],
       "source": {
@@ -53268,35 +52479,6 @@
           ],
           "kind": "license",
           "license": "MIT",
-          "sha256": "61c23da65b726db67924ba708e0f3fe1634836a07b0fdd547346da6405117ec0",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/nsf/jsondiff",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:mpRZBD8SJ55OIICQ3iWH0Yz3cjzA61JdqMLoWXeB2+8=",
-        "sum": "h1:4YV96Dzy2csSnhzl14/Qk5YsSrKAQusGsIADDn/4/g8=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.0.0-20260207060731-8e8d90c4c0ac",
-      "version_published_at": "2026-02-07T06:07:31Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "MIT",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "MIT"
-          ],
-          "kind": "license",
-          "license": "MIT",
           "sha256": "89807acf2309bd285f033404ee78581602f3cd9b819a16ac2f0e5f60ff4a473e",
           "status": "candidate"
         }
@@ -53545,35 +52727,6 @@
           ],
           "kind": "license",
           "license": "Apache-2.0",
-          "sha256": "4e5dde97b85cfd65edf08aeb9905c90135df692311ac8c68c092a855631b4645",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/oklog/run",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:mgDbKRSwPhJfesJ4PntqFUbKQRZ50NgmZTSPlFA0YFk=",
-        "sum": "h1:O8x3yXwah4A73hJdlrwo/2X6J62gE5qTMusH0dvz60E=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.2.0",
-      "version_published_at": "2025-06-27T13:52:26Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
           "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
           "status": "candidate"
         }
@@ -53651,35 +52804,6 @@
       },
       "version": "v2.1.1",
       "version_published_at": "2024-04-13T18:09:41Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/oklog/ulid/v2",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:rcEKHmBBKfef9DhnvX7y1HZBYxjXb0cP5ExxNsTT1QQ=",
-        "sum": "h1:IEclFb9JNvzYA6MW2SCxbLzcHTVsfqm3PrqGQJH5zec=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v2.1.2",
-      "version_published_at": "2026-07-23T19:42:36Z"
     },
     {
       "ecosystem": "gomod",
@@ -54252,35 +53376,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:reZbvAmPMr7JvMBy3P2IqxU0k6/sQTtlr1LiWi3XRVA=",
-        "sum": "h1:XwC9DyKBx2RYeCkDtu53bz0YyM16tt8nQi4bYAIeJI0=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.160.0",
-      "version_published_at": "2026-09-02T10:18:36Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil",
       "origins": [
         "fixture-mc",
@@ -54311,35 +53406,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:m7KYHz7g2nS7G3pLpyVoLFiyKXiVQNSsizqj+Dg1pLo=",
-        "sum": "h1:KuAMWLY47aSlhUR45cty6V3vmqPfGtuEWUMWoXLihL8=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.160.0",
-      "version_published_at": "2026-09-02T10:18:36Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor",
       "origins": [
         "fixture-mc",
@@ -54352,35 +53418,6 @@
       },
       "version": "v0.121.0",
       "version_published_at": "2025-03-04T13:28:05Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/open-telemetry/opentelemetry-collector-contrib/processor/deltatocumulativeprocessor",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:IzBMfIjygKPnd9E9m8gm6xpOGhFkBFpFGRF3pUzo+no=",
-        "sum": "h1:f2+8vct0uGoW/EECcp3fLExnQtPtHP9qzmUEw3qnE14=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.160.0",
-      "version_published_at": "2026-09-02T10:18:36Z"
     },
     {
       "ecosystem": "gomod",
@@ -54473,7 +53510,6 @@
         "application",
         "fixture-mc",
         "fixture-minio",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -54535,7 +53571,6 @@
       "name": "github.com/opencontainers/image-spec",
       "origins": [
         "application",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -54704,45 +53739,6 @@
     },
     {
       "ecosystem": "gomod",
-      "license": null,
-      "license_evidence": [
-        {
-          "coverage_percent": 94.25398358281024,
-          "file": "LICENSE.txt",
-          "ids": [
-            "Apache-2.0",
-            "UPL-1.0"
-          ],
-          "kind": "license",
-          "license": null,
-          "sha256": "d0db4f36cf05a8687e18525db16f178143eee58818d49d99d178c73675eb248a",
-          "status": "ambiguous"
-        },
-        {
-          "coverage_percent": 0,
-          "file": "NOTICE.txt",
-          "ids": [],
-          "kind": "notice",
-          "license": null,
-          "sha256": "49f452832d8d3cce9465305442782c141ebe1ffdffae7dd43c6034d8a1b21038",
-          "status": "unknown"
-        }
-      ],
-      "license_status": "ambiguous",
-      "name": "github.com/oracle/oci-go-sdk/v65",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:Pzy+BpgkDesvGZXEHgslwhIYobHCPHg6wRta1mWnlqQ=",
-        "sum": "h1:Wuos4/Ru9PRI83ObOfAmaEu+m+LcmjG7f17c0p6YzwM=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v65.124.1",
-      "version_published_at": "2026-09-01T15:56:04Z"
-    },
-    {
-      "ecosystem": "gomod",
       "license": "MIT",
       "license_evidence": [
         {
@@ -54893,35 +53889,6 @@
       "license": "BSD-3-Clause",
       "license_evidence": [
         {
-          "coverage_percent": 100,
-          "file": "LICENSE.txt",
-          "ids": [
-            "BSD-3-Clause"
-          ],
-          "kind": "license",
-          "license": "BSD-3-Clause",
-          "sha256": "f0ec206a7bcf4eedd6e4915a2ffa02b6d8d36cbd27d5de330073a6fcb6022e75",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/outscale/osc-sdk-go/v2",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:6J8WRznaSIEXXVHhhTXisGJQgvE5fYzbf8hAw7YIGfQ=",
-        "sum": "h1:bKR94p9KCc8ybu36k4RS5RDkC9p/7W//78CXPtOyXPo=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v2.35.0",
-      "version_published_at": "2026-08-11T11:56:25Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "BSD-3-Clause",
-      "license_evidence": [
-        {
           "coverage_percent": 98.23008849557522,
           "file": "LICENSE",
           "ids": [
@@ -54946,35 +53913,6 @@
       },
       "version": "v1.7.0",
       "version_published_at": "2025-02-06T10:15:41Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "BSD-3-Clause",
-      "license_evidence": [
-        {
-          "coverage_percent": 98.23008849557522,
-          "file": "LICENSE",
-          "ids": [
-            "BSD-3-Clause"
-          ],
-          "kind": "license",
-          "license": "BSD-3-Clause",
-          "sha256": "29754d1aa9bcf4b170ee8b7637bfb2b3e51c61567a793af3fe48c485fddfa8a2",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/ovh/go-ovh",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:cTVDnl94z4tl8pP1uZ/8jlVxntjSIf09bNcQ5TJSC7c=",
-        "sum": "h1:6K8VoL3BYjVV3In9tPJUdT7qMx9h0GExN9EXx1r2kKE=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.9.0",
-      "version_published_at": "2025-06-25T13:20:53Z"
     },
     {
       "ecosystem": "gomod",
@@ -55076,93 +54014,6 @@
           ],
           "kind": "license",
           "license": "Apache-2.0",
-          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/pb33f/jsonpath",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:zBV5LJW4OQOPatmQE2QdKpGQJvhDTlE5IEj6ASaRNTo=",
-        "sum": "h1:Ou4C7zjYClBm97dfZjDCjdZGusJoynv/vrtiEKNfj2Y=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.8.2",
-      "version_published_at": "2026-03-16T00:57:56Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "MIT",
-      "license_evidence": [
-        {
-          "coverage_percent": 98.85714285714286,
-          "file": "LICENSE",
-          "ids": [
-            "MIT"
-          ],
-          "kind": "license",
-          "license": "MIT",
-          "sha256": "7c119da422b6d9c6498f2df86d4fd6935f5b2b32d92df640ad8e9b60a8c3dac6",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/pb33f/libopenapi",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:naZ03Auhn7i+RJtMv8ck8l7Ag8E2/x2w66j9vsDFL38=",
-        "sum": "h1:Q2jfgRPdnU38WW8wQvrX2HEPGiqsxj01PX1BHmAEihc=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.38.7",
-      "version_published_at": "2026-07-15T14:57:29Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "MIT",
-      "license_evidence": [
-        {
-          "coverage_percent": 98.85714285714286,
-          "file": "LICENSE.md",
-          "ids": [
-            "MIT"
-          ],
-          "kind": "license",
-          "license": "MIT",
-          "sha256": "e4f7439a9e9bf11a2782531a15a23842563d83901e2c2918fc87b2bf2edba520",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/pb33f/libopenapi-validator",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:EU6yVajX6rWwUAC4OWfsVPPwAZ7k29fruoZnMnzdKjI=",
-        "sum": "h1:K9cdv1kL6cZdQmSbzitkVcWCJKyRmmSZryZqgUqIv+Y=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.14.0",
-      "version_published_at": "2026-07-11T14:35:10Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
           "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1",
           "status": "candidate"
         }
@@ -55201,8 +54052,7 @@
       "name": "github.com/pbnjay/memory",
       "origins": [
         "fixture-mc",
-        "fixture-minio",
-        "qa"
+        "fixture-minio"
       ],
       "source": {
         "go_mod_sum": "h1:DXv8WO4yhMYhSNPKjeNKa5WY9YCIEBRbNzFFPJbWO6Y=",
@@ -55526,7 +54376,6 @@
       "license_status": "candidate",
       "name": "github.com/peterbourgon/diskv",
       "origins": [
-        "qa",
         "tool-cosign"
       ],
       "source": {
@@ -56524,17 +55373,6 @@
       "license_evidence": [
         {
           "coverage_percent": 100,
-          "file": "COPYRIGHT.txt",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "7d8df998a11718015830c334557c18712fab759e0f7de45dcc9ddb4b10da249e",
-          "status": "candidate"
-        },
-        {
-          "coverage_percent": 100,
           "file": "LICENSE",
           "ids": [
             "Apache-2.0"
@@ -56545,27 +55383,29 @@
           "status": "candidate"
         },
         {
-          "coverage_percent": 0,
+          "coverage_percent": 34.42622950819672,
           "file": "NOTICE",
-          "ids": [],
+          "ids": [
+            "Apache-2.0"
+          ],
           "kind": "notice",
           "license": null,
-          "sha256": "24f7d73529defd2e28b4bb5e0f0396cebb6d3e74b7f66a26b62d0d3251431582",
+          "sha256": "5ff7ccec357cd44bb3fcf1b3b53a4eddee322eb383d487847d1cf1ccfbd94f46",
           "status": "unknown"
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/prometheus/alertmanager",
+      "name": "github.com/prometheus/client_golang",
       "origins": [
         "qa"
       ],
       "source": {
-        "go_mod_sum": "h1:/qF39A6Vb1MMoDM1SxcySobb7wmpBZha8COwULiKUUo=",
-        "sum": "h1:z75n0NoypggESmt3HD4JlTXOaOZj1EBz1ACHO4Z6EUk=",
+        "go_mod_sum": "h1:3Z9XVyYiZYEO+YQWt3RD2R3jrbd179Rt297l4aS6nDY=",
+        "sum": "h1:ZiaPsmm9uiBeaSMRznKsCDNtPCS0T3JVDGF+06gjBzk=",
         "verification": "go-mod-verify"
       },
-      "version": "v0.34.0",
-      "version_published_at": "2026-08-16T15:59:58Z"
+      "version": "v1.12.1",
+      "version_published_at": "2022-01-29T14:48:34Z"
     },
     {
       "ecosystem": "gomod",
@@ -56709,7 +55549,6 @@
       "license_status": "candidate",
       "name": "github.com/prometheus/client_golang",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -56772,20 +55611,29 @@
           "license": "Apache-2.0",
           "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
           "status": "candidate"
+        },
+        {
+          "coverage_percent": 0,
+          "file": "NOTICE",
+          "ids": [],
+          "kind": "notice",
+          "license": null,
+          "sha256": "6c79faa15168885fb88a316ae0df18f486deafddefdc16826cdc56dfbd421e24",
+          "status": "unknown"
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/prometheus/client_golang/exp",
+      "name": "github.com/prometheus/client_model",
       "origins": [
         "qa"
       ],
       "source": {
-        "go_mod_sum": "h1:7cN4zh+WBVVoFdl124VnR0F9bcpJluTebOnYYSHgyq8=",
-        "sum": "h1:4qeIiKMiaj1CH85S6mShB3nHtz1Ti1zg8lg3IQLsAhk=",
+        "go_mod_sum": "h1:xMI15A0UPsDsEKsMN9yxemIoYk6Tm2C1GtYGdfGttqA=",
+        "sum": "h1:uq5h0d+GuxiXLJLNABMgp2qUWDPiLvgCzz2dUR+/W/M=",
         "verification": "go-mod-verify"
       },
-      "version": "v0.0.0-20260907100614-57bb367da472",
-      "version_published_at": "2026-09-07T10:06:14Z"
+      "version": "v0.2.0",
+      "version_published_at": "2020-01-18T22:30:34Z"
     },
     {
       "ecosystem": "gomod",
@@ -56856,8 +55704,7 @@
       "license_status": "candidate",
       "name": "github.com/prometheus/client_model",
       "origins": [
-        "application",
-        "qa"
+        "application"
       ],
       "source": {
         "go_mod_sum": "h1:gpN5P9S7Rr6Yr92PiQ+Ixvhf6JZEkF1dnxsYL2aPBEM=",
@@ -56866,6 +55713,44 @@
       },
       "version": "v0.6.3",
       "version_published_at": "2026-08-31T09:02:46Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "status": "candidate"
+        },
+        {
+          "coverage_percent": 0,
+          "file": "NOTICE",
+          "ids": [],
+          "kind": "notice",
+          "license": null,
+          "sha256": "600244c8052c8c1d307043fafacbc83b429c171dd8e08f5a537c0a54014585ee",
+          "status": "unknown"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/prometheus/common",
+      "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:vu+V0TpY+O6vW9J44gczi3Ap/oXXR10b+M/gUGO4Hls=",
+        "sum": "h1:hWIdL3N2HoUx3B8j3YN9mWor0qhY/NlEKZEaXxuIRh4=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v0.32.1",
+      "version_published_at": "2021-10-20T18:49:55Z"
     },
     {
       "ecosystem": "gomod",
@@ -57010,44 +55895,6 @@
       "license_status": "candidate",
       "name": "github.com/prometheus/common",
       "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:CLJ5H8TEsGX8bl31BdMkfhIZ+QmZ9tBPPotUxUbfcmk=",
-        "sum": "h1:9KDAKb7Mj3HEVKyFCK6Dc/HIwlBzZIN2l7/lrHl3KK8=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.71.0",
-      "version_published_at": "2026-08-31T08:47:38Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
-          "status": "candidate"
-        },
-        {
-          "coverage_percent": 0,
-          "file": "NOTICE",
-          "ids": [],
-          "kind": "notice",
-          "license": null,
-          "sha256": "600244c8052c8c1d307043fafacbc83b429c171dd8e08f5a537c0a54014585ee",
-          "status": "unknown"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/prometheus/common",
-      "origins": [
         "application"
       ],
       "source": {
@@ -57078,8 +55925,7 @@
       "name": "github.com/prometheus/common/assets",
       "origins": [
         "fixture-mc",
-        "fixture-minio",
-        "qa"
+        "fixture-minio"
       ],
       "source": {
         "go_mod_sum": "h1:D17UVUE12bHbim7HzwUvtqm6gwBEaDQ0F+hIGbFbccI=",
@@ -57136,39 +55982,9 @@
         }
       ],
       "license_status": "candidate",
-      "name": "github.com/prometheus/exporter-toolkit",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:kOoEK/7wbe2Ns33l7wYHOXDZAZ/XGLyJqoGwmJxK+QU=",
-        "sum": "h1:JljWCzE5naAiZ7Ukeb8PwjNbU+WwISuW0ktgdXMnMhc=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.19.0",
-      "version_published_at": "2026-08-25T18:59:54Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "github.com/prometheus/otlptranslator",
       "origins": [
-        "application",
-        "qa"
+        "application"
       ],
       "source": {
         "go_mod_sum": "h1:vRYWnXvI6aWGpsdY/mOT/cbeVRBlPWtBNDb7kGR3uKM=",
@@ -57283,7 +56099,6 @@
       "license_status": "candidate",
       "name": "github.com/prometheus/procfs",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -57331,6 +56146,44 @@
       },
       "version": "v0.22.0",
       "version_published_at": "2026-08-28T13:53:50Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "status": "candidate"
+        },
+        {
+          "coverage_percent": 0,
+          "file": "NOTICE",
+          "ids": [],
+          "kind": "notice",
+          "license": null,
+          "sha256": "497fcdb9fae55924c12f55f05cbe83a096662e5c591d79b74e4a8f23bab5ffee",
+          "status": "unknown"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "github.com/prometheus/procfs",
+      "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:cz+aTbrPOrUb4q7XlbU9ygM+/jj0fzG6c1xBZuNvfVA=",
+        "sum": "h1:4jVXhlkAyzOScmCkXBTOLRLTz8EeU+eyjrwB/EPq0VU=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v0.7.3",
+      "version_published_at": "2021-08-09T15:06:36Z"
     },
     {
       "ecosystem": "gomod",
@@ -57428,46 +56281,6 @@
           "status": "candidate"
         },
         {
-          "coverage_percent": 13.54642313546423,
-          "file": "NOTICE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "notice",
-          "license": null,
-          "sha256": "ac9e304462a58a4d71b6488423d4447e614c8b31d517fe24345016522c102a78",
-          "status": "unknown"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/prometheus/prometheus",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:6ISUXTjRxj9U2d8ssng8khR1b2dDJ+MpftZD190149I=",
-        "sum": "h1:ZXaNKyUO5szJhhw7gKiP6b2jpx1QkS0S3CI1R1bPqIA=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.315.1",
-      "version_published_at": "2026-10-21T13:24:03Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
-          "status": "candidate"
-        },
-        {
           "coverage_percent": 15.836298932384341,
           "file": "NOTICE",
           "ids": [
@@ -57531,44 +56344,6 @@
       },
       "version": "v0.1.2",
       "version_published_at": "2025-02-01T20:40:58Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
-          "status": "candidate"
-        },
-        {
-          "coverage_percent": 0,
-          "file": "NOTICE",
-          "ids": [],
-          "kind": "notice",
-          "license": null,
-          "sha256": "c5cb6ea425bd97e098a384cd0ae137e508b8d251b6c19f31b5f44d1a9c0083f5",
-          "status": "unknown"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/prometheus/sigv4",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:oLsQ72mP5bVxsIrFgv/gT2jY1devyRLZhAvrsWG4SEk=",
-        "sum": "h1:WWZDeiCPFTBJIniIa+pv3edYtPHtZxDAa5w5Tmp+UuQ=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.5.0",
-      "version_published_at": "2026-08-31T13:37:56Z"
     },
     {
       "ecosystem": "gomod",
@@ -57717,35 +56492,6 @@
       },
       "version": "v3.5.1",
       "version_published_at": "2025-01-27T07:29:28Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/puzpuzpuz/xsync/v4",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:VJDmTCJMBt8igNxnkQd86r+8KUeN1quSfNKu5bLYFQo=",
-        "sum": "h1:vOSWu6b57/emh+L/Cw0BeQfvxa/cogFywXHeGUxQxAg=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v4.5.0",
-      "version_published_at": "2026-04-12T16:59:34Z"
     },
     {
       "ecosystem": "gomod",
@@ -59695,35 +58441,6 @@
     },
     {
       "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "4224548dc1265370ae7bcb9b2b5554a69a2ef7ad53bc2295c68cbca30ea78026",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/scaleway/scaleway-sdk-go",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:Rtb4r3WZ5x4AqmL3t/wiF/DmQi+7GlU/nCRdqFbClV4=",
-        "sum": "h1:1Q6K8D0BagYYEnCTkT9fn3YHUFb06bS1OvIHWcc3JQM=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.0.0-beta.37",
-      "version_published_at": "2026-07-31T08:23:48Z"
-    },
-    {
-      "ecosystem": "gomod",
       "license": "MIT",
       "license_evidence": [
         {
@@ -60536,8 +59253,7 @@
       "name": "github.com/shurcooL/httpfs",
       "origins": [
         "fixture-mc",
-        "fixture-minio",
-        "qa"
+        "fixture-minio"
       ],
       "source": {
         "go_mod_sum": "h1:owqhoLW1qZoYLZzLnBw+QkPP9WZnjlSWihhxAJC1+/M=",
@@ -62056,35 +60772,6 @@
     },
     {
       "ecosystem": "gomod",
-      "license": "MIT",
-      "license_evidence": [
-        {
-          "coverage_percent": 97.6608187134503,
-          "file": "LICENSE",
-          "ids": [
-            "MIT"
-          ],
-          "kind": "license",
-          "license": "MIT",
-          "sha256": "bf90fa34643c84cc710affe629ae194c5fdf1392c3f1496406c68bece41e6160",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/sony/gobreaker/v2",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:pTyFJgcZ3h2tdQVLZZruK2C0eoFL1fb/G83wK1ZQl+s=",
-        "sum": "h1:g2KJRW1Ubty3+ZOcSEUN7K+REQJdN6yo6XvaML+jptg=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v2.4.0",
-      "version_published_at": "2026-01-01T00:47:18Z"
-    },
-    {
-      "ecosystem": "gomod",
       "license": null,
       "license_evidence": [
         {
@@ -63022,44 +61709,6 @@
       },
       "version": "v2.2.1",
       "version_published_at": "2021-09-17T11:48:10Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE.md",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "218ab5890224ca9cb477661eb9ad73c61a18809410104e9c881103fef7169a53",
-          "status": "candidate"
-        },
-        {
-          "coverage_percent": 0,
-          "file": "NOTICE.txt",
-          "ids": [],
-          "kind": "notice",
-          "license": null,
-          "sha256": "f599847a16b3e954f847969eed3501f834501770b25ff9255beb263da90fbceb",
-          "status": "unknown"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/stackitcloud/stackit-sdk-go/core",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:WU1hhxnjXw2EV7CYa1nlEvNpMiRY6CvmIOaHuL3pOaA=",
-        "sum": "h1:7lc6qStcFDFf8zHP4ORPa9joybw+Sa2LtB6BVjKQ+ek=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.27.0",
-      "version_published_at": "2026-09-04T13:13:55Z"
     },
     {
       "ecosystem": "gomod",
@@ -66156,35 +64805,6 @@
       "license": "MIT",
       "license_evidence": [
         {
-          "coverage_percent": 98.80952380952381,
-          "file": "LICENSE",
-          "ids": [
-            "MIT"
-          ],
-          "kind": "license",
-          "license": "MIT",
-          "sha256": "cb652f661a0b9c4f2eef6544cadce73c103a335cc3cd87dd85c3ae736c0ddb72",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/vultr/govultr/v3",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:2zyUw9yADQaGwKnwDesmIOlBNLrm7edsCfWHFJpWKf8=",
-        "sum": "h1:SD8y4tmoSXbpX137JT5k7jLxJ5j0WcnRtDbq/+P26IA=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v3.33.0",
-      "version_published_at": "2026-09-01T14:45:40Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "MIT",
-      "license_evidence": [
-        {
           "coverage_percent": 98.81656804733728,
           "file": "LICENSE",
           "ids": [
@@ -66376,7 +64996,6 @@
         "application",
         "fixture-mc",
         "fixture-minio",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -67151,7 +65770,6 @@
       "origins": [
         "application",
         "fixture-minio",
-        "qa",
         "scanner"
       ],
       "source": {
@@ -69616,35 +68234,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "go.opentelemetry.io/collector/component",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:IIS7ZSCTijjAy5uaCwqAp6RKqOs1rzHl3EmwBZ6B0V4=",
-        "sum": "h1:JaAwBPug6Wm5V0+4qHpWVcazabgZvEozfcMC8gmgIY4=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.66.0",
-      "version_published_at": "2026-09-01T23:08:44Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "go.opentelemetry.io/collector/confmap",
       "origins": [
         "fixture-mc",
@@ -69657,35 +68246,6 @@
       },
       "version": "v1.27.0",
       "version_published_at": "2025-03-03T16:27:02Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "go.opentelemetry.io/collector/confmap",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:EsXDabkoH/H4mrfECHNdxE+MGQiBlCvyZ7caoK5xY7Y=",
-        "sum": "h1:9m9ZeZ17Iz0uuks5dK0JwLXwTrqfeCM9WWfqR+SO9C8=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.66.0",
-      "version_published_at": "2026-09-01T23:08:44Z"
     },
     {
       "ecosystem": "gomod",
@@ -69764,64 +68324,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "go.opentelemetry.io/collector/consumer",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:CHUqFqerioBLb4usZEiHpzTKpEJH09a0CDyYECwQYFc=",
-        "sum": "h1:YcL8Y7jn0b9ko8hWKHIpilYnKNtp6pxjdrSpKFR9O40=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.66.0",
-      "version_published_at": "2026-09-01T23:08:44Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "go.opentelemetry.io/collector/consumer/xconsumer",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:GzOE87iaxj3dXiLFiXYMOi5qeps6F8X4jdjTWibwEI8=",
-        "sum": "h1:pbyjZUlDxLuFDa23cAxtDU6J7tvdXKfuZCe0RlJQV9s=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.160.0",
-      "version_published_at": "2026-09-01T23:08:44Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "go.opentelemetry.io/collector/featuregate",
       "origins": [
         "tool-cosign"
@@ -69833,64 +68335,6 @@
       },
       "version": "v1.31.0",
       "version_published_at": "2025-04-28T19:04:17Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "go.opentelemetry.io/collector/featuregate",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:dRYifiJa2vQ6LWpPwHny4mL82mnGWsWEVeVWw+DhYJw=",
-        "sum": "h1:zy7JvvPanCVexGnZnMWR/htZ1BKWPEo1/vZKMuhZSQ0=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.66.0",
-      "version_published_at": "2026-09-01T23:08:44Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "go.opentelemetry.io/collector/internal/componentalias",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:vfDgm9skzaGSDWDJgZl3E5/J6MXY3pnWiXnda4NA3/k=",
-        "sum": "h1:rDRD1s22Z13Q9YzkaTOfkwrLD7Hf7T4tmE6IX0bndlk=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.160.0",
-      "version_published_at": "2026-09-01T23:08:44Z"
     },
     {
       "ecosystem": "gomod",
@@ -69997,64 +68441,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "go.opentelemetry.io/collector/pdata",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:tdtY5DNoyzgXQmdH7pPNyeM5EiH3dGsKdPC6wUXeigU=",
-        "sum": "h1:GvbRMxks0XbmH7UEGvgcauboAgH+DE9xMtgIEGUBENw=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.66.0",
-      "version_published_at": "2026-09-01T23:08:44Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "go.opentelemetry.io/collector/pdata/pprofile",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:8lEJ1b9wLMl9nqlGdwXdXEp4a1eGWzkJ85E1HgvdXnE=",
-        "sum": "h1:+8euxO2GcGN7CRB0wa/ddloU6AWCMjW0vanbwUIQicE=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.160.0",
-      "version_published_at": "2026-09-01T23:08:44Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "go.opentelemetry.io/collector/pipeline",
       "origins": [
         "fixture-mc",
@@ -70085,35 +68471,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "go.opentelemetry.io/collector/pipeline",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:4S7iD/7hGDNXg4yPi+5es5WTvwo/Uie2OoHio79xokI=",
-        "sum": "h1:wh7bydw4VXE/8wkO3Vq7msTSdCWciE5/y/HxXOwjN34=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.66.0",
-      "version_published_at": "2026-09-01T23:08:44Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "go.opentelemetry.io/collector/processor",
       "origins": [
         "fixture-mc",
@@ -70126,64 +68483,6 @@
       },
       "version": "v0.121.0",
       "version_published_at": "2025-03-03T16:27:02Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "go.opentelemetry.io/collector/processor",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:L/McJZAaCC1LtkDS9SXd65SL7fGV2MrI8sK6CvisOFY=",
-        "sum": "h1:oNsicM3SYORpR9IzqHD8rnMpasuXIOI2o3Qdv7PHqUA=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.66.0",
-      "version_published_at": "2026-09-01T23:08:44Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "go.opentelemetry.io/collector/processor/xprocessor",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:21hAhrW9b7fsmqVg3mMPS9knPpjJ/EFMx8sKjPXQ6qU=",
-        "sum": "h1:3bvK03H90nsPjS/Lh0XDaXm1/vGOxUCdNNZ/HPW4OcI=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.160.0",
-      "version_published_at": "2026-09-01T23:08:44Z"
     },
     {
       "ecosystem": "gomod",
@@ -70632,36 +68931,6 @@
     },
     {
       "ecosystem": "gomod",
-      "license": null,
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0",
-            "BSD-3-Clause"
-          ],
-          "kind": "license",
-          "license": null,
-          "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
-          "status": "ambiguous"
-        }
-      ],
-      "license_status": "ambiguous",
-      "name": "go.opentelemetry.io/contrib/instrumentation/net/http/httptrace/otelhttptrace",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:+H3sPOFwag14eMHTPMElZtV0e4YfVZ/85KgrKUCB5FI=",
-        "sum": "h1:oFNJW32h2SXnET7XXstgT7pVh4vN+jW+GfiIaBguIZE=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.71.0",
-      "version_published_at": "2026-08-26T09:59:02Z"
-    },
-    {
-      "ecosystem": "gomod",
       "license": "Apache-2.0",
       "license_evidence": [
         {
@@ -70769,7 +69038,36 @@
       "license_status": "ambiguous",
       "name": "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
       "origins": [
-        "qa",
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:085m8qbm4hgc8rZWGDEa4vmyyo2c3nPxUslYUKUIU04=",
+        "sum": "h1:LMuyCAyfalSjDyjdC65nK6N0zoTT63+E/u95X0JovZI=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v0.70.0",
+      "version_published_at": "2026-08-04T17:02:11Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": null,
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0",
+            "BSD-3-Clause"
+          ],
+          "kind": "license",
+          "license": null,
+          "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
+          "status": "ambiguous"
+        }
+      ],
+      "license_status": "ambiguous",
+      "name": "go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp",
+      "origins": [
         "scanner"
       ],
       "source": {
@@ -71036,7 +69334,36 @@
       "license_status": "ambiguous",
       "name": "go.opentelemetry.io/otel",
       "origins": [
-        "qa",
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:XZxIqPapzEYnhNSScF5DIqXhm/rYi0FzCe2XddAwZfQ=",
+        "sum": "h1:pdrWmLHofpubmArBv1LgFSv1Z0Ie/ppdZzu+kUN5EeU=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.45.0",
+      "version_published_at": "2026-08-03T19:26:24Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": null,
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0",
+            "BSD-3-Clause"
+          ],
+          "kind": "license",
+          "license": null,
+          "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
+          "status": "ambiguous"
+        }
+      ],
+      "license_status": "ambiguous",
+      "name": "go.opentelemetry.io/otel",
+      "origins": [
         "scanner"
       ],
       "source": {
@@ -71185,7 +69512,6 @@
       "license_status": "ambiguous",
       "name": "go.opentelemetry.io/otel/exporters/otlp/otlptrace",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -71305,7 +69631,6 @@
       "license_status": "ambiguous",
       "name": "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -71425,7 +69750,6 @@
       "license_status": "ambiguous",
       "name": "go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -71693,7 +70017,36 @@
       "license_status": "ambiguous",
       "name": "go.opentelemetry.io/otel/metric",
       "origins": [
-        "qa",
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:HAPbm1nd3p1PmFH7v2dR+6BjXxw+Lq4a2+pndMAm08s=",
+        "sum": "h1:7Eg1uH7CJ5cXv9is6tnBe1FI6rj1nwUdbFypRm3br/M=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.45.0",
+      "version_published_at": "2026-08-03T19:26:24Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": null,
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0",
+            "BSD-3-Clause"
+          ],
+          "kind": "license",
+          "license": null,
+          "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
+          "status": "ambiguous"
+        }
+      ],
+      "license_status": "ambiguous",
+      "name": "go.opentelemetry.io/otel/metric",
+      "origins": [
         "scanner"
       ],
       "source": {
@@ -71844,7 +70197,36 @@
       "license_status": "ambiguous",
       "name": "go.opentelemetry.io/otel/sdk",
       "origins": [
-        "qa",
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:Sr40LgXV7DsKMMJMKOhUWOgMWTfAaqvm2kF0g7ilwuA=",
+        "sum": "h1:4VVSMgQ83dUgW2aoX5f6JgLvHwIvzcuLnF9lUdCSpCw=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.45.0",
+      "version_published_at": "2026-08-03T19:26:24Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": null,
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0",
+            "BSD-3-Clause"
+          ],
+          "kind": "license",
+          "license": null,
+          "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
+          "status": "ambiguous"
+        }
+      ],
+      "license_status": "ambiguous",
+      "name": "go.opentelemetry.io/otel/sdk",
+      "origins": [
         "scanner"
       ],
       "source": {
@@ -71993,7 +70375,36 @@
       "license_status": "ambiguous",
       "name": "go.opentelemetry.io/otel/sdk/metric",
       "origins": [
-        "qa",
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:vUWUxDZvu1WVRj8JA8S0AdhsPrZoDpA2DdZauIh4mDA=",
+        "sum": "h1:oVFszMfyj1Am6s24Vtc7wBb8BKLcwepJjNEYILuiE3o=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.45.0",
+      "version_published_at": "2026-08-03T19:26:24Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": null,
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0",
+            "BSD-3-Clause"
+          ],
+          "kind": "license",
+          "license": null,
+          "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
+          "status": "ambiguous"
+        }
+      ],
+      "license_status": "ambiguous",
+      "name": "go.opentelemetry.io/otel/sdk/metric",
+      "origins": [
         "scanner"
       ],
       "source": {
@@ -72114,7 +70525,36 @@
       "license_status": "ambiguous",
       "name": "go.opentelemetry.io/otel/trace",
       "origins": [
-        "qa",
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:qoJJA2xNMnxRrdISU/kLtfUH2wNeQbiv+jhs/CxI8bc=",
+        "sum": "h1:l/mP6Uv7oNO7/TblbhpbgMidxhq1uO/rPsikOyVhxag=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.45.0",
+      "version_published_at": "2026-08-03T19:26:24Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": null,
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0",
+            "BSD-3-Clause"
+          ],
+          "kind": "license",
+          "license": null,
+          "sha256": "1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40",
+          "status": "ambiguous"
+        }
+      ],
+      "license_status": "ambiguous",
+      "name": "go.opentelemetry.io/otel/trace",
+      "origins": [
         "scanner"
       ],
       "source": {
@@ -72173,7 +70613,6 @@
       "license_status": "candidate",
       "name": "go.opentelemetry.io/proto/otlp",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -72419,7 +70858,6 @@
         "application",
         "fixture-mc",
         "fixture-minio",
-        "qa",
         "tool-cosign"
       ],
       "source": {
@@ -72449,6 +70887,7 @@
       "license_status": "candidate",
       "name": "go.uber.org/atomic",
       "origins": [
+        "qa",
         "scanner"
       ],
       "source": {
@@ -72480,7 +70919,6 @@
       "origins": [
         "fixture-mc",
         "fixture-minio",
-        "qa",
         "tool-cosign"
       ],
       "source": {
@@ -72574,10 +71012,38 @@
       "license_status": "candidate",
       "name": "go.uber.org/multierr",
       "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:20+QtiLqy0Nd6FdQB9TLXag12DsQkrbs3htMFfDN80Y=",
+        "sum": "h1:S0h4aNzvfcFsC3dRF1jLoaov7oRaKqRGC/pUEJ2yvPQ=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v1.10.0",
+      "version_published_at": "2023-03-08T14:40:37Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE.txt",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "dcdabe03bef2382a130640d1c3a4cd5ec42aba1035095c38272fde694eb72405",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "go.uber.org/multierr",
+      "origins": [
         "application",
         "fixture-mc",
         "fixture-minio",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -72610,6 +71076,7 @@
       "origins": [
         "fixture-mc",
         "fixture-minio",
+        "qa",
         "tool-cosign"
       ],
       "source": {
@@ -72640,7 +71107,6 @@
       "name": "go.uber.org/zap",
       "origins": [
         "application",
-        "qa",
         "scanner"
       ],
       "source": {
@@ -72744,7 +71210,6 @@
       "name": "go.yaml.in/yaml/v2",
       "origins": [
         "application",
-        "qa",
         "scanner"
       ],
       "source": {
@@ -73289,6 +71754,7 @@
       "license_status": "candidate",
       "name": "golang.org/x/exp",
       "origins": [
+        "qa",
         "tool-cosign"
       ],
       "source": {
@@ -73374,35 +71840,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "golang.org/x/exp",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:EdfpwwqSu+0Li0mzskwHU6FWDV3t9Q+RZDo3QMUtL3Q=",
-        "sum": "h1:qLvzZeaANDgyVOA8pyHCOStGlXn0rseXma+GQjeuv2g=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.0.0-20260709172345-9ea1abe57597",
-      "version_published_at": "2026-07-09T17:23:45Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "BSD-3-Clause",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "BSD-3-Clause"
-          ],
-          "kind": "license",
-          "license": "BSD-3-Clause",
-          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "golang.org/x/exp/typeparams",
       "origins": [
         "application"
@@ -73443,6 +71880,35 @@
       },
       "version": "v0.0.0-20260811152304-ee035b5b010f",
       "version_published_at": "2026-08-11T15:23:04Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "BSD-3-Clause",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "BSD-3-Clause"
+          ],
+          "kind": "license",
+          "license": "BSD-3-Clause",
+          "sha256": "2d36597f7117c38b006835ae7f537487207d8ec407aa9d9980794b2030cbc067",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "golang.org/x/image",
+      "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:FeLwcggjj3mMvU+oOTbSwawSJRM1uh48EjtB4UJZlP0=",
+        "sum": "h1:+qEpEAPhDZ1o0x3tHzZTQDArnOixOzGD9HUJfcg0mb4=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v0.0.0-20190802002840-cff245a6509b",
+      "version_published_at": "2019-08-02T00:28:40Z"
     },
     {
       "ecosystem": "gomod",
@@ -73521,6 +71987,35 @@
       "license_status": "candidate",
       "name": "golang.org/x/lint",
       "origins": [
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:3xt1FjdF8hUf6vQPIChWIBhFzV8gjjsPE/fR3IyQdNY=",
+        "sum": "h1:Wh+f8QHJXR411sJR8/vRBTZ7YapZaRvUcLFFJhusH0k=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v0.0.0-20200302205851-738671d3881b",
+      "version_published_at": "2020-03-02T20:58:51Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "BSD-3-Clause",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "BSD-3-Clause"
+          ],
+          "kind": "license",
+          "license": "BSD-3-Clause",
+          "sha256": "dfffb9ec737eaba985243e95a549bd8c3a4d462032cfe603e2a6704c346427b6",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "golang.org/x/lint",
+      "origins": [
         "scanner",
         "tool-cosign"
       ],
@@ -73551,6 +72046,7 @@
       "license_status": "candidate",
       "name": "golang.org/x/mobile",
       "origins": [
+        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -75126,35 +73622,6 @@
         }
       ],
       "license_status": "candidate",
-      "name": "golang.org/x/tools/godoc",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:qM63CriJ961IHWmnWa9CjZnBndniPt4a3CK0PVB9bIg=",
-        "sum": "h1:o+aZ1BOj6Hsx/GBdJO/s815sqftjSnrZZwyYTHODvtk=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v0.1.0-deprecated",
-      "version_published_at": "2025-09-04T13:43:47Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "BSD-3-Clause",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "BSD-3-Clause"
-          ],
-          "kind": "license",
-          "license": "BSD-3-Clause",
-          "sha256": "911f8f5782931320f5b8d1160a76365b83aea6447ee6c04fa6d5591467db9dad",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
       "name": "golang.org/x/vuln",
       "origins": [
         "qa"
@@ -75624,15 +74091,15 @@
       "license_status": "candidate",
       "name": "google.golang.org/api",
       "origins": [
-        "scanner"
+        "qa"
       ],
       "source": {
-        "go_mod_sum": "h1:02qB8+Ox1ZFzcaKFMguy1nQLJmSIyvV6Ff4txJEXtl4=",
-        "sum": "h1:8gASjJxdtcIieB3OqbkLcF0FfbXVNqKtU5iozD1ssvA=",
+        "go_mod_sum": "h1:6n5tjEB1gzwniZTepZ0g5u+wM7Bof5GeULCx/zh8ZE0=",
+        "sum": "h1:p9XIWOf63U4OgYx120ZwVU8+vl4XTPmWfgVPnmOAS9w=",
         "verification": "go-mod-verify"
       },
-      "version": "v0.294.0",
-      "version_published_at": "2026-08-26T18:22:49Z"
+      "version": "v0.293.0",
+      "version_published_at": "2026-08-11T16:56:22Z"
     },
     {
       "ecosystem": "gomod",
@@ -75653,15 +74120,15 @@
       "license_status": "candidate",
       "name": "google.golang.org/api",
       "origins": [
-        "qa"
+        "scanner"
       ],
       "source": {
-        "go_mod_sum": "h1:S4m8x0M6OkQpkOzGk1y9JG2sm4fFQrMh6dxzjCTszhE=",
-        "sum": "h1:WktxTsnnx0yZNnsR6j0q6hR21RnnK81FHTOPy/ux4OE=",
+        "go_mod_sum": "h1:02qB8+Ox1ZFzcaKFMguy1nQLJmSIyvV6Ff4txJEXtl4=",
+        "sum": "h1:8gASjJxdtcIieB3OqbkLcF0FfbXVNqKtU5iozD1ssvA=",
         "verification": "go-mod-verify"
       },
-      "version": "v0.297.0",
-      "version_published_at": "2026-09-02T00:17:06Z"
+      "version": "v0.294.0",
+      "version_published_at": "2026-08-26T18:22:49Z"
     },
     {
       "ecosystem": "gomod",
@@ -76006,15 +74473,15 @@
       "license_status": "candidate",
       "name": "google.golang.org/genproto/googleapis/api",
       "origins": [
-        "scanner"
+        "qa"
       ],
       "source": {
-        "go_mod_sum": "h1:3LhxRw4YYkf+ylAfgaY9JlVLFKhokkCV8duhLLe7+t0=",
-        "sum": "h1:izFU9hz7aeLI/Mi1J0991ae+xcwRLr7hTqWnB/9aIIU=",
+        "go_mod_sum": "h1:WRrQ7/7N19PypuT0fxLOL5Lq0waoiRri4FbtHDEKrGE=",
+        "sum": "h1:QwnJwPte4XXAkhPu26LTDIahnsMSUV0kK8HkxbC+Pc4=",
         "verification": "go-mod-verify"
       },
-      "version": "v0.0.0-20260825221802-da73d73af1c5",
-      "version_published_at": "2026-08-25T22:18:02Z"
+      "version": "v0.0.0-20260715232425-e75dac1f907d",
+      "version_published_at": "2026-07-15T23:24:25Z"
     },
     {
       "ecosystem": "gomod",
@@ -76035,15 +74502,15 @@
       "license_status": "candidate",
       "name": "google.golang.org/genproto/googleapis/api",
       "origins": [
-        "qa"
+        "scanner"
       ],
       "source": {
-        "go_mod_sum": "h1:fJ2lYaWjqNknJyQBOCd0fA3HnEElJqGplH71a2txi+g=",
-        "sum": "h1:NCe/UiklGd/9xjT+ROBVhJ1kf6TRQaFedsR+z7u1gvo=",
+        "go_mod_sum": "h1:3LhxRw4YYkf+ylAfgaY9JlVLFKhokkCV8duhLLe7+t0=",
+        "sum": "h1:izFU9hz7aeLI/Mi1J0991ae+xcwRLr7hTqWnB/9aIIU=",
         "verification": "go-mod-verify"
       },
-      "version": "v0.0.0-20260904194346-d0f1323225a4",
-      "version_published_at": "2026-09-04T19:43:46Z"
+      "version": "v0.0.0-20260825221802-da73d73af1c5",
+      "version_published_at": "2026-08-25T22:18:02Z"
     },
     {
       "ecosystem": "gomod",
@@ -76122,7 +74589,35 @@
       "license_status": "candidate",
       "name": "google.golang.org/genproto/googleapis/bytestream",
       "origins": [
-        "qa",
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:zpqRtTwVou7odpidkkHm+GTCum9L4nuS3SvU5rrEeik=",
+        "sum": "h1:UWZWShWaGCxLql7oakxNzRXXaGjb0pm+K2zMzw0azz0=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v0.0.0-20260807164820-c8921c73eeea",
+      "version_published_at": "2026-08-07T16:48:20Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "google.golang.org/genproto/googleapis/bytestream",
+      "origins": [
         "scanner"
       ],
       "source": {
@@ -76268,7 +74763,35 @@
       "license_status": "candidate",
       "name": "google.golang.org/genproto/googleapis/rpc",
       "origins": [
-        "qa",
+        "qa"
+      ],
+      "source": {
+        "go_mod_sum": "h1:DjtHYE8FKJLivXcBEjGwndXfIC23G0VpXiXKqG179uA=",
+        "sum": "h1:cYNAzI2sUwhmCcoj9TxvihSrqsxt6uIkj3rDRhSDmW4=",
+        "verification": "go-mod-verify"
+      },
+      "version": "v0.0.0-20260819154853-08b0e4226688",
+      "version_published_at": "2026-08-19T15:48:53Z"
+    },
+    {
+      "ecosystem": "gomod",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "candidate",
+      "name": "google.golang.org/genproto/googleapis/rpc",
+      "origins": [
         "scanner"
       ],
       "source": {
@@ -76429,7 +74952,8 @@
       "license_status": "candidate",
       "name": "google.golang.org/grpc",
       "origins": [
-        "application"
+        "application",
+        "qa"
       ],
       "source": {
         "go_mod_sum": "h1:kDyl6SKsiHKt0uylY5gtn5cEjkrIOhQOGDgIc4JGwzQ=",
@@ -76469,7 +74993,6 @@
       "license_status": "candidate",
       "name": "google.golang.org/grpc",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -76927,6 +75450,7 @@
       "license_status": "candidate",
       "name": "gopkg.in/errgo.v2",
       "origins": [
+        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -76981,35 +75505,6 @@
           ],
           "kind": "license",
           "license": "BSD-3-Clause",
-          "sha256": "9cb8ce7ebecf456a156e04c999c32b2eeafb3f7d7e05b9435ac8829d6e0bf734",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "gopkg.in/evanphx/json-patch.v4",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:p8EYWUEYMpynmqDbY58zCKCFZw8pRWMG4EsWvDvM72M=",
-        "sum": "h1:czT3CmqEaQ1aanPc5SdlgQrrEIb8w/wwCvWWnfEbYzo=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v4.13.0",
-      "version_published_at": "2025-01-28T17:43:52Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "BSD-3-Clause",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "BSD-3-Clause"
-          ],
-          "kind": "license",
-          "license": "BSD-3-Clause",
           "sha256": "c8001d18c3dda64c7e72146f1b23d73619fcf426aed6778f447599f5ac8e600a",
           "status": "candidate"
         }
@@ -77048,7 +75543,6 @@
       "origins": [
         "fixture-mc",
         "fixture-minio",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -77110,6 +75604,7 @@
       "origins": [
         "fixture-mc",
         "fixture-minio",
+        "qa",
         "tool-cosign"
       ],
       "source": {
@@ -77119,35 +75614,6 @@
       },
       "version": "v1.67.0",
       "version_published_at": "2022-08-08T11:35:30Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
-          "sha256": "f6918bd93ffe07f4b2c61b8287c32cb3122e08aed0be50f1c7d0eddc87877a8f",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "gopkg.in/ini.v1",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:x/cyOwCgZqOkJoDIJ3c1KNHMo10+nLGAhh+kn3Zizss=",
-        "sum": "h1:JtOSMb9OuaCZKr7h5D/h6iii14sK0hLbplTc6frx4Ss=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.67.2",
-      "version_published_at": "2026-05-03T01:44:05Z"
     },
     {
       "ecosystem": "gomod",
@@ -77802,7 +76268,6 @@
       "license_status": "candidate",
       "name": "k8s.io/api",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -77891,7 +76356,6 @@
       "license_status": "candidate",
       "name": "k8s.io/apimachinery",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -77980,7 +76444,6 @@
       "license_status": "candidate",
       "name": "k8s.io/client-go",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -78148,35 +76611,6 @@
           ],
           "kind": "license",
           "license": "Apache-2.0",
-          "sha256": "5f52a7f9e6a13f7ce4ec84fe72fbf1f7a9827bee85dd991026aaaccfe2bd655c",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "k8s.io/gengo/v2",
-      "origins": [
-        "qa"
-      ],
-      "source": {
-        "go_mod_sum": "h1:CgujABENc3KuTrcsdpGmrrASjtQsWCT7R99mEV4U/fM=",
-        "sum": "h1:gMplByicHV/TJBizHd9aVEsTYoJBnnUAT5MHlTkbjhQ=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v2.0.0-20250922181213-ec3ebc5fd46b",
-      "version_published_at": "2025-09-22T18:12:13Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "Apache-2.0",
-      "license_evidence": [
-        {
-          "coverage_percent": 100,
-          "file": "LICENSE",
-          "ids": [
-            "Apache-2.0"
-          ],
-          "kind": "license",
-          "license": "Apache-2.0",
           "sha256": "73ba74dfaa520b49a401b5d21459a8523a146f3b7518a833eea5efa85130bf68",
           "status": "candidate"
         }
@@ -78185,8 +76619,7 @@
       "name": "k8s.io/klog",
       "origins": [
         "fixture-mc",
-        "fixture-minio",
-        "qa"
+        "fixture-minio"
       ],
       "source": {
         "go_mod_sum": "h1:4Bi6QPql/J/LkTDqv7R/cd3hPo4k2DG6Ptcz060Ez5I=",
@@ -78247,7 +76680,6 @@
       "name": "k8s.io/klog/v2",
       "origins": [
         "application",
-        "qa",
         "scanner"
       ],
       "source": {
@@ -78336,7 +76768,6 @@
       "license_status": "candidate",
       "name": "k8s.io/kube-openapi",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -78366,7 +76797,6 @@
       "license_status": "candidate",
       "name": "k8s.io/streaming",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -78455,7 +76885,6 @@
       "license_status": "candidate",
       "name": "k8s.io/utils",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -79689,6 +78118,7 @@
       "license_status": "candidate",
       "name": "rsc.io/binaryregexp",
       "origins": [
+        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -79778,6 +78208,7 @@
       "license_status": "candidate",
       "name": "rsc.io/quote/v3",
       "origins": [
+        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -79808,6 +78239,7 @@
       "license_status": "candidate",
       "name": "rsc.io/sampler",
       "origins": [
+        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -79930,7 +78362,6 @@
       "license_status": "ambiguous",
       "name": "sigs.k8s.io/json",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -79969,7 +78400,6 @@
       "license_status": "candidate",
       "name": "sigs.k8s.io/randfill",
       "origins": [
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -80119,7 +78549,6 @@
       "license_status": "candidate",
       "name": "sigs.k8s.io/structured-merge-diff/v6",
       "origins": [
-        "qa",
         "scanner"
       ],
       "source": {
@@ -80184,7 +78613,6 @@
       "name": "sigs.k8s.io/yaml",
       "origins": [
         "application",
-        "qa",
         "scanner",
         "tool-cosign"
       ],
@@ -80739,6 +79167,234 @@
         "verification": "sha512-verified"
       },
       "version": "1.5.0",
+      "version_published_at": null
+    },
+    {
+      "artifact_license": "MIT",
+      "ecosystem": "npm",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.86363636363636,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "artifact-declared",
+      "license_text_candidate": "MIT",
+      "license_text_status": "candidate",
+      "locations": [
+        "node_modules/@codemirror/autocomplete"
+      ],
+      "lockfile_license": "MIT",
+      "name": "@codemirror/autocomplete",
+      "origins": [
+        "marketing"
+      ],
+      "source": {
+        "declaration_status": "matched",
+        "integrity": "sha512-yF8RhOf2SXlg00+qtupzLhrglcas61boqaONiNcbPIebHCpJocpqTBA6dyrtUrQO47hqyTdeob/3XnYilT7TaQ==",
+        "package_json_sha256": "6d7fa54e616d69e142ff46b413641688b72b41e944b1aa392ddb2a03957a18b3",
+        "url": "https://registry.npmjs.org/@codemirror/autocomplete/-/autocomplete-6.20.4.tgz",
+        "verification": "sha512-verified"
+      },
+      "version": "6.20.4",
+      "version_published_at": null
+    },
+    {
+      "artifact_license": "MIT",
+      "ecosystem": "npm",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.86363636363636,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "artifact-declared",
+      "license_text_candidate": "MIT",
+      "license_text_status": "candidate",
+      "locations": [
+        "node_modules/@codemirror/language"
+      ],
+      "lockfile_license": "MIT",
+      "name": "@codemirror/language",
+      "origins": [
+        "marketing"
+      ],
+      "source": {
+        "declaration_status": "matched",
+        "integrity": "sha512-zfvU2r3TyylQLMj/te+5CnQ0rSqZi8B1oTCBbQkagcLW4Xc6imab6qN+pEJhsuNOLaJqiRyBXp9UhWA1DhVvDw==",
+        "package_json_sha256": "213da785d0246774f4c9dc0527a97e8756119fb2e6c4de6d30575bc221f7dd9b",
+        "url": "https://registry.npmjs.org/@codemirror/language/-/language-6.13.1.tgz",
+        "verification": "sha512-verified"
+      },
+      "version": "6.13.1",
+      "version_published_at": null
+    },
+    {
+      "artifact_license": "MIT",
+      "ecosystem": "npm",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.86363636363636,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "artifact-declared",
+      "license_text_candidate": "MIT",
+      "license_text_status": "candidate",
+      "locations": [
+        "node_modules/@codemirror/lint"
+      ],
+      "lockfile_license": "MIT",
+      "name": "@codemirror/lint",
+      "origins": [
+        "marketing"
+      ],
+      "source": {
+        "declaration_status": "matched",
+        "integrity": "sha512-28/+iWLYxKxsvGYhSYL7zaCZqLz5+FFFDq9tVsvGv9kv8RY4fFAchJ5WX9M3YrrRlTIsECjsXPqeNgnSmNP2dg==",
+        "package_json_sha256": "c85ba7a1530b1a70616cc5ce35bfed4b8d73993d2499efe584e1a977148f72bd",
+        "url": "https://registry.npmjs.org/@codemirror/lint/-/lint-6.9.7.tgz",
+        "verification": "sha512-verified"
+      },
+      "version": "6.9.7",
+      "version_published_at": null
+    },
+    {
+      "artifact_license": "MIT",
+      "ecosystem": "npm",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.86363636363636,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "artifact-declared",
+      "license_text_candidate": "MIT",
+      "license_text_status": "candidate",
+      "locations": [
+        "node_modules/@codemirror/state"
+      ],
+      "lockfile_license": "MIT",
+      "name": "@codemirror/state",
+      "origins": [
+        "marketing"
+      ],
+      "source": {
+        "declaration_status": "matched",
+        "integrity": "sha512-kAz+AncRtKuIknedxT1bq4XwXv4UowhbkHU1myPrtVb/jZtImWuV5BXzv5vK6i3kYACsdiZiQKFQQ5Mq7elW8w==",
+        "package_json_sha256": "0d5d4cb502ac5ece9c5c76104fd72b30b4a5b16eeaf7a5d6f0a8abbf295c10c3",
+        "url": "https://registry.npmjs.org/@codemirror/state/-/state-6.7.6.tgz",
+        "verification": "sha512-verified"
+      },
+      "version": "6.7.6",
+      "version_published_at": null
+    },
+    {
+      "artifact_license": "MIT",
+      "ecosystem": "npm",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.86363636363636,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "artifact-declared",
+      "license_text_candidate": "MIT",
+      "license_text_status": "candidate",
+      "locations": [
+        "node_modules/@codemirror/streamparser"
+      ],
+      "lockfile_license": "MIT",
+      "name": "@codemirror/streamparser",
+      "origins": [
+        "marketing"
+      ],
+      "source": {
+        "declaration_status": "matched",
+        "integrity": "sha512-JTFPF6xrfjt0mnfGPgzcLiMwYmvIyNaoizp8BYzv8FE8KrT6GBGDZ190rtt+O7Wke3gG/MFHyiY9YGNeimof4w==",
+        "package_json_sha256": "f16c27dba359affc7be51edf2e94b4afce4f9e83bb34541d5cc4dbb4e2638f7d",
+        "url": "https://registry.npmjs.org/@codemirror/streamparser/-/streamparser-6.0.0.tgz",
+        "verification": "sha512-verified"
+      },
+      "version": "6.0.0",
+      "version_published_at": null
+    },
+    {
+      "artifact_license": "MIT",
+      "ecosystem": "npm",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.86363636363636,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "05c6130cda97e7600ca91427a41e8a065efcf82365fc0293e7de80faec494c07",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "artifact-declared",
+      "license_text_candidate": "MIT",
+      "license_text_status": "candidate",
+      "locations": [
+        "node_modules/@codemirror/view"
+      ],
+      "lockfile_license": "MIT",
+      "name": "@codemirror/view",
+      "origins": [
+        "marketing"
+      ],
+      "source": {
+        "declaration_status": "matched",
+        "integrity": "sha512-HHsfpqFeHyXLs983pSRe38Xajs0vFWZQ2BuX0m7Ki8w3jZ5iD8cuR3lBz2/5/X53Dhf32SBHKh6rtSTB6tKeGw==",
+        "package_json_sha256": "25ffcd6d7ca21bea40f672586e3bd81d026413a99f7828d537ddb51741afe94a",
+        "url": "https://registry.npmjs.org/@codemirror/view/-/view-6.43.15.tgz",
+        "verification": "sha512-verified"
+      },
+      "version": "6.43.15",
       "version_published_at": null
     },
     {
@@ -82329,6 +80985,158 @@
       "license": "MIT",
       "license_evidence": [
         {
+          "coverage_percent": 98.85714285714286,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "568902fb66eaf1f11750e966b33fd7b5d7c618e65af09f35ef843635bcf5f1ba",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "artifact-declared",
+      "license_text_candidate": "MIT",
+      "license_text_status": "candidate",
+      "locations": [
+        "node_modules/@lezer/common"
+      ],
+      "lockfile_license": "MIT",
+      "name": "@lezer/common",
+      "origins": [
+        "marketing"
+      ],
+      "source": {
+        "declaration_status": "matched",
+        "integrity": "sha512-xt3Q4z64xM+xhg4M7NXqw1N//1O74bUFo5kz6fwMeC4qwxSuRdwkYSmjcqCEEKYkNw5e67f2hcNqBoNERAEU0w==",
+        "package_json_sha256": "725719a4f08e2ed8330df13e857e944b81f157b6e5cd65781c23b28a82b5c451",
+        "url": "https://registry.npmjs.org/@lezer/common/-/common-1.5.4.tgz",
+        "verification": "sha512-verified"
+      },
+      "version": "1.5.4",
+      "version_published_at": null
+    },
+    {
+      "artifact_license": "MIT",
+      "ecosystem": "npm",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.85714285714286,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "568902fb66eaf1f11750e966b33fd7b5d7c618e65af09f35ef843635bcf5f1ba",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "artifact-declared",
+      "license_text_candidate": "MIT",
+      "license_text_status": "candidate",
+      "locations": [
+        "node_modules/@lezer/highlight"
+      ],
+      "lockfile_license": "MIT",
+      "name": "@lezer/highlight",
+      "origins": [
+        "marketing"
+      ],
+      "source": {
+        "declaration_status": "matched",
+        "integrity": "sha512-O1GMVKgtf5YspFaRzpmqkVgMtIk2HG9uMAbH6wdAIdNh3TVzCsch/+cRi+6l2//UGDKe6NB9BW3cvuR5ezMQ0w==",
+        "package_json_sha256": "e50eb1fc5c2831ab58274ce2ea6cac989a0c80cc84f9fbabcb4100eee4327710",
+        "url": "https://registry.npmjs.org/@lezer/highlight/-/highlight-1.2.5.tgz",
+        "verification": "sha512-verified"
+      },
+      "version": "1.2.5",
+      "version_published_at": null
+    },
+    {
+      "artifact_license": "MIT",
+      "ecosystem": "npm",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.85714285714286,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "568902fb66eaf1f11750e966b33fd7b5d7c618e65af09f35ef843635bcf5f1ba",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "artifact-declared",
+      "license_text_candidate": "MIT",
+      "license_text_status": "candidate",
+      "locations": [
+        "node_modules/@lezer/lr"
+      ],
+      "lockfile_license": "MIT",
+      "name": "@lezer/lr",
+      "origins": [
+        "marketing"
+      ],
+      "source": {
+        "declaration_status": "matched",
+        "integrity": "sha512-UwgZcl1R66H2hDzBrA7kWyYmX6s8p5TQ+e/t7CuvgCtBEPxbEPaHYHu+pJBvTvDotEJpuQkJjbXuHiw5Cixxgw==",
+        "package_json_sha256": "cb7037d51adfda665910d2260c52629bbffe551420748270ca5b85a4623981ae",
+        "url": "https://registry.npmjs.org/@lezer/lr/-/lr-1.4.11.tgz",
+        "verification": "sha512-verified"
+      },
+      "version": "1.4.11",
+      "version_published_at": null
+    },
+    {
+      "artifact_license": "MIT",
+      "ecosystem": "npm",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 98.84393063583815,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "9360b00fdd091f05c783b568bdd46c679c41b72415599252de98949462ea1acb",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "artifact-declared",
+      "license_text_candidate": "MIT",
+      "license_text_status": "candidate",
+      "locations": [
+        "node_modules/@marijn/find-cluster-break"
+      ],
+      "lockfile_license": "MIT",
+      "name": "@marijn/find-cluster-break",
+      "origins": [
+        "marketing"
+      ],
+      "source": {
+        "declaration_status": "matched",
+        "integrity": "sha512-Wy0V7+SGUjnF9/TkiM1hKVDPj7jKXduPNboMVtHTA8dySMURWqfg/JZ9E2Sq8JgSJmkl7k7Qe9FLeMSrSraWmQ==",
+        "package_json_sha256": "5ee922ec8f5586c2104e070ad9b60c1c18f32bfc3dad48634f93d3bbbdcd182b",
+        "url": "https://registry.npmjs.org/@marijn/find-cluster-break/-/find-cluster-break-1.0.4.tgz",
+        "verification": "sha512-verified"
+      },
+      "version": "1.0.4",
+      "version_published_at": null
+    },
+    {
+      "artifact_license": "MIT",
+      "ecosystem": "npm",
+      "license": "MIT",
+      "license_evidence": [
+        {
           "coverage_percent": 98.80952380952381,
           "file": "LICENSE",
           "ids": [
@@ -82359,6 +81167,82 @@
         "verification": "sha512-verified"
       },
       "version": "1.1.0",
+      "version_published_at": null
+    },
+    {
+      "artifact_license": "Apache-2.0",
+      "ecosystem": "npm",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "artifact-declared",
+      "license_text_candidate": "Apache-2.0",
+      "license_text_status": "candidate",
+      "locations": [
+        "node_modules/@prometheus-io/codemirror-promql"
+      ],
+      "lockfile_license": "Apache-2.0",
+      "name": "@prometheus-io/codemirror-promql",
+      "origins": [
+        "marketing"
+      ],
+      "source": {
+        "declaration_status": "matched",
+        "integrity": "sha512-aAIrCghT1DvuriNmk+sjqtLxkIP4tKXcFBqSGWRoiII2mTE1iP9to0KqfP/q6Mz+3QtKlVkh3VpUNievDSPdYw==",
+        "package_json_sha256": "b8788b2582dbe53d2690f5d62c549d73f819ae400282cfbf8d0dbc5ebf3330af",
+        "url": "https://registry.npmjs.org/@prometheus-io/codemirror-promql/-/codemirror-promql-0.313.4.tgz",
+        "verification": "sha512-verified"
+      },
+      "version": "0.313.4",
+      "version_published_at": null
+    },
+    {
+      "artifact_license": "Apache-2.0",
+      "ecosystem": "npm",
+      "license": "Apache-2.0",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "Apache-2.0"
+          ],
+          "kind": "license",
+          "license": "Apache-2.0",
+          "sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "artifact-declared",
+      "license_text_candidate": "Apache-2.0",
+      "license_text_status": "candidate",
+      "locations": [
+        "node_modules/@prometheus-io/lezer-promql"
+      ],
+      "lockfile_license": "Apache-2.0",
+      "name": "@prometheus-io/lezer-promql",
+      "origins": [
+        "marketing"
+      ],
+      "source": {
+        "declaration_status": "matched",
+        "integrity": "sha512-wBnJsfaw/+AMlzC8BMXLu6ydlimNxz8sZQCTKRbcsCgGhdi03NFZ7iR5NgBDo1GSDEy712/jf/6pT1h/mgsr7A==",
+        "package_json_sha256": "1d26f56e3e9aa9f756d45ed15a046468601bfcfdd279dde1f26196effd18ae34",
+        "url": "https://registry.npmjs.org/@prometheus-io/lezer-promql/-/lezer-promql-0.313.4.tgz",
+        "verification": "sha512-verified"
+      },
+      "version": "0.313.4",
       "version_published_at": null
     },
     {
@@ -84403,6 +83287,44 @@
         "verification": "sha512-verified"
       },
       "version": "1.2.3",
+      "version_published_at": null
+    },
+    {
+      "artifact_license": "MIT",
+      "ecosystem": "npm",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "23852ebf6aef7fadffc92514b3c5df163a8651f2c3ed0dbb494cb49d93bd5de5",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "artifact-declared",
+      "license_text_candidate": "MIT",
+      "license_text_status": "candidate",
+      "locations": [
+        "node_modules/crelt"
+      ],
+      "lockfile_license": "MIT",
+      "name": "crelt",
+      "origins": [
+        "marketing"
+      ],
+      "source": {
+        "declaration_status": "matched",
+        "integrity": "sha512-aK6BbWfhf4U/wCcLHKPJl/xa6VkVstRaPywWtMKGwuOLc/wZTyQYuoxgvZnNsBvv7Kg3YTBQYYBCggcviQczuA==",
+        "package_json_sha256": "9e85a4699c12ad932528bc2321986e8f991c1f9b074551a04e3814d72c1cc44a",
+        "url": "https://registry.npmjs.org/crelt/-/crelt-1.0.7.tgz",
+        "verification": "sha512-verified"
+      },
+      "version": "1.0.7",
       "version_published_at": null
     },
     {
@@ -90581,6 +89503,44 @@
       "license": "MIT",
       "license_evidence": [
         {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "cb4474e26547397169061d3586c00022cda5330a1b64fa13e872319f3b63aff1",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "artifact-declared",
+      "license_text_candidate": "MIT",
+      "license_text_status": "candidate",
+      "locations": [
+        "node_modules/style-mod"
+      ],
+      "lockfile_license": "MIT",
+      "name": "style-mod",
+      "origins": [
+        "marketing"
+      ],
+      "source": {
+        "declaration_status": "matched",
+        "integrity": "sha512-XXWIQt633/EpAFx8aZDOTjBzrCaGmhvEQlQo6MVPfa2OzO2cWo+4hV9h+6UkHYlXGfy+ODXKUdP7Pthmcu5ATw==",
+        "package_json_sha256": "0aa5f5995a953bc3f1d02164a5ec0e58d13bf9f7d362c44bf0526e667439f842",
+        "url": "https://registry.npmjs.org/style-mod/-/style-mod-4.1.4.tgz",
+        "verification": "sha512-verified"
+      },
+      "version": "4.1.4",
+      "version_published_at": null
+    },
+    {
+      "artifact_license": "MIT",
+      "ecosystem": "npm",
+      "license": "MIT",
+      "license_evidence": [
+        {
           "coverage_percent": 98.80952380952381,
           "file": "LICENSE",
           "ids": [
@@ -91640,6 +90600,44 @@
         "verification": "sha512-verified"
       },
       "version": "1.1.3",
+      "version_published_at": null
+    },
+    {
+      "artifact_license": "MIT",
+      "ecosystem": "npm",
+      "license": "MIT",
+      "license_evidence": [
+        {
+          "coverage_percent": 100,
+          "file": "LICENSE",
+          "ids": [
+            "MIT"
+          ],
+          "kind": "license",
+          "license": "MIT",
+          "sha256": "869c30f368eb08735e779027b9f4bc9fea2f39624351856aebe42741f0bc0884",
+          "status": "candidate"
+        }
+      ],
+      "license_status": "artifact-declared",
+      "license_text_candidate": "MIT",
+      "license_text_status": "candidate",
+      "locations": [
+        "node_modules/w3c-keyname"
+      ],
+      "lockfile_license": "MIT",
+      "name": "w3c-keyname",
+      "origins": [
+        "marketing"
+      ],
+      "source": {
+        "declaration_status": "matched",
+        "integrity": "sha512-dpojBhNsCNN7T82Tm7k26A6G9ML3NkhDsnw9n/eoxSRlVBB4CEtIQ/KTCLI2Fwf3ataSXRhYFkQi3SlnFwPvPQ==",
+        "package_json_sha256": "0396c646f74d52c1b0851074ecdb5cabf540af595ceb5e5a5136df2bf3c2f83b",
+        "url": "https://registry.npmjs.org/w3c-keyname/-/w3c-keyname-2.2.8.tgz",
+        "verification": "sha512-verified"
+      },
+      "version": "2.2.8",
       "version_published_at": null
     },
     {
@@ -93487,7 +92485,7 @@
     "python_version": "3.14.7"
   },
   "inputs": {
-    ".github/workflows/ci.yml": "74edd6bcee1257a8af2693003e10cbda3a4e3ad8282e4292e2389e453f4d0835",
+    ".github/workflows/ci.yml": "2d7b4b8289e762617ba7dee24bcb2e96996cf6fa9ab9d9876294a5135773792a",
     ".github/workflows/codeql.yml": "1ee2f3c7f31223fa2ac8f575dfbd6ca902eef6c1a80960cb363239b5c1321392",
     ".github/workflows/container-image.yml": "6936fbbd31f902ec64a79753538352beea68e5420988ad52c2e0b002d627f2be",
     ".github/workflows/dependency-review.yml": "c779553cc767889ebbda048e6e98dda99cbce72638d63f80205f2711c769c60a",
@@ -93564,8 +92562,8 @@
     "scripts/testdata/lint-policy/response.go.txt": "46fa0642594658915ad834515271696b58dd36ae326f2e01d86db0ee856fa2bc",
     "scripts/testdata/release-legacy-v0.1.0-rc.7/evydence-release-manifest.json": "d2d2dd20ba2cc7f318823d4909bce0a7c7375323c5ada5ac4720d71214220e90",
     "scripts/testdata/release-legacy-v0.1.0-rc.7/evydence-release-manifest.sig.json": "720a4d2f8810dd9fb4560e904ccf9e12ea6b58b998343b21d2ee4ca591246fdc",
-    "site/marketing/package-lock.json": "e8c52b3d3efd7489a66f2456cd46258ace4d3c42603cf6436774a8fe98032926",
-    "site/marketing/package.json": "a88040e4a3f393f815984c56b926540d70b2e99639ce7f9e4c5bc38cf5ad20a3",
+    "site/marketing/package-lock.json": "ba5846c44a4eb48a36e12751980bac6eb52822f3d4d45d97042ef17ae72cc197",
+    "site/marketing/package.json": "593a3f76c4006d28098fe9bb5e69e835155e3f0f3a1c45622c2ae6e5b66a0c18",
     "testdata/dsse/unsupported-payload-type.json": "39ee2b8579b989286ff3445dc8591eb92334c7e111fc58343615812ebd46b2ac",
     "testdata/fixture-provenance.v1.json": "f8d0c121b27bb9ceb1782b0327d19433eee7ae8b92c2a4c16d642ed96c708e0a",
     "testdata/intoto/slsa-provenance-v1.json": "e9f4be8eb74bafa70b31b50b7019f129dc952a06c42bf7acd40f15c302eb6e22",
@@ -93580,8 +92578,8 @@
     "testdata/licenses/trivy.NOTICE": "aed9bc6dab87c6f6567d20bf0f5c0433a8ccd3ad7873322cf79b9244eb720a1f",
     "testdata/parser-corpus.v1.json": "b16c3f69431daeb7dfb9280f320f2177a076f394b1340c2a14034e44a0399b42",
     "testdata/verification/rfc6962-tree-size-3.v1.json": "0f1a0508e6ed51820e3162af56fae23c641f6a3d5ca2ab99ac3bfcb261f8a296",
-    "tools/go.mod": "f7b6f90c88812adde1caa92a6749c90dbd5132150d1284a12526415c3f248218",
-    "tools/go.sum": "a67a5914d8a3b8bd1a2f14cf7af27bf746bbb981e3cf70723d52c42f762fd376",
+    "tools/go.mod": "6607d0a19d23e005f96af7b79cfbf97815de55db22d5dbdfa4505a234e90cf3d",
+    "tools/go.sum": "4485cc87fd5ff6aa5b0058bddf2636a1dab4662a2011974aded50ba9e17037a2",
     "tools/requirements-qa.txt": "0cd60730d0853259b18599b93ac6e7614ef183fb9f98914b97f99fe05c354c81"
   },
   "limitations": [

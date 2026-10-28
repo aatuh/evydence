@@ -36,26 +36,31 @@ an obsolete fixture or silently break a published interface to remove it.
 
 ## Monitoring query validation
 
-EVY-1212 adds `github.com/prometheus/prometheus` `v0.315.1` to the isolated
-`tools` module for its official PromQL parser and rule-format validator. The
-standard library and the existing exposition parser do not implement PromQL's
-grammar, type checks or rule templates. A hand-written query matcher would miss
-invalid expressions. The library is pinned through `tools/go.mod`/`go.sum`;
-the selected source corresponds to upstream Prometheus 3.15.1 and declares
-Apache-2.0 licensing with a Go 1.26 floor, within this project's compiler policy.
-This new direct selection and the checker are confined to QA; the production
-module manifests and SDK sources are unchanged. The inventory also records
-older Prometheus module versions in existing transitive graphs; those rows do
-not mean this checker or its new selection is linked into the application.
+EVY-1212 uses the official Prometheus editor grammar and type linter, pinned
+to `0.313.4` in the existing `site/marketing/package.json` and checksum-locked
+npm graph. Their direct sources declare Apache-2.0; all transitive sources
+remain subject to the same inventory and admission policy. This version keeps
+the existing compatible cache dependency without an override or policy waiver.
+The initial Go server-module selection was rejected by hosted dependency
+admission because it introduced a much larger server/cloud discovery graph.
+Its removal restores the prior QA Go module versions; production module
+manifests and SDK sources are unchanged.
 
-The module graph also changes transitive selections used by QA tools; review
-the generated source inventory and advisory results rather than treating those
-updates as production runtime changes. `make observability-check` parses owned,
-bounded example files without contacting scrape targets, evaluating provider
-calls or reading credential files. The checker can be replaced independently
-of application behavior; keeping a real PromQL implementation remains the
-validation requirement. Source/licensing observations, advisory scans and
-maintenance metadata each retain their documented coverage limits.
+The standard library and exposition parser do not implement PromQL grammar or
+type checking. The owned Node bridge uses the official linter headlessly,
+rejects recovery nodes and returns bounded structured facts. Go supplements
+RE2/string, duration and disabled-feature validation. Rule templates use
+standard Go template syntax parsing with the explicit Prometheus function-name
+profile, without execution. See the [validation reference](observability.md#repository-validation)
+for prerequisites and comparison coverage limits.
+
+`make observability-check` parses bounded owned files without contacting scrape
+targets, evaluating queries or opening credential files. The child process
+receives no application credentials, ambient Node preloads or proxy settings;
+it has bounded input/output, heap and execution time. The checker can be replaced
+independently of application behavior; keeping a real PromQL implementation
+remains the validation requirement. Source/licensing observations, advisory
+scans and maintenance metadata retain their documented coverage limits.
 
 ## Update Review
 
