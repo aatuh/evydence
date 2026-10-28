@@ -161,7 +161,12 @@ func runWorkerConfigured(parent context.Context, settings config.Configuration) 
 	if err != nil {
 		return err
 	}
-	ctx = telemetry.WithObserver(ctx, metrics)
+	observability, err := wiring.BuildOperationalTelemetry(ctx, wiring.Worker, settings.Runtime(), metrics)
+	if err != nil {
+		return err
+	}
+	defer observability.Close(ctx)
+	ctx = telemetry.WithObserver(ctx, observability)
 	objectStore := runtime.Objects
 	processor, err := newNativeJobProcessor(store, objectStore, worker.MaxPayloadBytes)
 	if err != nil {

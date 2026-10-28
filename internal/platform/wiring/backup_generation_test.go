@@ -221,6 +221,9 @@ func TestPostgresBackupCommitmentProfileClassifiesEveryMigrationTableAndColumn(t
 	// exact exclusions; the mutation regression below still requires job-state
 	// changes to affect the tenant commitment.
 	excludedColumns := map[string]bool{"api_keys.hash": true, "customer_portal_access.hash": true, "sso_sessions.hash": true, "oidc_authentication_requests.state_hash": true, "oidc_authentication_requests.nonce_hash": true, "saml_authentication_requests.state_hash": true, "signing_keys.encrypted_private_key": true, "outbox_jobs.payload": true, "outbox_jobs.last_error": true, "outbox_jobs.lease_token": true, "outbox_jobs.log_request_id": true, "outbox_jobs.log_operation_id": true, "vex_import_reports.failure_detail": true}
+	for _, column := range []string{"trace_id", "trace_parent_span_id", "trace_sampled"} {
+		excludedColumns["outbox_jobs."+column] = true
+	}
 	rows, err := pool.Query(ctx, `SELECT table_name,column_name FROM information_schema.columns WHERE table_schema=current_schema() ORDER BY table_name,column_name`)
 	if err != nil {
 		t.Fatal(err)

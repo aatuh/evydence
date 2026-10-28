@@ -60,6 +60,26 @@ Verify overdue work and expired leases recover, and check durable job outcomes.
 An idle, empty queue cannot establish that a worker is alive; retain lifecycle
 monitoring and the intended target inventory.
 
+## Migration state
+
+1. Compare `evydence_migration_expectations_known` for each process with its
+   deployed binary, configured migration directory and rollout record. Zero
+   means no usable local catalog was discovered; the zero version gauges in
+   that state cannot establish that the database is current.
+2. For known catalogs, `applied` counts matching recorded versions, `pending`
+   counts local versions absent from the database record, and `unexpected`
+   counts recorded versions absent from that process's catalog. Do not sum
+   these repeated database gauges across targets. Compare API and worker
+   versions during a rollout before diagnosing an unexpected version as damage.
+3. Check authorized readiness diagnostics and follow the
+   [upgrade runbook](upgrade.md). Do not delete migration records or alter
+   schema rows to clear an alert. A catalog comparison checks recorded version
+   names, not schema contents, migration-byte integrity or data correctness.
+
+Verify that each intended process has a known catalog, no pending versions and
+no unexplained unexpected versions. Keep the deployment/upgrade evidence; these
+gauges do not replace a verified migration or recovery rehearsal.
+
 ## Database
 
 1. Identify the `job`, `instance`, `service` and `pool` on the alert. Compare

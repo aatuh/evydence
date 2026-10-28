@@ -445,6 +445,66 @@
           "range": true
         }
       ]
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Migration version gaps",
+      "description": "Pending or unexpected version records compared with each process local catalog. Check catalog availability and rollout versions; this is not schema validation. See docs/runbooks/observability.md#migration-state.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 56
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max by (deployment, state) (evydence_migration_versions{state=~\"pending|unexpected\"})",
+          "legendFormat": "{{deployment}} {{state}}",
+          "range": true
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Known local migration catalog",
+      "description": "One means local expectations were discovered; zero means version gauges cannot establish currency. See docs/runbooks/observability.md#migration-state.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${DS_PROMETHEUS}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 56
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "min by (deployment) (evydence_migration_expectations_known)",
+          "legendFormat": "{{deployment}} catalog known",
+          "range": true
+        }
+      ]
     }
   ],
   "schemaVersion": 39,

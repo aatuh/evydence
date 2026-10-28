@@ -182,8 +182,8 @@ func checkQuery(root, query string, contract metricContract) error {
 				return errors.New("query cannot match any code-owned value for this label")
 			}
 		}
-		if selector.Sum && strings.HasPrefix(name, "evydence_queue_") {
-			return errors.New("shared database queue gauges must not be summed across scrape targets")
+		if selector.Sum && (strings.HasPrefix(name, "evydence_queue_") || strings.HasPrefix(name, "evydence_migration_")) {
+			return errors.New("shared database state gauges must not be summed across scrape targets")
 		}
 		if selector.Counter && metric.Type == "gauge" {
 			return errors.New("reset-aware counter functions cannot interpret a retained-state gauge")

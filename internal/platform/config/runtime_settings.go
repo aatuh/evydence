@@ -12,6 +12,11 @@ type RuntimeSettings struct {
 	DatabaseURL               Secret        `env:"EVYDENCE_DATABASE_URL"`
 	LogFormat                 string        `env:"EVYDENCE_LOG_FORMAT"`
 	LogLevel                  string        `env:"EVYDENCE_LOG_LEVEL"`
+	TracingEnabled            bool          `env:"EVYDENCE_TRACING_ENABLED"`
+	TracingEndpoint           string        `env:"EVYDENCE_TRACING_ENDPOINT"`
+	TracingSamplePerMillion   int64         `env:"EVYDENCE_TRACING_SAMPLE_PER_MILLION"`
+	TracingQueueSize          int64         `env:"EVYDENCE_TRACING_QUEUE_SIZE"`
+	TracingExportTimeout      time.Duration `env:"EVYDENCE_TRACING_EXPORT_TIMEOUT_SECONDS"`
 	MigrationsDir             string        `env:"EVYDENCE_MIGRATIONS_DIR"`
 	PostgresLoadMode          string        `env:"EVYDENCE_POSTGRES_LOAD_MODE"`
 	Profile                   string        `env:"EVYDENCE_RUNTIME_PROFILE"`

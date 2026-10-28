@@ -5,7 +5,7 @@
   "summary": "Persist internal worker trace context separately from evidence.",
   "details": [
     "Validate bounded internal trace identifiers, retain the original context through job deduplication, restart and lease reclaim, and clear previous-job context for historical jobs.",
-    "Keep trace metadata outside evidence, deduplication inputs and frozen backup commitments. Optional OpenTelemetry export and daemon entry-point spans remain incomplete."
+    "Keep trace metadata outside evidence, deduplication inputs and frozen backup commitments; restored historical jobs retain an absent parent instead of inheriting another job's context."
   ],
   "compatibility": {
     "api": "unchanged",
@@ -15,7 +15,7 @@
   },
   "security": "Accept only bounded internal operational identifiers; preserve tenant ownership, transaction atomicity and lease fencing without adding a header or baggage parser.",
   "limitations": [
-    "Optional trace export and daemon entry-point span creation remain incomplete under EVY-1213.",
+    "Historical backups may omit operational trace context; restoring one does not reconstruct missing diagnostic history.",
     "Trace context is diagnostic metadata and does not provide durable audit or evidence guarantees."
   ]
 }

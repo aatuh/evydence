@@ -166,6 +166,12 @@ func runAPIConfigured(ctx context.Context, settings config.Configuration, databa
 	if err != nil {
 		return fmt.Errorf("compose API read services: %w", err)
 	}
+	observability, err := wiring.BuildOperationalTelemetry(ctx, wiring.API, runtimeSettings, options.OperationalMetrics)
+	if err != nil {
+		return fmt.Errorf("compose operational telemetry: %w", err)
+	}
+	defer observability.Close(ctx)
+	options.OperationalMetrics = observability
 	options.RateLimitRequestsPerMinute = httpConfig.RateLimitRequestsPerMinute
 	options.AuthenticationFailuresPerMinute = httpConfig.AuthenticationFailuresPerMinute
 	options.ExpensiveTenantRequestsPerMinute = httpConfig.ExpensiveTenantRequestsPerMinute

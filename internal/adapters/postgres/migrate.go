@@ -11,11 +11,29 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// Immutable operational expectations only; no migration identity is exported.
+type migrationExpectations struct{ versions []string }
+
+func (s *Store) recordMigrationExpectations(names []string) {
+	if s == nil {
+		return
+	}
+	versions := make([]string, len(names))
+	for i, name := range names {
+		versions[i] = strings.TrimSuffix(name, ".up.sql")
+	}
+	s.migrationVersions.Store(&migrationExpectations{versions: versions})
+}
+
 func (s *Store) ApplyMigrations(ctx context.Context, dir string) (int, error) {
 	names, err := migrationNames(dir)
 	if err != nil {
+		if s != nil {
+			s.migrationVersions.Store(nil)
+		}
 		return 0, err
 	}
+	s.recordMigrationExpectations(names)
 	if err := s.ensureSchemaMigrationsTable(ctx); err != nil {
 		return 0, err
 	}
@@ -57,8 +75,12 @@ func (s *Store) ApplyMigrations(ctx context.Context, dir string) (int, error) {
 func (s *Store) PendingMigrationVersions(ctx context.Context, dir string) ([]string, error) {
 	names, err := migrationNames(dir)
 	if err != nil {
+		if s != nil {
+			s.migrationVersions.Store(nil)
+		}
 		return nil, err
 	}
+	s.recordMigrationExpectations(names)
 	if err := s.ensureSchemaMigrationsTable(ctx); err != nil {
 		return nil, err
 	}

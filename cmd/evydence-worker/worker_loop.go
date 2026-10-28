@@ -88,6 +88,9 @@ func runWorkerLoop(ctx context.Context, store workerQueue, processor workerProce
 func drainableWorkerJob(root context.Context, store workerQueue, processor workerProcessor, job postgres.ClaimedJob, timeout time.Duration) error {
 	root = logging.WithCorrelation(root, job.Correlation)
 	root = telemetry.WithTraceContext(root, job.TraceContext)
+	root, finishTrace := telemetry.BeginTrace(root, telemetry.TraceWorker)
+	traceOutcome := telemetry.OutcomeUncertain
+	defer func() { finishTrace(traceOutcome) }()
 	started := time.Now()
 	fields := logging.Fields{TenantID: job.TenantID, ResourceID: job.SubjectID, JobID: job.ID, Attempt: job.Attempts, Result: logging.Started}
 	if logging.CorrelationFromContext(root).OperationID == "" {
@@ -166,6 +169,12 @@ func drainableWorkerJob(root context.Context, store workerQueue, processor worke
 		fields.Result = logging.Succeeded
 		fields.Duration = time.Since(started)
 		logging.Emit(jobCtx, logging.Outbox, fields)
+	}
+	switch fields.Result {
+	case logging.Succeeded:
+		traceOutcome = telemetry.OutcomeSucceeded
+	case logging.Failed:
+		traceOutcome = telemetry.OutcomeFailed
 	}
 	return nil
 }

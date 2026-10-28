@@ -36,6 +36,9 @@ func TestRuntimeResourceValidationRejectsImpossibleOrNegativeScalars(t *testing.
 		func(r *RuntimeResources) { r.Queue.ExpiredLeases = 2 },
 		func(r *RuntimeResources) { r.Queue.OldestPendingAt = time.Time{} },
 		func(r *RuntimeResources) { r.Queue.OldestEligibleAt = time.Time{} },
+		func(r *RuntimeResources) { r.Migrations.Applied = -1 },
+		func(r *RuntimeResources) { r.Migrations.Pending = -1 },
+		func(r *RuntimeResources) { r.Migrations.Unexpected = -1 },
 	} {
 		invalid := valid
 		mutate(&invalid)

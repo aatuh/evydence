@@ -14,6 +14,45 @@ import (
 	"github.com/aatuh/evydence/internal/platform/telemetry"
 )
 
+func TestRuntimeResourcesMigrationStateUsesKnownLocalVersionsWithoutWriting(t *testing.T) {
+	s := isolatedRelationalTestStore(t)
+	ctx := t.Context()
+	names := migrationFileNames(t, "../../../migrations")
+	resources, err := s.ReadRuntimeResources(ctx)
+	if err != nil || !resources.Migrations.Known || resources.Migrations.Applied != int64(len(names)) || resources.Migrations.Pending != 0 || resources.Migrations.Unexpected != 0 {
+		t.Fatal("runtime metrics lost the successfully checked migration expectations", err)
+	}
+	latest := strings.TrimSuffix(names[len(names)-1], ".up.sql")
+	if _, err := s.pool.Exec(ctx, `DELETE FROM schema_migrations WHERE version=$1`, latest); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.pool.Exec(ctx, `INSERT INTO schema_migrations(version)VALUES('PRIVATE_UNEXPECTED_VERSION')`); err != nil {
+		t.Fatal(err)
+	}
+	var before, after string
+	statement := `SELECT jsonb_agg(jsonb_build_array(version,applied_at) ORDER BY version)::text FROM schema_migrations`
+	if err := s.pool.QueryRow(ctx, statement).Scan(&before); err != nil {
+		t.Fatal(err)
+	}
+	resources, err = s.ReadRuntimeResources(ctx)
+	if err != nil || !resources.Migrations.Known || resources.Migrations.Applied != int64(len(names)-1) || resources.Migrations.Pending != 1 || resources.Migrations.Unexpected != 1 {
+		t.Fatal("runtime metrics confused pending, matched or unexpected versions", err)
+	}
+	if err := s.pool.QueryRow(ctx, statement).Scan(&after); err != nil || before != after {
+		t.Fatal("migration metrics changed migration records", err)
+	}
+	encoded, err := json.Marshal(resources)
+	if err != nil || strings.Contains(string(encoded), "PRIVATE") || strings.Contains(string(encoded), latest) {
+		t.Fatal("migration metrics returned raw version identifiers", err)
+	}
+	// A fresh unconfigured store cannot claim that zero pending means current.
+	unknown := &Store{pool: s.pool, packageReadPool: s.packageReadPool}
+	resources, err = unknown.ReadRuntimeResources(ctx)
+	if err != nil || resources.Migrations != (telemetry.MigrationResources{}) {
+		t.Fatal("unknown local expectations were reported as current", err)
+	}
+}
+
 func TestRuntimeResourcesReadOnlyScalarProjectionWithoutAggregate(t *testing.T) {
 	s := isolatedRelationalTestStore(t)
 	ctx := t.Context()

@@ -18,6 +18,9 @@ func validateLocalInput(input parsedInput) error {
 		return ErrInvalidValue
 	}
 	if input.role == API || input.role == Worker {
+		if v["EVYDENCE_TRACING_ENABLED"].boolean && v["EVYDENCE_TRACING_ENDPOINT"].text == "" {
+			return ErrMissingValue
+		}
 		revision, file := v["EVYDENCE_CONFIGURATION_REVISION"].text, v["EVYDENCE_CONFIGURATION_REVISION_FILE"].text
 		if (revision == "") != (file == "") || (file != "" && (!validRevision(revision) || !filepath.IsAbs(file))) {
 			return ErrInvalidValue
