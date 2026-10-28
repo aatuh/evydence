@@ -2416,7 +2416,7 @@
       ],
       "license_status": "candidate",
       "locations": [
-        ".github/workflows/ci.yml#jobs/production-check/steps/8",
+        ".github/workflows/ci.yml#jobs/production-check/steps/9",
         ".github/workflows/marketing-site-pages.yml#jobs/build/steps/1"
       ],
       "name": "actions/setup-node",
@@ -2475,7 +2475,7 @@
       ],
       "license_status": "candidate",
       "locations": [
-        ".github/workflows/ci.yml#jobs/production-check/steps/13",
+        ".github/workflows/ci.yml#jobs/production-check/steps/14",
         ".github/workflows/ci.yml#jobs/race-and-stress/steps/3",
         ".github/workflows/container-image.yml#jobs/publish-image/steps/9",
         ".github/workflows/container-image.yml#jobs/sign-image/steps/9",
@@ -92485,7 +92485,7 @@
     "python_version": "3.14.7"
   },
   "inputs": {
-    ".github/workflows/ci.yml": "2d7b4b8289e762617ba7dee24bcb2e96996cf6fa9ab9d9876294a5135773792a",
+    ".github/workflows/ci.yml": "8a82d046c43db8a260aaefa6ac8dd31f932177f73a42dc73e9bd7bc64f13dfa8",
     ".github/workflows/codeql.yml": "1ee2f3c7f31223fa2ac8f575dfbd6ca902eef6c1a80960cb363239b5c1321392",
     ".github/workflows/container-image.yml": "6936fbbd31f902ec64a79753538352beea68e5420988ad52c2e0b002d627f2be",
     ".github/workflows/dependency-review.yml": "c779553cc767889ebbda048e6e98dda99cbce72638d63f80205f2711c769c60a",

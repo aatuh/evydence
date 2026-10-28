@@ -116,6 +116,12 @@ rehearsal and the native PostgreSQL rehearsal:
 EVYDENCE_TEST_DATABASE_URL='postgres://...' make restore-rehearsal-check
 ```
 
+Use recovery clients compatible with the restore target. This repository's
+PostgreSQL 16 fixture uses major-16 `pg_dump` and `pg_restore`; production CI
+selects and checks those clients on Ubuntu 24.04. A newer-major dump is
+[not guaranteed to load into an older-major server](https://www.postgresql.org/docs/16/app-pgdump.html#APP-PGDUMP-NOTES),
+even when it was taken from that older server.
+
 The native test creates clean source and target databases, uses `pg_dump` and
 `pg_restore`, copies a real filesystem object-store generation, and requires
 paired-generation preflight before the restored ledger is opened. It verifies

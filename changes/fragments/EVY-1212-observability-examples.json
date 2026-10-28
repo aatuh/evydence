@@ -6,7 +6,8 @@
   "details": [
     "Provide separate authenticated API and worker scrape examples, actionable alert rules and an import-bound Grafana dashboard using emitted metrics.",
     "Validate exporter metadata, PromQL, bounded labels, aggregation and runbook sections through make observability-check.",
-    "Document threshold calibration, counter resets, repeated shared queue gauges, retention and concrete dependency diagnosis."
+    "Document threshold calibration, counter resets, repeated shared queue gauges, retention and concrete dependency diagnosis.",
+    "Select PostgreSQL 16 native recovery clients in production CI to match the fixture and preserve paired-backup rehearsal compatibility."
   ],
   "compatibility": {
     "api": "unchanged",
