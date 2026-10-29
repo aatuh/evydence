@@ -14,5 +14,84 @@
   "allowed_with": [
     "Apache-2.0 WITH LLVM-exception"
   ],
-  "exceptions": []
+  "exceptions": [
+    {
+      "id": "DEP-121301",
+      "ecosystem": "gomod",
+      "name": "go.opentelemetry.io/otel",
+      "version": "v1.45.0",
+      "kind": "license",
+      "value": "NOASSERTION",
+      "owner": "aatuh",
+      "reason": "Bounded technical exception for this exact reviewed version while source classification cannot resolve the composition of unchanged Apache-2.0 and BSD-3-Clause texts (LICENSE SHA-256 1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40). The update addresses GO-2026-6505; focused tracing/runtime checks and the reachable-vulnerability gate pass. Full qualification and other dependency checks remain required. Preserve the notices and reassess future versions; no SPDX composition is inferred.",
+      "reviewed_on": "2026-10-29",
+      "expires_on": "2026-11-27",
+      "review_url": "https://github.com/aatuh/evydence/pull/54#issuecomment-6490277868"
+    },
+    {
+      "id": "DEP-121302",
+      "ecosystem": "gomod",
+      "name": "go.opentelemetry.io/otel/exporters/otlp/otlptrace",
+      "version": "v1.45.0",
+      "kind": "license",
+      "value": "NOASSERTION",
+      "owner": "aatuh",
+      "reason": "Bounded technical exception for this exact reviewed version while source classification cannot resolve the composition of unchanged Apache-2.0 and BSD-3-Clause texts (LICENSE SHA-256 1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40). The update addresses GO-2026-6505; focused tracing/runtime checks and the reachable-vulnerability gate pass. Full qualification and other dependency checks remain required. Preserve the notices and reassess future versions; no SPDX composition is inferred.",
+      "reviewed_on": "2026-10-29",
+      "expires_on": "2026-11-27",
+      "review_url": "https://github.com/aatuh/evydence/pull/54#issuecomment-6490278162"
+    },
+    {
+      "id": "DEP-121303",
+      "ecosystem": "gomod",
+      "name": "go.opentelemetry.io/otel/metric",
+      "version": "v1.45.0",
+      "kind": "license",
+      "value": "NOASSERTION",
+      "owner": "aatuh",
+      "reason": "Bounded technical exception for this exact reviewed version while source classification cannot resolve the composition of unchanged Apache-2.0 and BSD-3-Clause texts (LICENSE SHA-256 1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40). The update addresses GO-2026-6505; focused tracing/runtime checks and the reachable-vulnerability gate pass. Full qualification and other dependency checks remain required. Preserve the notices and reassess future versions; no SPDX composition is inferred.",
+      "reviewed_on": "2026-10-29",
+      "expires_on": "2026-11-27",
+      "review_url": "https://github.com/aatuh/evydence/pull/54#issuecomment-6490278518"
+    },
+    {
+      "id": "DEP-121304",
+      "ecosystem": "gomod",
+      "name": "go.opentelemetry.io/otel/sdk",
+      "version": "v1.45.0",
+      "kind": "license",
+      "value": "NOASSERTION",
+      "owner": "aatuh",
+      "reason": "Bounded technical exception for this exact reviewed version while source classification cannot resolve the composition of unchanged Apache-2.0 and BSD-3-Clause texts (LICENSE SHA-256 1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40). The update addresses GO-2026-6505; focused tracing/runtime checks and the reachable-vulnerability gate pass. Full qualification and other dependency checks remain required. Preserve the notices and reassess future versions; no SPDX composition is inferred.",
+      "reviewed_on": "2026-10-29",
+      "expires_on": "2026-11-27",
+      "review_url": "https://github.com/aatuh/evydence/pull/54#issuecomment-6490278812"
+    },
+    {
+      "id": "DEP-121305",
+      "ecosystem": "gomod",
+      "name": "go.opentelemetry.io/otel/sdk/metric",
+      "version": "v1.45.0",
+      "kind": "license",
+      "value": "NOASSERTION",
+      "owner": "aatuh",
+      "reason": "Bounded technical exception for this exact reviewed version while source classification cannot resolve the composition of unchanged Apache-2.0 and BSD-3-Clause texts (LICENSE SHA-256 1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40). The update addresses GO-2026-6505; focused tracing/runtime checks and the reachable-vulnerability gate pass. Full qualification and other dependency checks remain required. Preserve the notices and reassess future versions; no SPDX composition is inferred.",
+      "reviewed_on": "2026-10-29",
+      "expires_on": "2026-11-27",
+      "review_url": "https://github.com/aatuh/evydence/pull/54#issuecomment-6490279108"
+    },
+    {
+      "id": "DEP-121306",
+      "ecosystem": "gomod",
+      "name": "go.opentelemetry.io/otel/trace",
+      "version": "v1.45.0",
+      "kind": "license",
+      "value": "NOASSERTION",
+      "owner": "aatuh",
+      "reason": "Bounded technical exception for this exact reviewed version while source classification cannot resolve the composition of unchanged Apache-2.0 and BSD-3-Clause texts (LICENSE SHA-256 1ae07514be1d7bb33f0698f8d91fb51b8b9fe1463157ec1c72081a49b9bc6f40). The update addresses GO-2026-6505; focused tracing/runtime checks and the reachable-vulnerability gate pass. Full qualification and other dependency checks remain required. Preserve the notices and reassess future versions; no SPDX composition is inferred.",
+      "reviewed_on": "2026-10-29",
+      "expires_on": "2026-11-27",
+      "review_url": "https://github.com/aatuh/evydence/pull/54#issuecomment-6490279401"
+    }
+  ]
 }
