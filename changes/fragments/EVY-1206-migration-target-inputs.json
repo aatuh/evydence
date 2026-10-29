@@ -1,0 +1,23 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-migration-target-inputs",
+  "category": "added",
+  "summary": "Add explicit migration targets with immutable checksum-verified inputs",
+  "details": [
+    "Add paired migration-command target/checksum settings and a schema-owned one-to-900-second budget that preserves the former 30-second default.",
+    "Prepare a bounded immutable plan before opening the command database pool, accepting the existing release migrations.sha256 format and verifying every up file plus every listed SQL file before selecting a target prefix.",
+    "Check bounded version history under the owned runner lock, reject newer, unknown or gapped history before application migration SQL, and atomically fail version-record conflicts. Preserve per-file transactions, repeated-plan no-op results and forward retry after a later SQL failure.",
+    "Quote migration tracking identifiers against the schema selected by the coordinator and redact owned plan representations instead of exposing SQL."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "No SQL files, schema columns or recorded historical versions are changed. Without the paired target/checksum settings, the command retains full-catalog behavior. The verified-input path is stricter about catalog/history consistency and bounds its checksum file to 64 KiB/256 records and all checked SQL to 32 MiB. Existing version-only rows and timestamps are preserved, without inventing historical SQL checksum proof."
+  },
+  "security": "Checksum inputs use rooted regular-file reads, bounded records and logical release filenames; SQL and checksum bytes are owned before pool opening on the explicit command path. Version values are bound parameters, tracking identifiers are pgx-quoted, coordinator cleanup remains cancellation-safe, and default plan/config/log representations omit SQL and operator values.",
+  "limitations": [
+    "A supplied checksum file must already be authenticated through the release procedure; checksum comparison does not establish release identity or historical database execution.",
+    "Stored checksum provenance and explicit legacy-history policy, mandatory production migration separation and audited authorization, worker operations, deployment hardening and final full-ticket qualification remain in EVY-1206."
+  ]
+}

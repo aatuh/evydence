@@ -46,8 +46,9 @@ earlier completed versions and rolls back the current file. Lock waits respect
 the command context. Uncertain lock cleanup returns an error and discards the
 database session, even when a version has already committed. Keep using the
 writer/worker stop procedure below; older runners do not participate in this
-coordination protocol. This coordination does not add target selection or
-checksum enforcement.
+coordination protocol. The verified-input command path below adds explicit
+target selection and checksum comparison; ordinary automatic migration still
+uses the full catalog.
 
 When `EVYDENCE_SKIP_MIGRATIONS=true`, startup checks use read-only version queries
 and wait for an updated runner to finish. Other checks can read concurrently.
@@ -58,6 +59,51 @@ unrelated recorded versions. These are version-name checks, not schema-content
 or checksum verification. Automatic migration settings otherwise retain their
 existing behavior; a dedicated release migration job is still required for the
 deployment cutover.
+
+## Explicit Target And Verified Inputs
+
+After verifying the release artifacts, the migration command can consume the
+release's `migrations.sha256` with an explicit version. Both settings are
+required together. For the current source catalog, an example is:
+
+```sh
+EVYDENCE_MIGRATION_TARGET=20261028000100_outbox_trace_context \
+EVYDENCE_MIGRATION_CHECKSUMS_FILE=/srv/evydence/release/migrations.sha256 \
+EVYDENCE_MIGRATION_TIMEOUT_SECONDS=120 \
+evydence-migrate
+```
+
+Choose the reviewed target for your intended release; omit `.up.sql`. Configure
+the database and migration directory through the
+[configuration reference](../reference/configuration.md). The timeout covers
+input preparation, database opening, coordinator waits and SQL. Its default
+remains 30 seconds, with a supported range of 1 through 900 whole seconds.
+
+The command prepares the verified plan before opening its database pool. The
+checksum file must be regular, at most 64 KiB, and contain at most 256 unique
+records in the existing release checksum format (`sha256sum` text or binary
+markers, with logical `migrations/<filename>.sql` names). Every local up file,
+including files beyond the target, must match a record. Every other listed SQL
+file is also checked but is not applied. SQL inputs retain the 4 MiB per-file
+limit; this path bounds all checked SQL together to 32 MiB. File changes after
+preparation cannot change the owned SQL executed by that plan.
+
+Under the runner lock, existing versions must form a prefix of the selected
+target catalog. Newer, unknown or gapped history rejects the run before
+application migration SQL. Only the missing suffix through the target is
+applied, with each SQL file and its version record in one transaction. A version
+recording conflict fails that transaction. Repeating the same completed plan is
+a no-op. Earlier committed versions survive a later SQL failure as described
+above.
+
+This compares input bytes with an operator-trusted checksum file; the file does
+not authenticate itself. Existing version rows and timestamps are preserved.
+They do not contain historical SQL checksums, so matching their names does not
+verify what SQL was previously executed. Stored checksum provenance and an
+explicit legacy-history policy remain part of EVY-1206. Without the paired
+target/checksum settings, the command retains its full-catalog behavior.
+Mandatory production job separation and deployment cutover also remain pending;
+keep stopping writers and workers as below.
 
 ## Upgrade
 

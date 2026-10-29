@@ -18,6 +18,9 @@ type RuntimeSettings struct {
 	TracingQueueSize          int64         `env:"EVYDENCE_TRACING_QUEUE_SIZE"`
 	TracingExportTimeout      time.Duration `env:"EVYDENCE_TRACING_EXPORT_TIMEOUT_SECONDS"`
 	MigrationsDir             string        `env:"EVYDENCE_MIGRATIONS_DIR"`
+	MigrationTarget           string        `env:"EVYDENCE_MIGRATION_TARGET"`
+	MigrationChecksumsFile    string        `env:"EVYDENCE_MIGRATION_CHECKSUMS_FILE"`
+	MigrationTimeout          time.Duration `env:"EVYDENCE_MIGRATION_TIMEOUT_SECONDS"`
 	PostgresLoadMode          string        `env:"EVYDENCE_POSTGRES_LOAD_MODE"`
 	Profile                   string        `env:"EVYDENCE_RUNTIME_PROFILE"`
 	ShutdownCleanupTimeout    time.Duration `env:"EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS"`

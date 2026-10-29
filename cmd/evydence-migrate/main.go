@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"time"
 
 	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/platform/config"
@@ -46,9 +45,17 @@ func runMigrationProcess(ctx context.Context, environment config.Environment, ou
 }
 
 func applyMigrations(parent context.Context, settings config.Configuration) error {
-	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
-	defer cancel()
 	runtime := settings.Runtime()
+	ctx, cancel := context.WithTimeout(parent, runtime.MigrationTimeout)
+	defer cancel()
+	var plan postgres.MigrationPlan
+	var err error
+	if runtime.MigrationTarget != "" {
+		plan, err = postgres.PrepareMigrationPlan(ctx, runtime.MigrationsDir, runtime.MigrationTarget, runtime.MigrationChecksumsFile)
+		if err != nil {
+			return err
+		}
+	}
 	prepared, err := postgres.PreparePoolConfig(ctx, runtime.DatabaseURL.Reveal())
 	if err != nil {
 		return err
@@ -58,7 +65,12 @@ func applyMigrations(parent context.Context, settings config.Configuration) erro
 		return err
 	}
 	defer store.Close()
-	applied, err := store.ApplyMigrations(ctx, runtime.MigrationsDir)
+	var applied int
+	if plan.TargetVersion() != "" {
+		applied, err = store.ApplyMigrationPlan(ctx, plan)
+	} else {
+		applied, err = store.ApplyMigrations(ctx, runtime.MigrationsDir)
+	}
 	if err != nil {
 		return err
 	}

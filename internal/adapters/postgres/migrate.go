@@ -24,7 +24,7 @@ func (s *Store) recordMigrationExpectations(names []string) {
 	s.migrationVersions.Store(&migrationExpectations{versions: versions})
 }
 
-func (s *Store) ApplyMigrations(ctx context.Context, dir string) (applied int, resultErr error) {
+func (s *Store) ApplyMigrations(ctx context.Context, dir string) (int, error) {
 	catalog, err := loadMigrationCatalog(ctx, dir)
 	if err != nil {
 		if s != nil {
@@ -32,6 +32,10 @@ func (s *Store) ApplyMigrations(ctx context.Context, dir string) (applied int, r
 		}
 		return 0, err
 	}
+	return s.applyMigrationCatalog(ctx, catalog, false)
+}
+
+func (s *Store) applyMigrationCatalog(ctx context.Context, catalog []migrationScript, requirePrefix bool) (applied int, resultErr error) {
 	names := make([]string, len(catalog))
 	for i, script := range catalog {
 		names[i] = script.name
@@ -42,18 +46,32 @@ func (s *Store) ApplyMigrations(ctx context.Context, dir string) (applied int, r
 		return 0, err
 	}
 	defer func() { resultErr = errors.Join(resultErr, runner.release(ctx)) }()
-	if _, err := runner.connection.Exec(ctx, createSchemaMigrationsTableSQL); err != nil {
+	table := pgx.Identifier{runner.schema, "schema_migrations"}.Sanitize()
+	if _, err := runner.connection.Exec(ctx, fmt.Sprintf(createSchemaMigrationsTableSQL, table)); err != nil {
 		return 0, fmt.Errorf("ensure schema migrations table: %w", err)
 	}
-	for _, script := range catalog {
-		version := strings.TrimSuffix(script.name, ".up.sql")
-		var exists bool
-		err := runner.connection.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`, version).Scan(&exists)
+	prefix := 0
+	if requirePrefix {
+		prefix, err = runner.migrationTargetPrefix(ctx, table, names)
 		if err != nil {
-			return applied, fmt.Errorf("check migration %s: %w", version, err)
+			return 0, err
 		}
-		if exists {
-			continue
+	}
+	for i, script := range catalog {
+		version := strings.TrimSuffix(script.name, ".up.sql")
+		if requirePrefix {
+			if i < prefix {
+				continue
+			}
+		} else {
+			var exists bool
+			err := runner.connection.QueryRow(ctx, fmt.Sprintf(`SELECT EXISTS (SELECT 1 FROM %s WHERE version = $1)`, table), version).Scan(&exists)
+			if err != nil {
+				return applied, fmt.Errorf("check migration %s: %w", version, err)
+			}
+			if exists {
+				continue
+			}
 		}
 		tx, err := runner.connection.BeginTx(ctx, pgx.TxOptions{})
 		if err != nil {
@@ -63,7 +81,11 @@ func (s *Store) ApplyMigrations(ctx context.Context, dir string) (applied int, r
 			rollbackMigration(ctx, tx)
 			return applied, fmt.Errorf("apply migration %s: %w", version, err)
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT (version) DO NOTHING`, version); err != nil {
+		record := fmt.Sprintf(`INSERT INTO %s (version) VALUES ($1)`, table)
+		if !requirePrefix {
+			record += ` ON CONFLICT (version) DO NOTHING`
+		}
+		if _, err := tx.Exec(ctx, record, version); err != nil {
 			rollbackMigration(ctx, tx)
 			return applied, fmt.Errorf("record migration %s: %w", version, err)
 		}
@@ -146,7 +168,7 @@ func (s *Store) RequireNoPendingMigrations(ctx context.Context, dir string) erro
 }
 
 const createSchemaMigrationsTableSQL = `
-		CREATE TABLE IF NOT EXISTS schema_migrations (
+		CREATE TABLE IF NOT EXISTS %s (
 			version text PRIMARY KEY,
 			applied_at timestamptz NOT NULL DEFAULT now()
 		)

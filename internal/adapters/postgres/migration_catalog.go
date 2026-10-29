@@ -84,6 +84,10 @@ func loadMigrationCatalog(ctx context.Context, dir string) ([]migrationScript, e
 		return nil, errMigrationCatalog
 	}
 	defer func() { _ = root.Close() }()
+	return loadMigrationCatalogInRoot(ctx, root)
+}
+
+func loadMigrationCatalogInRoot(ctx context.Context, root *os.Root) ([]migrationScript, error) {
 	names, err := migrationNamesInRoot(ctx, root)
 	if err != nil {
 		return nil, err

@@ -13,6 +13,13 @@ import (
 // files or constructing providers. File metadata/content belong to resolution.
 func validateLocalInput(input parsedInput) error {
 	v := input.values
+	if input.role == Migrate {
+		target := strings.TrimSpace(v["EVYDENCE_MIGRATION_TARGET"].text)
+		checksums := strings.TrimSpace(v["EVYDENCE_MIGRATION_CHECKSUMS_FILE"].text)
+		if (target == "") != (checksums == "") || strings.ContainsAny(target, "/\\") || strings.ContainsFunc(target, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) {
+			return ErrInvalidValue
+		}
+	}
 
 	if input.role == CLI && strings.ContainsFunc(strings.TrimSpace(v["EVYDENCE_API_KEY"].text), func(r rune) bool { return unicode.IsControl(r) || unicode.IsSpace(r) }) {
 		return ErrInvalidValue
