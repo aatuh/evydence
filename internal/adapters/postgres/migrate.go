@@ -84,7 +84,7 @@ func rollbackMigration(ctx context.Context, tx pgx.Tx) {
 	_ = tx.Rollback(cleanup)
 }
 
-func (s *Store) PendingMigrationVersions(ctx context.Context, dir string) ([]string, error) {
+func (s *Store) PendingMigrationVersions(ctx context.Context, dir string) (pending []string, resultErr error) {
 	names, err := migrationNames(dir)
 	if err != nil {
 		if s != nil {
@@ -93,20 +93,46 @@ func (s *Store) PendingMigrationVersions(ctx context.Context, dir string) ([]str
 		return nil, err
 	}
 	s.recordMigrationExpectations(names)
-	if err := s.ensureSchemaMigrationsTable(ctx); err != nil {
+	reader, err := s.acquireMigrationStateReader(ctx)
+	if err != nil {
 		return nil, err
 	}
-	pending := []string{}
-	for _, name := range names {
-		version := strings.TrimSuffix(name, ".up.sql")
-		var exists bool
-		err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`, version).Scan(&exists)
-		if err != nil {
-			return nil, fmt.Errorf("check migration %s: %w", version, err)
+	defer func() {
+		if err := reader.release(ctx); err != nil {
+			pending = nil
+			resultErr = errors.Join(resultErr, err)
 		}
-		if !exists {
-			pending = append(pending, version)
+	}()
+	versions := make([]string, len(names))
+	for i, name := range names {
+		versions[i] = strings.TrimSuffix(name, ".up.sql")
+	}
+	table := pgx.Identifier{reader.schema, "schema_migrations"}.Sanitize()
+	var exists bool
+	if err := reader.connection.QueryRow(ctx, `SELECT pg_catalog.to_regclass($1) IS NOT NULL`, table).Scan(&exists); err != nil {
+		return nil, fmt.Errorf("check migration tracking table: %w", err)
+	}
+	if !exists {
+		return versions, nil
+	}
+	// Only the quoted identifier is SQL text. All versions are bound values;
+	// ordinality preserves catalog order and bounds output by the input list.
+	statement := fmt.Sprintf(`SELECT wanted.version FROM pg_catalog.unnest($1::text[]) WITH ORDINALITY AS wanted(version,position) WHERE NOT EXISTS (SELECT 1 FROM %s applied WHERE applied.version=wanted.version) ORDER BY wanted.position`, table)
+	rows, err := reader.connection.Query(ctx, statement, versions)
+	if err != nil {
+		return nil, fmt.Errorf("read pending migration versions: %w", err)
+	}
+	defer rows.Close()
+	pending = []string{}
+	for rows.Next() {
+		var version string
+		if err := rows.Scan(&version); err != nil {
+			return nil, fmt.Errorf("read pending migration version: %w", err)
 		}
+		pending = append(pending, version)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read pending migration versions: %w", err)
 	}
 	return pending, nil
 }
@@ -128,13 +154,6 @@ const createSchemaMigrationsTableSQL = `
 			applied_at timestamptz NOT NULL DEFAULT now()
 		)
 	`
-
-func (s *Store) ensureSchemaMigrationsTable(ctx context.Context) error {
-	if _, err := s.pool.Exec(ctx, createSchemaMigrationsTableSQL); err != nil {
-		return fmt.Errorf("ensure schema migrations table: %w", err)
-	}
-	return nil
-}
 
 func migrationNames(dir string) ([]string, error) {
 	entries, err := os.ReadDir(dir)

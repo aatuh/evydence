@@ -16,9 +16,18 @@ const migrationRunnerLockNamespace int32 = 0x6576796d
 type migrationRunnerConnection struct {
 	connection *pgxpool.Conn
 	schema     string
+	shared     bool
 }
 
 func (s *Store) acquireMigrationRunner(ctx context.Context) (*migrationRunnerConnection, error) {
+	return s.acquireMigrationCoordinator(ctx, false)
+}
+
+func (s *Store) acquireMigrationStateReader(ctx context.Context) (*migrationRunnerConnection, error) {
+	return s.acquireMigrationCoordinator(ctx, true)
+}
+
+func (s *Store) acquireMigrationCoordinator(ctx context.Context, shared bool) (*migrationRunnerConnection, error) {
 	if ctx == nil || s == nil || s.pool == nil {
 		return nil, app.ErrValidation
 	}
@@ -27,7 +36,7 @@ func (s *Store) acquireMigrationRunner(ctx context.Context) (*migrationRunnerCon
 		return nil, fmt.Errorf("acquire migration connection: %w", err)
 	}
 	var schema string
-	if err := connection.QueryRow(ctx, `SELECT current_schema()`).Scan(&schema); err != nil || schema == "" {
+	if err := connection.QueryRow(ctx, `SELECT pg_catalog.current_schema()`).Scan(&schema); err != nil || schema == "" {
 		discardMigrationConnection(ctx, connection)
 		if err != nil {
 			return nil, fmt.Errorf("resolve migration schema: %w", err)
@@ -36,13 +45,17 @@ func (s *Store) acquireMigrationRunner(ctx context.Context) (*migrationRunnerCon
 	}
 	// A session lock spans all per-file transactions and uses the same owned
 	// connection for discovery, execution, tracking and eventual unlock.
-	if _, err := connection.Exec(ctx, `SELECT pg_advisory_lock($1,hashtext($2))`, migrationRunnerLockNamespace, schema); err != nil {
+	statement := `SELECT pg_catalog.pg_advisory_lock($1,pg_catalog.hashtext($2))`
+	if shared {
+		statement = `SELECT pg_catalog.pg_advisory_lock_shared($1,pg_catalog.hashtext($2))`
+	}
+	if _, err := connection.Exec(ctx, statement, migrationRunnerLockNamespace, schema); err != nil {
 		// Acquisition may have reached the server before cancellation was seen.
 		// An uncertain session must not be returned to the pool.
 		discardMigrationConnection(ctx, connection)
 		return nil, fmt.Errorf("acquire migration runner lock: %w", err)
 	}
-	return &migrationRunnerConnection{connection: connection, schema: schema}, nil
+	return &migrationRunnerConnection{connection: connection, schema: schema, shared: shared}, nil
 }
 
 func discardMigrationConnection(ctx context.Context, connection *pgxpool.Conn) {
@@ -61,7 +74,11 @@ func (runner *migrationRunnerConnection) release(ctx context.Context) error {
 	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
 	var released bool
-	if err := connection.QueryRow(cleanup, `SELECT pg_advisory_unlock($1,hashtext($2))`, migrationRunnerLockNamespace, runner.schema).Scan(&released); err != nil || !released {
+	statement := `SELECT pg_catalog.pg_advisory_unlock($1,pg_catalog.hashtext($2))`
+	if runner.shared {
+		statement = `SELECT pg_catalog.pg_advisory_unlock_shared($1,pg_catalog.hashtext($2))`
+	}
+	if err := connection.QueryRow(cleanup, statement, migrationRunnerLockNamespace, runner.schema).Scan(&released); err != nil || !released {
 		discardMigrationConnection(ctx, connection)
 		return errors.New("release migration runner lock failed")
 	}

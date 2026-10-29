@@ -1,0 +1,22 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-migration-readonly-state",
+  "category": "fixed",
+  "summary": "Make migration status checks read-only and coordinate them with runners",
+  "details": [
+    "Stop creating schema_migrations during pending-version and readiness checks; missing tracking reports the local catalog as pending without schema writes.",
+    "Hold a shared schema-scoped advisory lock on one connection while checking, wait for updated migration runners, allow concurrent readers, and preserve cancellation and owned cleanup.",
+    "Query only expected catalog versions against an explicitly quoted schema table, preserving catalog order and bounding output by the input list instead of reading unrelated history."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "No SQL files or recorded versions change. Uninitialized tracking is now reported rather than created by checking. Existing automatic migration settings still apply; SkipMigrations checks and readiness can use read-only connections."
+  },
+  "security": "State checking executes no migration DDL or mutations. Schema identifiers use pgx.Identifier quoting and version values are bound parameters. Shared lock acquisition and cleanup retain cancellation-safe physical-session ownership.",
+  "limitations": [
+    "Version-name checking is not schema-content or checksum verification and does not force production startup to disable automatic migrations.",
+    "Immutable input snapshots, explicit targets, checksum and legacy-row handling, the dedicated migration job, worker operations and final deployment/runbook qualification remain in EVY-1206."
+  ]
+}

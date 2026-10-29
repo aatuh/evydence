@@ -35,8 +35,18 @@ earlier completed versions and rolls back the current file. Lock waits respect
 the command context. Uncertain lock cleanup returns an error and discards the
 database session, even when a version has already committed. Keep using the
 writer/worker stop procedure below; older runners do not participate in this
-coordination protocol. This coordination does not add target selection, checksum
-enforcement, or read-only application startup checks.
+coordination protocol. This coordination does not add target selection or
+checksum enforcement.
+
+When `EVYDENCE_SKIP_MIGRATIONS=true`, startup checks use read-only version queries
+and wait for an updated runner to finish. Other checks can read concurrently.
+Missing tracking metadata reports the local catalog as pending; checking does
+not create the table or apply SQL. Readiness uses the same check. Results cover
+the configured schema and preserve local catalog order without returning
+unrelated recorded versions. These are version-name checks, not schema-content
+or checksum verification. Automatic migration settings otherwise retain their
+existing behavior; a dedicated release migration job is still required for the
+deployment cutover.
 
 ## Upgrade
 
