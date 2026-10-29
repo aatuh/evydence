@@ -98,12 +98,12 @@ func (s *Store) PendingMigrationVersions(ctx context.Context, dir string) (pendi
 		return nil, err
 	}
 	s.recordMigrationExpectations(names)
-	reader, err := s.acquireMigrationStateReader(ctx)
+	reader, finish, err := s.migrationStateView(ctx)
 	if err != nil {
 		return nil, err
 	}
 	defer func() {
-		if err := reader.release(ctx); err != nil {
+		if err := finish(); err != nil {
 			pending = nil
 			resultErr = errors.Join(resultErr, err)
 		}

@@ -15,6 +15,10 @@ func roleEnvironment(t *testing.T, role Role, production bool, extra ...string) 
 	values := map[string]string{"ENV": "development"}
 	if production {
 		values["ENV"] = "production"
+		if role == Migrate {
+			values["EVYDENCE_MIGRATION_TARGET"] = "test_version"
+			values["EVYDENCE_MIGRATION_CHECKSUMS_FILE"] = "PRIVATE_TEST_CHECKSUMS"
+		}
 		if role == API {
 			values["EVYDENCE_API_KEY_PEPPER"] = "PRIVATE_PEPPER"
 			values["EVYDENCE_SIGNING_KEY_MODE"] = "aws-kms"

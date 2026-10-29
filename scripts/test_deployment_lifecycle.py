@@ -14,6 +14,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 CHART = ROOT / "deploy/helm/evydence"
+MIGRATION_TARGET = "20261029000100_migration_execution_checksums"
 
 
 class DeploymentLifecycleTests(unittest.TestCase):
@@ -24,11 +25,14 @@ class DeploymentLifecycleTests(unittest.TestCase):
             raise RuntimeError("Helm is required for deployment lifecycle checks; set HELM_BIN if needed")
         subprocess.run(["docker", "compose", "version"], check=True, capture_output=True, text=True)
 
-    def render(self, overrides=None, image=True):
+    def render(self, overrides=None, image=True, release="lifecycle"):
         with tempfile.TemporaryDirectory(prefix="evydence-helm-lifecycle-") as directory:
             values = Path(directory) / "values.json"
-            values.write_text(json.dumps(overrides or {}))
-            command = [self.helm, "template", "lifecycle", str(CHART), "--values", str(values)]
+            selected = json.loads(json.dumps(overrides or {}))
+            if isinstance(selected.setdefault("migration", {}), dict):
+                selected["migration"].setdefault("target", MIGRATION_TARGET)
+            values.write_text(json.dumps(selected))
+            command = [self.helm, "template", release, str(CHART), "--values", str(values)]
             if image:
                 command += ["--set", "image.tag=lifecycle-fixture"]
             return subprocess.run(command, check=False, capture_output=True, text=True, timeout=20)
@@ -294,7 +298,7 @@ class DeploymentLifecycleTests(unittest.TestCase):
         env = {key: value for key, value in os.environ.items()
                if not key.startswith(("EVYDENCE_", "MINIO_", "POSTGRES_"))}
         env.update({"POSTGRES_PASSWORD": "fixture-only", "MINIO_ROOT_PASSWORD": "fixture-only",
-                    "EVYDENCE_API_KEY_PEPPER": "fixture-only"})
+                    "EVYDENCE_API_KEY_PEPPER": "fixture-only", "EVYDENCE_MIGRATION_TARGET": MIGRATION_TARGET})
         env.update(overrides or {})
         with tempfile.TemporaryDirectory(prefix="evydence-compose-config-") as directory:
             command = ["docker", "compose", "--env-file", os.devnull, "-f", str(ROOT / "compose.production-like.yml")]
@@ -335,6 +339,74 @@ class DeploymentLifecycleTests(unittest.TestCase):
         for component in ("api", "worker", "migrate"):
             self.assertEqual(services[component]["environment"].get("ENV"), "production", component)
 
+    def test_migration_hook_precedes_daemons_and_projects_only_database_credentials(self):
+        for mode in ("env", "files"):
+            result = self.render({"migration": {"existingSecret": "migration-credentials", "secretSource": mode},
+                                  "podSecurityContext": {"fsGroup": 2000}})
+            self.assertEqual(result.returncode, 0, result.stderr)
+            docs = [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+            jobs = [doc for doc in docs if doc["kind"] == "Job"]
+            self.assertEqual(len(jobs), 1, "dedicated release migration hook is missing")
+            job = jobs[0]
+            annotations = job["metadata"]["annotations"]
+            self.assertEqual(annotations["helm.sh/hook"], "pre-install,pre-upgrade")
+            self.assertEqual(annotations["helm.sh/hook-delete-policy"], "before-hook-creation")
+            self.assertEqual(job["spec"]["backoffLimit"], 0)
+            self.assertGreater(job["spec"]["activeDeadlineSeconds"], 120)
+            pod = job["spec"]["template"]["spec"]
+            self.assertFalse(pod["automountServiceAccountToken"])
+            account = next(doc for doc in docs if doc["kind"] == "ServiceAccount"
+                           and doc["metadata"]["name"] == pod["serviceAccountName"])
+            self.assertLess(int(account["metadata"]["annotations"]["helm.sh/hook-weight"]),
+                            int(annotations["helm.sh/hook-weight"]))
+            self.assertNotIn("hook-succeeded", account["metadata"]["annotations"]["helm.sh/hook-delete-policy"])
+            container = pod["containers"][0]
+            self.assertEqual(container["command"], ["evydence-migrate"])
+            self.assertTrue(container["securityContext"]["readOnlyRootFilesystem"])
+            self.assertNotIn("envFrom", container, "migrator must not inherit API/provider credentials")
+            env = {item["name"]: item for item in container["env"]}
+            self.assertEqual(env["ENV"]["value"], "production")
+            self.assertEqual(env["EVYDENCE_MIGRATION_TARGET"]["value"], MIGRATION_TARGET)
+            self.assertEqual(env["EVYDENCE_MIGRATION_CHECKSUMS_FILE"]["value"], "/app/migrations.sha256")
+            self.assertEqual(env["EVYDENCE_MIGRATIONS_DIR"]["value"], "/app/migrations")
+            credential = "EVYDENCE_DATABASE_URL" + ("_FILE" if mode == "files" else "")
+            self.assertEqual(set(env), {"ENV", "EVYDENCE_MIGRATION_TARGET", "EVYDENCE_MIGRATION_CHECKSUMS_FILE",
+                "EVYDENCE_MIGRATIONS_DIR", "EVYDENCE_MIGRATION_TIMEOUT_SECONDS", "EVYDENCE_MIGRATION_ALLOW_LEGACY_HISTORY",
+                "EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS", credential})
+            if mode == "env":
+                self.assertEqual(env[credential]["valueFrom"]["secretKeyRef"]["name"], "migration-credentials")
+            else:
+                projection = pod["volumes"][0]["secret"]
+                self.assertEqual(projection["secretName"], "migration-credentials")
+                self.assertEqual(projection["defaultMode"], 0o440)
+                self.assertEqual(projection["items"], [{"key": "EVYDENCE_DATABASE_URL", "path": credential}])
+
+    def test_migration_hook_rejects_missing_target_or_unsafe_settings(self):
+        for overrides in ({"target": ""}, {"target": "../escape"}, {"timeoutSeconds": 0},
+                          {"timeoutSeconds": 901}, {"timeoutSeconds": "120"}, {"allowLegacyHistory": "true"}):
+            self.assertNotEqual(self.render({"migration": overrides}).returncode, 0, overrides)
+        self.assertNotEqual(self.render({"migration": {"secretSource": "files"}}).returncode, 0)
+
+    def test_migration_job_names_fit_kubernetes_for_long_release_names(self):
+        result = self.render(release="r" * 53)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        job = next(doc for doc in yaml.safe_load_all(result.stdout) if doc and doc["kind"] == "Job")
+        self.assertLessEqual(len(job["metadata"]["name"]), 63)
+        self.assertEqual(job["metadata"]["name"], job["spec"]["template"]["spec"]["serviceAccountName"])
+
+    def test_production_daemons_skip_migrations_and_compose_uses_explicit_target(self):
+        config, _ = self.manifests()
+        self.assertEqual(config.get("EVYDENCE_SKIP_MIGRATIONS"), "true")
+        services = self.compose_services({"EVYDENCE_MIGRATION_TARGET": MIGRATION_TARGET})
+        for component in ("api", "worker"):
+            self.assertEqual(services[component]["environment"].get("EVYDENCE_SKIP_MIGRATIONS"), "true")
+            self.assertEqual(services[component]["depends_on"]["migrate"]["condition"], "service_completed_successfully")
+        migration = services["migrate"]["environment"]
+        self.assertEqual(migration.get("EVYDENCE_MIGRATION_TARGET"), MIGRATION_TARGET)
+        self.assertEqual(migration.get("EVYDENCE_MIGRATION_CHECKSUMS_FILE"), "/app/migrations.sha256")
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.compose_services({"EVYDENCE_MIGRATION_TARGET": ""})
+
     def test_compose_grace_covers_default_and_maximum_supported_budgets(self):
         for maximum in (False, True):
             with self.subTest(maximum=maximum):
@@ -342,6 +414,7 @@ class DeploymentLifecycleTests(unittest.TestCase):
                        if not key.startswith(("EVYDENCE_", "MINIO_", "POSTGRES_"))}
                 env.update({"POSTGRES_PASSWORD": "fixture-only", "MINIO_ROOT_PASSWORD": "fixture-only",
                             "EVYDENCE_API_KEY_PEPPER": "fixture-only",
+                            "EVYDENCE_MIGRATION_TARGET": MIGRATION_TARGET,
                             "EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS": "300" if maximum else "30",
                             "EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS": "300" if maximum else "30",
                             "EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS": "60" if maximum else "5"})

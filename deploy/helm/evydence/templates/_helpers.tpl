@@ -6,6 +6,7 @@
 {{- define "evydence.configData" -}}
 ENV: {{ ternary "production" "development" .Values.env.production | quote }}
 EVYDENCE_RUNTIME_PROFILE: "postgres"
+EVYDENCE_SKIP_MIGRATIONS: "true"
 EVYDENCE_ADDR: {{ .Values.api.addr | quote }}
 EVYDENCE_API_WRITER_MODE: {{ .Values.api.writerMode | quote }}
 EVYDENCE_API_WRITER_REPLICAS: {{ .Values.api.replicas | quote }}
@@ -73,4 +74,9 @@ EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS: {{ .Values.worker.shutdownTimeoutSecon
 
 {{- define "evydence.fullname" -}}
 {{- printf "%s-%s" .Release.Name (include "evydence.name" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/* Jobs must leave room for the controller's generated pod-name suffix. */}}
+{{- define "evydence.migrationName" -}}
+{{- printf "%s-migrate" (include "evydence.fullname" . | trunc 55 | trimSuffix "-") -}}
 {{- end -}}

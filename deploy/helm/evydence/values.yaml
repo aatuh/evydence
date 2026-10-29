@@ -8,6 +8,23 @@ image:
 # Shared resource cleanup budget after request/job drain.
 cleanupTimeoutSeconds: 5
 
+# Stop API and worker pods before an upgrade. The pre-upgrade hook cannot
+# migrate while a runtime retains its shared schema lease.
+migration:
+  # Explicitly choose the target from the authenticated image's release catalog.
+  target: ""
+  timeoutSeconds: 120
+  allowLegacyHistory: false
+  # Separate operator-provisioned database credential; no API/provider envFrom.
+  existingSecret: evydence-migrations
+  secretSource: env
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
 api:
   # Optional daemon-specific runtime Secret; otherwise use existingSecret.
   existingSecret: ""

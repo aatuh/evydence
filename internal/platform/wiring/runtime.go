@@ -74,6 +74,7 @@ type Runtime struct {
 	TransparencyProofs app.TransparencyProofFetcher
 	SessionPolicy      identitydomain.SessionPolicy
 	lease              func(context.Context) error
+	migrationLease     func(context.Context) error
 	closed             sync.Once
 	cleanup            OwnedResources
 	closeObjects       func(context.Context) error
@@ -109,6 +110,9 @@ func (r *Runtime) CloseContext(ctx context.Context, timeout time.Duration) error
 		}
 		if r.closeObjects != nil {
 			r.cleanup.Add("objects", r.closeObjects)
+		}
+		if r.migrationLease != nil {
+			r.cleanup.Add("migration_lease", r.migrationLease)
 		}
 		if r.lease != nil {
 			r.cleanup.Add("writer_lease", r.lease)
@@ -155,6 +159,9 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 		if err := postgres.ValidateProductionLoadMode(loadMode); err != nil {
 			return nil, err
 		}
+		if !config.SkipMigrations {
+			return nil, errors.New("production requires EVYDENCE_SKIP_MIGRATIONS=true and a separate migration job")
+		}
 	}
 	if backend != "" && backend != "file" && backend != "filesystem" && backend != "s3" && backend != "minio" {
 		return nil, errors.New("unsupported EVYDENCE_OBJECT_STORE")
@@ -168,6 +175,13 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 		if err != nil {
 			return nil, runtimeAdapterError("open PostgreSQL runtime", err)
 		}
+	}
+	minimum := int32(2)
+	if config.Production && config.Process == API {
+		minimum = 3
+	}
+	if err := prepared.RequirePoolCapacity(minimum); err != nil {
+		return nil, err
 	}
 	store, err := postgres.OpenPrepared(ctx, prepared, postgres.StoreOptions{LoadMode: loadMode, DisableSnapshotWrites: config.Production})
 	if err != nil {
@@ -193,12 +207,17 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 	}
 	migrateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
-	if config.SkipMigrations {
-		if err = store.RequireNoPendingMigrations(migrateCtx, migrationsDir); err != nil {
-			return nil, runtimeAdapterError("check migrations", err)
+	if !config.SkipMigrations {
+		if _, err = store.ApplyMigrations(migrateCtx, migrationsDir); err != nil {
+			return nil, runtimeAdapterError("apply migrations", err)
 		}
-	} else if _, err = store.ApplyMigrations(migrateCtx, migrationsDir); err != nil {
-		return nil, runtimeAdapterError("apply migrations", err)
+	}
+	runtime.migrationLease, err = store.AcquireRuntimeMigrationLease(migrateCtx)
+	if err != nil {
+		return nil, runtimeAdapterError("acquire runtime migration lease", err)
+	}
+	if err = store.RequireNoPendingMigrations(migrateCtx, migrationsDir); err != nil {
+		return nil, runtimeAdapterError("check migrations", err)
 	}
 	runtime.Objects, _, err = OpenObjectStore(ctx, config.ObjectStore)
 	if err != nil {

@@ -88,6 +88,10 @@ func fixtureCommand(ctx context.Context, source, process, mode string) (*exec.Cm
 		return exec.CommandContext(ctx, "python3", "scripts/render_deployment_fixture.py", "--source=helm", "--process=worker", "--secret-source=env"), nil
 	case "helm/worker/files":
 		return exec.CommandContext(ctx, "python3", "scripts/render_deployment_fixture.py", "--source=helm", "--process=worker", "--secret-source=files"), nil
+	case "helm/migrate/env":
+		return exec.CommandContext(ctx, "python3", "scripts/render_deployment_fixture.py", "--source=helm", "--process=migrate", "--secret-source=env"), nil
+	case "helm/migrate/files":
+		return exec.CommandContext(ctx, "python3", "scripts/render_deployment_fixture.py", "--source=helm", "--process=migrate", "--secret-source=files"), nil
 	case "compose/api/env":
 		return exec.CommandContext(ctx, "python3", "scripts/render_deployment_fixture.py", "--source=compose", "--process=api", "--secret-source=env"), nil
 	case "compose/worker/env":

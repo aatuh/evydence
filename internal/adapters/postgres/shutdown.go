@@ -28,6 +28,9 @@ func (s *Store) WaitForIdle(ctx context.Context) error {
 		if s.writerLease != nil {
 			owned = 1
 		}
+		if s.runtimeMigrationLease != nil {
+			owned++
+		}
 		acquired := s.pool.Stat().AcquiredConns()
 		s.writerLeaseMu.RUnlock()
 		readIdle := s.packageReadPool == nil || s.packageReadPool.Stat().AcquiredConns() == 0

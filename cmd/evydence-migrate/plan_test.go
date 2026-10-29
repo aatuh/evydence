@@ -146,6 +146,54 @@ func TestMigrationCommandAppliesVerifiedTarget(t *testing.T) {
 	f.requireClosedConnections(t)
 }
 
+func TestMigrationCommandExcludesActiveRuntimeLeases(t *testing.T) {
+	for _, kind := range []string{"api", "worker"} {
+		t.Run(kind, func(t *testing.T) {
+			f := newMigrationCommandFixture(t, map[string]string{"a.up.sql": "CREATE TABLE command_effects(value integer NOT NULL);"})
+			store, err := postgres.Open(f.ctx, f.databaseURL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close()
+			acquire := store.AcquireRuntimeMigrationLease
+			if kind == "api" {
+				acquire = store.AcquireAPIWriterLease
+			}
+			release, err := acquire(f.ctx)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() {
+				cleanup, cancel := context.WithTimeout(context.WithoutCancel(f.ctx), time.Second)
+				defer cancel()
+				if err := release(cleanup); err != nil {
+					t.Error(err)
+				}
+			}()
+			var output bytes.Buffer
+			err = runMigrationProcess(f.ctx, f.environment(t, "a", "1"), &output, applyMigrations)
+			if err == nil || (kind == "api" && !strings.Contains(err.Error(), "already active")) ||
+				(kind == "worker" && !errors.Is(err, context.DeadlineExceeded)) || strings.Contains(output.String(), "PRIVATE") {
+				t.Fatal("native migration command overlapped an active runtime or lost its bounded result", err)
+			}
+			var created bool
+			if err := f.admin.QueryRow(f.ctx, `SELECT to_regclass($1) IS NOT NULL`, pgx.Identifier{f.schema, "schema_migrations"}.Sanitize()).Scan(&created); err != nil || created {
+				t.Fatal("excluded migration command changed tracking metadata", err)
+			}
+			cleanup, cancel := context.WithTimeout(f.ctx, time.Second)
+			defer cancel()
+			if err := release(cleanup); err != nil {
+				t.Fatal(err)
+			}
+			store.Close()
+			if err := runMigrationProcess(f.ctx, f.environment(t, "a", "1"), &output, applyMigrations); err != nil {
+				t.Fatal("stopped runtime retained migration ownership", err)
+			}
+			f.requireClosedConnections(t)
+		})
+	}
+}
+
 func TestMigrationCommandEnforcesConfiguredBudget(t *testing.T) {
 	f := newMigrationCommandFixture(t, map[string]string{"a.up.sql": "SELECT pg_sleep(2);"})
 	var output bytes.Buffer

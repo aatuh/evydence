@@ -61,25 +61,38 @@ func (s *Store) acquireMigrationCoordinator(ctx context.Context, shared bool) (*
 func discardMigrationConnection(ctx context.Context, connection *pgxpool.Conn) {
 	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
-	_ = connection.Conn().Close(cleanup)
+	discardMigrationConnectionWithin(cleanup, connection)
+}
+
+func discardMigrationConnectionWithin(ctx context.Context, connection *pgxpool.Conn) {
+	_ = connection.Conn().Close(ctx)
 	connection.Release()
 }
 
 func (runner *migrationRunnerConnection) release(ctx context.Context) error {
-	connection := runner.connection
-	if connection.Conn().IsClosed() || connection.Conn().PgConn().TxStatus() != 'I' {
-		discardMigrationConnection(ctx, connection)
-		return errors.New("release migration connection failed")
-	}
 	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 	defer cancel()
+	return runner.releaseWithin(cleanup)
+}
+
+// Runtime cleanup already owns a bounded context; never reset its deadline.
+func (runner *migrationRunnerConnection) releaseWithin(ctx context.Context) error {
+	connection := runner.connection
+	if err := ctx.Err(); err != nil {
+		discardMigrationConnectionWithin(ctx, connection)
+		return err
+	}
+	if connection.Conn().IsClosed() || connection.Conn().PgConn().TxStatus() != 'I' {
+		discardMigrationConnectionWithin(ctx, connection)
+		return errors.New("release migration connection failed")
+	}
 	var released bool
 	statement := `SELECT pg_catalog.pg_advisory_unlock($1,pg_catalog.hashtext($2))`
 	if runner.shared {
 		statement = `SELECT pg_catalog.pg_advisory_unlock_shared($1,pg_catalog.hashtext($2))`
 	}
-	if err := connection.QueryRow(cleanup, statement, migrationRunnerLockNamespace, runner.schema).Scan(&released); err != nil || !released {
-		discardMigrationConnection(ctx, connection)
+	if err := connection.QueryRow(ctx, statement, migrationRunnerLockNamespace, runner.schema).Scan(&released); err != nil || !released {
+		discardMigrationConnectionWithin(ctx, connection)
 		return errors.New("release migration runner lock failed")
 	}
 	connection.Release()

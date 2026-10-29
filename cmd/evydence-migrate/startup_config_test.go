@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/platform/config"
 	"github.com/aatuh/evydence/internal/platform/logging"
 )
@@ -128,5 +129,31 @@ func TestMigrationProcessCapturesTypedPlanSettings(t *testing.T) {
 		if err != nil || !called {
 			t.Fatal("migration plan settings were rejected or not projected", err)
 		}
+	}
+}
+
+func TestMigrationProcessProductionRequiresVerifiedTarget(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		extra []string
+	}{{"neither", nil}, {"target_only", []string{"EVYDENCE_MIGRATION_TARGET=a"}}, {"checksums_only", []string{"EVYDENCE_MIGRATION_CHECKSUMS_FILE=PRIVATE_CHECKSUMS"}}} {
+		t.Run(tc.name, func(t *testing.T) {
+			entries := append([]string{"ENV=production", "EVYDENCE_DATABASE_URL=host=db"}, tc.extra...)
+			var output bytes.Buffer
+			called := false
+			err := runMigrationProcess(t.Context(), migrationEnvironment(t, entries...), &output, func(context.Context, config.Configuration) error { called = true; return nil })
+			if !errors.Is(err, config.ErrMissingValue) || called || strings.Contains(output.String(), "PRIVATE") || strings.Contains(output.String(), `"result_code":"started"`) {
+				t.Fatal("production migration command did not require paired verified inputs before starting", err)
+			}
+		})
+	}
+}
+
+func TestMigrationCommandRejectsWriterLeasePoolStarvationBeforeDial(t *testing.T) {
+	var output bytes.Buffer
+	err := runMigrationProcess(t.Context(), migrationEnvironment(t,
+		"EVYDENCE_DATABASE_URL=postgres://operator:PRIVATE_PASSWORD@127.0.0.1:1/evydence?pool_max_conns=1"), &output, applyMigrations)
+	if !errors.Is(err, postgres.ErrInvalidConfiguration) || strings.Contains(output.String()+err.Error(), "PRIVATE") {
+		t.Fatal("undersized migration pool reached dialing or exposed credentials", err)
 	}
 }

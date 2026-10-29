@@ -20,6 +20,7 @@ RUN go build -trimpath -ldflags "$(sh scripts/build_ldflags.sh)" -o /out/evydenc
 RUN go build -o /out/evydence-migrate ./cmd/evydence-migrate
 RUN go build -o /out/evydence-worker ./cmd/evydence-worker
 RUN go build -o /out/evydence ./cmd/evydence
+RUN find migrations -type f -print | LC_ALL=C sort | xargs sha256sum > /out/migrations.sha256
 
 FROM alpine:3.23@sha256:85fe1e81d6758c208f3e1eed4338a1997e19d4be002d4dd32d3100c9a8c010a0
 RUN addgroup -S evydence && adduser -S -G evydence evydence
@@ -30,5 +31,6 @@ COPY --from=build /out/evydence-migrate /usr/local/bin/evydence-migrate
 COPY --from=build /out/evydence-worker /usr/local/bin/evydence-worker
 COPY --from=build /out/evydence /usr/local/bin/evydence
 COPY --from=build /src/migrations /app/migrations
+COPY --from=build /out/migrations.sha256 /app/migrations.sha256
 EXPOSE 8080
 ENTRYPOINT ["evydence-api"]

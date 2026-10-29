@@ -47,6 +47,9 @@ func workerRuntimeConfigFromSettings(settings config.Configuration) wiring.Runti
 func prepareWorkerRuntime(ctx context.Context, settings config.Configuration) (wiring.RuntimeConfig, error) {
 	runtime := workerRuntimeConfigFromSettings(settings)
 	prepared, err := postgres.PreparePoolConfig(ctx, runtime.DatabaseURL)
+	if err == nil {
+		err = prepared.RequirePoolCapacity(2)
+	}
 	if err != nil {
 		return wiring.RuntimeConfig{}, err
 	}

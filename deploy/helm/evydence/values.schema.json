@@ -1,8 +1,52 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": ["api", "worker", "cleanupTimeoutSeconds", "env"],
+  "required": ["api", "worker", "cleanupTimeoutSeconds", "env", "migration"],
   "properties": {
+    "migration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target",
+        "timeoutSeconds",
+        "allowLegacyHistory",
+        "existingSecret",
+        "secretSource",
+        "resources"
+      ],
+      "properties": {
+        "target": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 248,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]*$"
+        },
+        "timeoutSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 900
+        },
+        "allowLegacyHistory": {
+          "type": "boolean"
+        },
+        "existingSecret": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 253,
+          "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"
+        },
+        "secretSource": {
+          "type": "string",
+          "enum": [
+            "env",
+            "files"
+          ]
+        },
+        "resources": {
+          "type": "object"
+        }
+      }
+    },
     "existingSecret": {"type": "string", "minLength": 1, "maxLength": 253, "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"},
     "cleanupTimeoutSeconds": {"type": "integer", "minimum": 1, "maximum": 60},
     "api": {

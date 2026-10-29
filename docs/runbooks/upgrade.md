@@ -46,25 +46,36 @@ earlier completed versions and rolls back the current file. Lock waits respect
 the command context. Uncertain lock cleanup returns an error and discards the
 database session, even when a version has already committed. Keep using the
 writer/worker stop procedure below; older runners do not participate in this
-coordination protocol. The verified-input command path below adds explicit
-target selection and checksum comparison; ordinary automatic migration still
-uses the full catalog.
+coordination protocol. Production API and worker startup requires
+`EVYDENCE_SKIP_MIGRATIONS=true` (the production default); an explicit false
+value fails before opening providers or storage. Production migration commands
+require the paired target and checksum settings below. Non-production isolated
+startup can still apply the full catalog automatically; use a separate job and
+skip mode when running multiple development processes against one schema.
 
-When `EVYDENCE_SKIP_MIGRATIONS=true`, startup checks use read-only version queries
-and wait for an updated runner to finish. Other checks can read concurrently.
+Every updated API/worker runtime holds a shared schema migration lease from
+startup validation through processing and drain. Startup waits for an active
+updated runner; an active runtime prevents new migration SQL. Multiple workers
+can hold shared leases concurrently. Readiness reuses its exact pinned session,
+so a waiting migrator cannot block the runtime behind a second lock acquisition
+and a healthy replacement pool connection cannot hide a lost lease. Standalone
+version checks use temporary shared leases and remain read-only.
 Missing tracking metadata reports the local catalog as pending; checking does
 not create the table or apply SQL. Readiness uses the same check. Results cover
 the configured schema and preserve local catalog order without returning
 unrelated recorded versions. These are version-name checks, not schema-content
-or checksum verification. Automatic migration settings otherwise retain their
-existing behavior; a dedicated release migration job is still required for the
-deployment cutover.
+or checksum verification. Cleanup waits for database work and closes owned
+provider/object resources before releasing the migration and API writer leases.
+A cleanup timeout retains ownership until process exit; do not reuse that
+runtime. Production API pools need at least three connections (two pinned
+leases plus work), and worker and migration pools need at least two. Smaller
+resolved pools fail before dialing. This is minimum capacity, not sizing advice.
 
 ## Explicit Target And Verified Inputs
 
 After verifying the release artifacts, the migration command can consume the
 release's `migrations.sha256` with an explicit version. Both settings are
-required together. For the current source catalog, an example is:
+required together and mandatory for `ENV=production`. For the current source catalog, an example is:
 
 ```sh
 EVYDENCE_MIGRATION_TARGET=20261029000100_migration_execution_checksums \
@@ -145,9 +156,15 @@ administrator changing records. Migration metadata stays outside the frozen
 tenant evidence commitments.
 
 Readiness remains the coordinated version-name check described above.
-Mandatory production job separation, deployment cutover and the remaining
-audited authorization profile are still pending in EVY-1206. Keep stopping
-writers and workers as below.
+The production-like Compose stack runs its migration service before either
+daemon. The Helm chart runs a pre-install/pre-upgrade migration Job with the
+selected image's `/app/migrations.sha256` and an operator-selected target. Stop
+existing API and worker pods before upgrading: Helm runs pre-upgrade hooks
+before updating Deployments, and an active runtime intentionally prevents the
+job from migrating. See [Kubernetes deployment](../kubernetes.md#install-or-upgrade).
+The remaining audited authorization profile, worker operations and broader
+deployment hardening are still pending in EVY-1206. The lock protocol does not
+protect against older binaries or a database administrator bypassing it.
 
 ## Upgrade
 

@@ -24,6 +24,15 @@ func (PreparedPoolConfig) MarshalJSON() ([]byte, error) {
 
 func (c PreparedPoolConfig) IsPrepared() bool { return c.config != nil }
 
+// RequirePoolCapacity reserves room for owned lifecycle sessions plus work.
+// This checks resolved native settings before opening any pool or provider.
+func (c PreparedPoolConfig) RequirePoolCapacity(minimum int32) error {
+	if c.config == nil || minimum < 1 || c.config.MaxConns < minimum {
+		return ErrInvalidConfiguration
+	}
+	return nil
+}
+
 // Matches checks the explicit input without exposing the stored connection
 // string. Native service/password/TLS settings are already resolved at this point.
 func (c PreparedPoolConfig) Matches(databaseURL string) bool {

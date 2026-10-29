@@ -13,6 +13,9 @@ import (
 // files or constructing providers. File metadata/content belong to resolution.
 func validateLocalInput(input parsedInput) error {
 	v := input.values
+	if input.production && input.role&runtimeRoles != 0 && !v["EVYDENCE_SKIP_MIGRATIONS"].boolean {
+		return ErrUnsafeProduction
+	}
 	if input.role == Migrate {
 		target := strings.TrimSpace(v["EVYDENCE_MIGRATION_TARGET"].text)
 		checksums := strings.TrimSpace(v["EVYDENCE_MIGRATION_CHECKSUMS_FILE"].text)

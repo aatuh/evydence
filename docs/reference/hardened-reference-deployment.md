@@ -44,6 +44,8 @@ worker-scaling stance, recovery boundaries, and multi-writer prerequisites.
 For Kubernetes, start from `deploy/helm/evydence/values.yaml` and set an
 explicit image tag or digest. The chart intentionally defaults
 `api.replicas` to `1` and `api.writerMode` to `single`.
+Provision the separate migration Secret and stop existing daemons before an
+upgrade, following [the Kubernetes procedure](../kubernetes.md#install-or-upgrade).
 Use `.production.env.example` as the environment-variable checklist when
 translating settings into Kubernetes Secrets or another secret manager; keep
 the empty secret fields empty in git and fill them only in the deployment
@@ -53,6 +55,7 @@ system.
 helm upgrade --install evydence ./deploy/helm/evydence \
   --set image.repository=ghcr.io/aatuh/evydence \
   --set image.tag='<verified-tag>@sha256:<verified-digest>' \
+  --set migration.target='<reviewed-release-migration-version>' \
   --set api.replicas=1 \
   --set api.writerMode=single \
   --set worker.replicas=2 \
