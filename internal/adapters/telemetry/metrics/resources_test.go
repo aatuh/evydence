@@ -25,6 +25,7 @@ func testRuntimeResources() telemetry.RuntimeResources {
 		PrimaryPool: telemetry.PoolResources{Max: 4, Acquired: 1, Idle: 2, Constructing: 1, Acquires: 12, CanceledAcquires: 3, WaitedAcquires: 4, AcquireDuration: 2 * time.Second, AcquireWait: time.Second},
 		ReadPool:    telemetry.PoolResources{Max: 2, Idle: 2, Acquires: 5},
 		Queue:       telemetry.QueueResources{Queued: 1, Retrying: 2, Running: 3, Succeeded: 4, DeadLetter: 5, Attempts: 30, EligiblePending: 2, OverduePending: 1, ExpiredLeases: 1, OldestPendingAt: time.Now().Add(-time.Hour), OldestEligibleAt: time.Now().Add(-time.Minute)},
+		Migrations:  telemetry.MigrationResources{Known: true, Applied: 60, Pending: 1, Unexpected: 2},
 	}
 }
 
@@ -57,6 +58,10 @@ func TestRuntimeResourceMetricsHaveOnlyFixedLabelsAndActualValues(t *testing.T) 
 		`evydence_queue_expired_leases{service="api"} 1`,
 		`evydence_queue_oldest_pending_age_seconds{service="api"}`,
 		`evydence_queue_oldest_eligible_age_seconds{service="api"}`,
+		`evydence_migration_expectations_known{service="api"} 1`,
+		`evydence_migration_versions{service="api",state="applied"} 60`,
+		`evydence_migration_versions{service="api",state="pending"} 1`,
+		`evydence_migration_versions{service="api",state="unexpected"} 2`,
 	} {
 		if !strings.Contains(body, sample) {
 			t.Fatal("missing actual operational sample", sample)

@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -27,6 +28,7 @@ type Store struct {
 	disableSnapshotWrites bool
 	writerLeaseMu         sync.RWMutex
 	writerLease           *pgxpool.Conn
+	migrationVersions     atomic.Pointer[migrationExpectations]
 }
 
 type LoadMode string

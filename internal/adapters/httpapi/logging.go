@@ -62,6 +62,7 @@ func (s *Server) observeRequest(next http.Handler) http.Handler {
 		}
 		scope := &requestLogScope{}
 		ctx = context.WithValue(ctx, requestLogKey{}, scope)
+		ctx, finishTrace := telemetry.BeginTrace(ctx, telemetry.TraceHTTP)
 		r = r.WithContext(ctx)
 		status := &failureStatusWriter{ResponseWriter: w}
 		started := time.Now()
@@ -99,6 +100,16 @@ func (s *Server) observeRequest(next http.Handler) http.Handler {
 				metricStatus = 0
 			}
 			recordHTTPMetrics(s.operationalMetrics, r.Method, metricRoute, metricStatus, fields.Duration)
+			outcome := telemetry.OutcomeUncertain
+			switch fields.Result {
+			case logging.Succeeded:
+				outcome = telemetry.OutcomeSucceeded
+			case logging.Rejected:
+				outcome = telemetry.OutcomeRejected
+			case logging.Failed:
+				outcome = telemetry.OutcomeFailed
+			}
+			finishTrace(outcome)
 		}()
 		next.ServeHTTP(status, r)
 		completed = true

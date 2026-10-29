@@ -23,6 +23,7 @@ import (
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	integrationapp "github.com/aatuh/evydence/internal/integration/app"
 	"github.com/aatuh/evydence/internal/platform/logging"
+	"github.com/aatuh/evydence/internal/platform/telemetry"
 	riskdomain "github.com/aatuh/evydence/internal/risk/domain"
 )
 
@@ -1813,14 +1814,16 @@ func (r outbox) Enqueue(ctx context.Context, job app.OutboxJob) error {
 	if err != nil {
 		return fmt.Errorf("encode outbox payload: %w", err)
 	}
+	trace := telemetry.TraceContextFromContext(ctx)
 	_, err = r.tx.Exec(ctx, `
 		INSERT INTO outbox_jobs (
 			id, tenant_id, kind, subject_type, subject_id, deduplication_key, payload, status,
-			attempts, max_attempts, run_after, created_at, updated_at, log_request_id, log_operation_id
+			attempts, max_attempts, run_after, created_at, updated_at, log_request_id, log_operation_id,
+			trace_id, trace_parent_span_id, trace_sampled
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued', 0, 5, now(), $8, now(), $9, $10)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued', 0, 5, now(), $8, now(), $9, $10, $11, $12, $13)
 		ON CONFLICT (tenant_id, deduplication_key) DO NOTHING
-	`, job.ID, job.TenantID, job.Kind, job.SubjectType, job.SubjectID, job.DeduplicationKey, payload, job.CreatedAt, logging.CorrelationFromContext(ctx).RequestID, logging.CorrelationFromContext(ctx).OperationID)
+	`, job.ID, job.TenantID, job.Kind, job.SubjectType, job.SubjectID, job.DeduplicationKey, payload, job.CreatedAt, logging.CorrelationFromContext(ctx).RequestID, logging.CorrelationFromContext(ctx).OperationID, trace.TraceID(), trace.SpanID(), trace.Sampled())
 	return writeError("enqueue outbox job", err)
 }
 

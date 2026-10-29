@@ -93,6 +93,18 @@ func newRuntimeResourceCollector(r telemetry.RuntimeResources, now time.Time) *r
 	} {
 		add(desc(gauge.name, gauge.help), prometheus.GaugeValue, gauge.value)
 	}
+	known := 0.0
+	if r.Migrations.Known {
+		known = 1
+	}
+	add(desc("evydence_migration_expectations_known", "Whether this process discovered its local migration catalog; zero cannot establish database currency."), prometheus.GaugeValue, known)
+	versions := desc("evydence_migration_versions", "Recorded migration versions compared with this process's local catalog; repeated across process targets, not additive across targets.", "state")
+	for _, state := range []struct {
+		name  string
+		value int64
+	}{{"applied", r.Migrations.Applied}, {"pending", r.Migrations.Pending}, {"unexpected", r.Migrations.Unexpected}} {
+		add(versions, prometheus.GaugeValue, float64(state.value), state.name)
+	}
 	return c
 }
 

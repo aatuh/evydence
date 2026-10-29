@@ -151,8 +151,8 @@ func TestBackupProfilesExcludeOperationalLogReferences(t *testing.T) {
 				continue
 			}
 			for _, column := range resource.Columns {
-				if column == "log_request_id" || column == "log_operation_id" {
-					t.Fatal("operational log references changed a frozen evidence profile")
+				if column == "log_request_id" || column == "log_operation_id" || column == "trace_id" || column == "trace_parent_span_id" || column == "trace_sampled" {
+					t.Fatal("operational correlation changed a frozen evidence profile")
 				}
 			}
 		}

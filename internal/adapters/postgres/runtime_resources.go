@@ -27,6 +27,11 @@ func (s *Store) ReadRuntimeResources(ctx context.Context) (telemetry.RuntimeReso
 		return empty, err
 	}
 	var result telemetry.RuntimeResources
+	var expected []string
+	if catalog := s.migrationVersions.Load(); catalog != nil {
+		result.Migrations.Known = true
+		expected = catalog.versions
+	}
 	var oldest, eligible *time.Time
 	err := s.packageReadPool.QueryRow(ctx, `
 		SELECT count(*) FILTER (WHERE status = 'queued'),
@@ -39,13 +44,19 @@ func (s *Store) ReadRuntimeResources(ctx context.Context) (telemetry.RuntimeReso
 		       count(*) FILTER (WHERE status IN ('queued','retrying') AND run_after <= now() - $1 * interval '1 second'),
 		       count(*) FILTER (WHERE status = 'running' AND (locked_at IS NULL OR locked_at <= now() - $1 * interval '1 second')),
 		       min(created_at) FILTER (WHERE status IN ('queued','retrying')),
-		       min(created_at) FILTER (WHERE status IN ('queued','retrying') AND run_after <= now())
+		       min(created_at) FILTER (WHERE status IN ('queued','retrying') AND run_after <= now()),
+		       (SELECT count(*) FROM schema_migrations WHERE version = ANY($2::text[])),
+		       (SELECT count(*) FROM unnest($2::text[]) AS expected(version)
+		        WHERE NOT EXISTS (SELECT 1 FROM schema_migrations recorded WHERE recorded.version=expected.version)),
+		       (SELECT count(*) FROM schema_migrations
+		        WHERE $2::text[] IS NOT NULL AND NOT (version = ANY($2::text[])))
 		FROM outbox_jobs
-	`, int(outboxLeaseDuration/time.Second)).Scan(
+	`, int(outboxLeaseDuration/time.Second), expected).Scan(
 		&result.Queue.Queued, &result.Queue.Retrying, &result.Queue.Running,
 		&result.Queue.Succeeded, &result.Queue.DeadLetter, &result.Queue.Attempts,
 		&result.Queue.EligiblePending, &result.Queue.OverduePending, &result.Queue.ExpiredLeases,
 		&oldest, &eligible,
+		&result.Migrations.Applied, &result.Migrations.Pending, &result.Migrations.Unexpected,
 	)
 	if err != nil {
 		if cause := ctx.Err(); cause != nil {

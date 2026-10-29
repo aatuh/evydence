@@ -14,6 +14,7 @@ import (
 	"github.com/aatuh/evydence/internal/app"
 	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 	"github.com/aatuh/evydence/internal/platform/logging"
+	"github.com/aatuh/evydence/internal/platform/telemetry"
 )
 
 const (
@@ -54,15 +55,16 @@ func (f JobFailure) normalized() (JobFailure, error) {
 }
 
 type ClaimedJob struct {
-	Correlation logging.Correlation
-	ID          string
-	TenantID    string
-	Kind        string
-	SubjectType string
-	SubjectID   string
-	Attempts    int
-	LeaseToken  string
-	Payload     map[string]any
+	Correlation  logging.Correlation
+	TraceContext telemetry.TraceContext
+	ID           string
+	TenantID     string
+	Kind         string
+	SubjectType  string
+	SubjectID    string
+	Attempts     int
+	LeaseToken   string
+	Payload      map[string]any
 }
 
 // HasActiveJobDependency reports whether at least one durable dependency job
@@ -231,14 +233,16 @@ func insertOutboxJob(ctx context.Context, exec outboxExecutor, job app.OutboxJob
 	if err != nil {
 		return fmt.Errorf("encode outbox payload: %w", err)
 	}
+	trace := telemetry.TraceContextFromContext(ctx)
 	_, err = exec.Exec(ctx, `
 		INSERT INTO outbox_jobs (
 			id, tenant_id, kind, subject_type, subject_id, deduplication_key, payload, status,
-			attempts, max_attempts, run_after, created_at, updated_at, log_request_id, log_operation_id
+			attempts, max_attempts, run_after, created_at, updated_at, log_request_id, log_operation_id,
+			trace_id, trace_parent_span_id, trace_sampled
 		)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued', 0, 5, now(), $8, now(), $9, $10)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, 'queued', 0, 5, now(), $8, now(), $9, $10, $11, $12, $13)
 		ON CONFLICT (tenant_id, deduplication_key) DO NOTHING
-	`, job.ID, job.TenantID, job.Kind, job.SubjectType, job.SubjectID, job.DeduplicationKey, payload, job.CreatedAt, logging.CorrelationFromContext(ctx).RequestID, logging.CorrelationFromContext(ctx).OperationID)
+	`, job.ID, job.TenantID, job.Kind, job.SubjectType, job.SubjectID, job.DeduplicationKey, payload, job.CreatedAt, logging.CorrelationFromContext(ctx).RequestID, logging.CorrelationFromContext(ctx).OperationID, trace.TraceID(), trace.SpanID(), trace.Sampled())
 	if err != nil {
 		return fmt.Errorf("enqueue outbox job: %w", err)
 	}
@@ -290,7 +294,8 @@ func (s *Store) ClaimJobs(ctx context.Context, limit int) ([]ClaimedJob, error) 
 		    updated_at = now()
 		FROM claimed
 		WHERE j.id = claimed.id
-		RETURNING j.id, j.tenant_id, j.kind, j.subject_type, j.subject_id, j.attempts, j.lease_token, j.payload, j.log_request_id, j.log_operation_id
+		RETURNING j.id, j.tenant_id, j.kind, j.subject_type, j.subject_id, j.attempts, j.lease_token, j.payload, j.log_request_id, j.log_operation_id,
+			j.trace_id, j.trace_parent_span_id, j.trace_sampled
 	`, limit, int(outboxLeaseDuration/time.Second))
 	if err != nil {
 		return nil, fmt.Errorf("claim jobs: %w", err)
@@ -300,9 +305,12 @@ func (s *Store) ClaimJobs(ctx context.Context, limit int) ([]ClaimedJob, error) 
 	for rows.Next() {
 		var job ClaimedJob
 		var payload []byte
-		if err := rows.Scan(&job.ID, &job.TenantID, &job.Kind, &job.SubjectType, &job.SubjectID, &job.Attempts, &job.LeaseToken, &payload, &job.Correlation.RequestID, &job.Correlation.OperationID); err != nil {
+		var traceID, spanID string
+		var sampled bool
+		if err := rows.Scan(&job.ID, &job.TenantID, &job.Kind, &job.SubjectType, &job.SubjectID, &job.Attempts, &job.LeaseToken, &payload, &job.Correlation.RequestID, &job.Correlation.OperationID, &traceID, &spanID, &sampled); err != nil {
 			return nil, fmt.Errorf("scan claimed job: %w", err)
 		}
+		job.TraceContext, _ = telemetry.NewTraceContext(traceID, spanID, sampled)
 		if len(payload) > 0 {
 			if err := json.Unmarshal(payload, &job.Payload); err != nil {
 				return nil, fmt.Errorf("decode claimed job payload: %w", err)

@@ -33,7 +33,8 @@ api:
   writeTimeoutSeconds: 60
   idleTimeoutSeconds: 120
   shutdownTimeoutSeconds: 30
-  # At least shutdownTimeoutSeconds + cleanupTimeoutSeconds + 5.
+  # At least shutdownTimeoutSeconds + cleanupTimeoutSeconds + 5:
+  # one second for optional trace cleanup and four seconds of scheduling margin.
   terminationGracePeriodSeconds: 40
   maxHeaderBytes: 16384
   maxURLBytes: 8192

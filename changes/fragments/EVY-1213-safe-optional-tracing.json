@@ -1,0 +1,23 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1213-safe-optional-tracing",
+  "category": "added",
+  "summary": "Add optional bounded tracing and recorded migration-state diagnostics",
+  "details": [
+    "Configure explicit HTTPS OTLP/HTTP export with fixed metadata, bounded sampling, queue and timeouts, and independent best-effort diagnostic shutdown.",
+    "Connect request and durable worker entry points to existing measured provider and operation contexts without changing returned results or lease acknowledgment ownership.",
+    "Replace the SDK resource envelope before export so merged environment attributes cannot be transmitted; disable internal SDK diagnostics and arbitrary baggage, events, links and status prose.",
+    "Expose only scalar matched, pending and unexpected migration-version counts with an explicit known-catalog signal; extend checked dashboard, alerts and diagnosis."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Tracing defaults to disabled. Enable API and worker settings explicitly with a trusted HTTPS collector. The durable-context companion change requires its additive migration. Existing deployment grace budgets reserve one second for diagnostic cleanup and retain four seconds of scheduling margin."
+  },
+  "security": "Keep collector configuration and private input outside diagnostic output. Accept only internal trace parentage; preserve tenant ownership, immutable evidence, exact provider contexts and fenced worker acknowledgment.",
+  "limitations": [
+    "Sampling, queue pressure, unavailable collectors and bounded shutdown can drop spans; traces are not complete or durable evidence.",
+    "Migration counts compare recorded names with a discovered local catalog and do not verify schema contents or migration bytes."
+  ]
+}

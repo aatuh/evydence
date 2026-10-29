@@ -15,6 +15,15 @@ type RuntimeResources struct {
 	PrimaryPool PoolResources
 	ReadPool    PoolResources
 	Queue       QueueResources
+	Migrations  MigrationResources
+}
+
+// MigrationResources compares recorded versions with this process's most
+// recently discovered local migration catalog. It contains no version names.
+// Unknown expectations cannot establish whether the database is current.
+type MigrationResources struct {
+	Known                        bool
+	Applied, Pending, Unexpected int64
 }
 
 type PoolResources struct {
@@ -45,15 +54,18 @@ func validPool(p PoolResources) bool {
 
 func (r RuntimeResources) Valid() bool {
 	q := r.Queue
+	m := r.Migrations
 	for _, value := range [...]int64{q.Queued, q.Retrying, q.Running, q.Succeeded,
-		q.DeadLetter, q.Attempts, q.EligiblePending, q.OverduePending, q.ExpiredLeases} {
+		q.DeadLetter, q.Attempts, q.EligiblePending, q.OverduePending, q.ExpiredLeases,
+		m.Applied, m.Pending, m.Unexpected} {
 		if value < 0 {
 			return false
 		}
 	}
 	// Compare by subtraction to avoid overflowing a sum of retained job counts.
 	eligibleFits := q.EligiblePending <= q.Queued || q.EligiblePending-q.Queued <= q.Retrying
-	return validPool(r.PrimaryPool) && validPool(r.ReadPool) && eligibleFits &&
+	return (m.Known || (m.Applied == 0 && m.Pending == 0 && m.Unexpected == 0)) &&
+		validPool(r.PrimaryPool) && validPool(r.ReadPool) && eligibleFits &&
 		q.OverduePending <= q.EligiblePending && q.ExpiredLeases <= q.Running &&
 		((q.Queued == 0 && q.Retrying == 0) == q.OldestPendingAt.IsZero()) &&
 		((q.EligiblePending == 0) == q.OldestEligibleAt.IsZero())

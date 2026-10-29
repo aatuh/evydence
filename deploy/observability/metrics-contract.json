@@ -173,6 +173,36 @@
         ]
       }
     },
+    "evydence_migration_expectations_known": {
+      "type": "gauge",
+      "labels": [
+        "service"
+      ],
+      "values": {
+        "service": [
+          "api",
+          "worker"
+        ]
+      }
+    },
+    "evydence_migration_versions": {
+      "type": "gauge",
+      "labels": [
+        "service",
+        "state"
+      ],
+      "values": {
+        "service": [
+          "api",
+          "worker"
+        ],
+        "state": [
+          "applied",
+          "pending",
+          "unexpected"
+        ]
+      }
+    },
     "evydence_operation_attempt_number_bucket": {
       "type": "histogram_bucket",
       "labels": [

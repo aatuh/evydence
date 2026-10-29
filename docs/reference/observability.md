@@ -67,12 +67,95 @@ these diagnostic fields. Apply migrations before starting the updated workers.
 Older binaries ignore the extra columns. Downgrading this migration loses
 correlation only; it preserves jobs and evidence.
 
+Migration `20261028000100_outbox_trace_context` adds operational `trace_id`,
+`trace_parent_span_id` and `trace_sampled` columns to `outbox_jobs`. Both enqueue
+paths save only an explicitly supplied internal trace carrier, in the job's
+transaction. Duplicate delivery retains the winning job's context; claims and
+lease reclaims restore that context after a process restart. Trace metadata
+does not grant tenant access or replace lease fencing. Jobs without metadata
+clear any previous job's trace from the worker context.
+
+Apply the migration before starting the updated binaries. Existing jobs and
+older writers default to empty identifiers and `false`; older readers ignore
+the columns. The down migration drops diagnostic context only. Evidence bytes,
+deduplication inputs and all five frozen backup commitment profiles remain
+unchanged; restored historical jobs may have no trace context. The persistence
+carrier has no HTTP-header, baggage or free-form attribute parser. Persistence
+alone creates no exporter; the optional tracing profile below owns span creation
+and collection.
+
+The migration takes an exclusive table lock to add columns and validate their
+shape. Both directions limit lock waits to three seconds and each statement to
+30 seconds within the migration transaction. Contention, validation timeout or
+cancellation rolls back the migration; schedule a quiet maintenance window and
+retry after resolving the contention. These budgets do not prove that a large
+production outbox can migrate within the window.
+
 Native command transactions emit audit receipt references only after a
 successful PostgreSQL commit. Rollback and uncertain commit outcomes never emit
 a successful audit receipt. Provider observations carry the request reference,
 operation, safe identifiers, duration and typed result/retry class; the provider
 request, response and error remain outside the log schema. Logging does not
 change provider ownership, cancellation or returned results.
+
+## Optional tracing
+
+Tracing is disabled by default. Enable it separately for the API and worker
+through the [canonical configuration](configuration.md):
+
+```dotenv
+EVYDENCE_TRACING_ENABLED=true
+EVYDENCE_TRACING_ENDPOINT=https://collector.example.internal:4318/v1/traces
+```
+
+The endpoint is a full HTTPS OTLP/HTTP protobuf URL, using the system's trusted
+certificate roots. Userinfo, query strings and fragments are rejected. This
+profile supplies no custom authentication headers, client certificates, proxy
+settings, redirects or retries. The operator owns collector authorization,
+network access and retention. Collector availability is not a readiness check.
+
+Each API request starts an internal `http_request` span. A claimed durable job
+starts a `worker_job` child using its stored parent; historical jobs without a
+parent start a new trace. Incoming trace headers and baggage are not trusted or
+echoed. Provider and measured operation spans use that internal context, while
+the actual application callbacks keep their exact context and cancellation.
+Completed operation durations become timestamped child spans, limited to one
+day in traces; metric durations retain their existing values. These operation
+spans are siblings under the entry point, not a nested call-stack reconstruction.
+
+Exported resources contain only the fixed service name `evydence-api` or
+`evydence-worker`. Span names are the two entry points or the finite operation
+catalog. Attributes are limited to `evydence.operation`, `evydence.outcome` and
+numeric `evydence.attempt`. No tenant/resource/actor identifiers, URLs, payloads,
+errors, arbitrary events, links or status messages are added. No host/process
+detectors are registered. The SDK internally merges environment resource
+attributes even with an explicit resource; the owned exporter replaces the
+entire resource envelope before serialization, excluding those attributes and
+their schema metadata from transmission.
+
+The toolkit tracing initializer includes environment/process/host resources and
+incoming baggage, so this profile uses the official SDK and OTLP conversion
+behind the project's neutral port. It registers no global tracer provider or
+propagator. Internal SDK diagnostics are disabled, errors are discarded rather
+than logged verbatim, and the owned client's diagnostic representation contains
+only its fixed type. The owned SDK and OTLP base exporter are pinned to
+`v1.45.0`, which addresses the
+[upstream diagnostic-logging advisory](https://github.com/open-telemetry/opentelemetry-go/security/advisories/GHSA-8wmf-6v46-5gfg).
+This version selection does not establish that every dependency is free of
+advisories or admitted by the separate dependency policy.
+
+Root sampling defaults to 1%; workers preserve the stored parent sampling
+decision. The completed-span queue defaults to 128 and drops spans when full;
+batches contain at most 32 spans. The per-batch timeout defaults to two seconds.
+The configuration reference owns exact bounds. Export failure cannot replace
+request/job results or acknowledge a lease. After admitted work drains, tracing
+gets a separate one-second best-effort shutdown budget; it then cancels owned
+network work. This second fits within the deployment grace's existing five
+seconds beyond drain and resource cleanup, leaving four seconds of margin.
+Critical storage/provider cleanup keeps its own budget. Cleanup uncertainty
+emits a fixed diagnostic; asynchronous batch failures may drop spans silently.
+Tracing is not durable evidence, complete execution history or a delivery
+guarantee.
 
 ## Operational metrics
 
@@ -146,6 +229,8 @@ deciding whether to retry.
 | `evydence_queue_expired_leases` | Gauge | `service`; running jobs with missing or expired five-minute leases. |
 | `evydence_queue_oldest_pending_age_seconds` | Gauge | `service`; creation age of the oldest queued/retrying job, including future scheduled work. |
 | `evydence_queue_oldest_eligible_age_seconds` | Gauge | `service`; creation age of the oldest currently eligible queued/retrying job. |
+| `evydence_migration_expectations_known` | Gauge | `service`; `1` when this process discovered its local migration catalog, otherwise `0`. |
+| `evydence_migration_versions` | Gauge | `service`, fixed `state` (`applied`, `pending`, `unexpected`); recorded versions compared with that local catalog. |
 
 Native filesystem and S3 adapters measure object reads (including bounded
 reads), writes, inventory, staging, finalization and their existing cleanup
@@ -208,6 +293,17 @@ or future creation timestamps produce zero age. Exact scalar aggregation can
 scan retained history; sufficiently large/contended histories may hit the query
 deadline and make a scrape unavailable. This is no database-capacity guarantee.
 
+Migration comparison uses the process's most recently discovered local catalog
+from migration application or checking, and the recorded `schema_migrations`
+versions in the same bounded read-only snapshot as queue counts. `applied`
+counts matches, `pending` counts local names absent from the record and
+`unexpected` counts recorded names absent from the local catalog. An unknown
+catalog emits zero for all three and `expectations_known=0`; do not interpret
+those zeros as current. Scraping performs no filesystem discovery or migration
+writes. These are version-name comparisons, not schema-content validation.
+Different process versions during rollout can legitimately differ; do not sum
+their repeated state gauges. Follow the [migration-state runbook](../runbooks/observability.md#migration-state).
+
 Counters and histograms are process-local and reset on restart. Scrape each
 process separately and use reset-aware rates; these measurements are operational
 observations, not durable evidence or audit totals. A scrape reflects previously
@@ -217,8 +313,8 @@ commands, including `reconcile`, do not serve a scrape endpoint or persist the
 new process counters. Existing tenant metrics still expose reconciliation
 receipt totals and last-run age; result and receipt interfaces remain
 authoritative.
-Dashboard/rule calibration belongs to EVY-1212; optional tracing and durable
-worker trace propagation belong to EVY-1213.
+The dashboard/rule examples require operator calibration. Optional tracing and
+the operational worker carrier are described above.
 
 ### Worker scraping
 
@@ -565,6 +661,8 @@ diagnostic action for every alert.
 | `EvydenceProviderFailures`, `EvydenceObjectStoreFailures` | At least 3 failed/uncertain observations in 15 minutes, held for 5 minutes, tolerates an isolated observed error. Nested calls can contribute separately. |
 | `EvydenceHTTPServerFailures` | Positive 5-minute failed-outcome rate held for 5 minutes calls for bounded route/dependency diagnosis. This independent counter retains failures after detailed-series overflow. A sliding window can keep isolated errors visible; calibrate to traffic and routing needs. |
 | `EvydenceTelemetryOverflow` | A positive 15-minute overflow increase held for 5 minutes calls for instrumentation/cardinality review rather than an automatic budget increase. |
+| `EvydenceMigrationVersionMismatch` | Any pending/unexpected recorded version held for 5 minutes calls for source/rollout comparison and the upgrade runbook; it does not establish schema corruption or authorize record edits. |
+| `EvydenceMigrationCatalogUnknown` | Unknown local expectations held for 5 minutes calls for migration-directory and process-version diagnosis; zero version gauges cannot establish currency in this state. |
 
 Observe idle, normal-load, restart and dependency-failure behavior before
 choosing production thresholds and severity. Record the reviewed deployment,

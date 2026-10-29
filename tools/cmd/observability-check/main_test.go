@@ -12,8 +12,9 @@ import (
 
 func testContract() metricContract {
 	return metricContract{Schema: contractSchema, Metrics: map[string]metricSeries{
-		"evydence_operations_total": {Type: "counter", Labels: []string{"service", "operation", "outcome"}, Values: map[string][]string{"service": {"api", "worker"}, "operation": {"worker_process", "provider_sign"}, "outcome": {"succeeded", "failed"}}},
-		"evydence_queue_jobs":       {Type: "gauge", Labels: []string{"service", "state"}, Values: map[string][]string{"service": {"api", "worker"}, "state": {"queued", "dead_letter"}}},
+		"evydence_operations_total":   {Type: "counter", Labels: []string{"service", "operation", "outcome"}, Values: map[string][]string{"service": {"api", "worker"}, "operation": {"worker_process", "provider_sign"}, "outcome": {"succeeded", "failed"}}},
+		"evydence_queue_jobs":         {Type: "gauge", Labels: []string{"service", "state"}, Values: map[string][]string{"service": {"api", "worker"}, "state": {"queued", "dead_letter"}}},
+		"evydence_migration_versions": {Type: "gauge", Labels: []string{"service", "state"}, Values: map[string][]string{"service": {"api", "worker"}, "state": {"applied", "pending", "unexpected"}}},
 	}}
 }
 
@@ -24,6 +25,8 @@ func TestQueryContract(t *testing.T) {
 	}{
 		{"process rates", `sum by (deployment) (rate(evydence_operations_total{service="worker",operation="worker_process",outcome="failed"}[5m]))`, true},
 		{"shared queue maximum", `max by (deployment) (evydence_queue_jobs{state="queued"})`, true},
+		{"migration state maximum", `max by (deployment, state) (evydence_migration_versions{state=~"pending|unexpected"})`, true},
+		{"duplicate migration sum", `sum by (deployment) (evydence_migration_versions{state="pending"})`, false},
 		{"scrape availability", `up{job=~"evydence-api|evydence-worker"} == 0`, true},
 		{"placeholder metric", `absent(evydence_worker_last_success_timestamp_seconds)`, false},
 		{"invalid syntax", `sum(rate(evydence_operations_total[5m])`, false},

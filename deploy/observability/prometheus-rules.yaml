@@ -111,3 +111,23 @@ groups:
           description: Additional HTTP observations were folded into the bounded overflow series.
           action: Inspect route-template instrumentation and rollout changes; do not add customer identifiers or raise limits without review.
           runbook_url: docs/runbooks/observability.md#exporter
+      - alert: EvydenceMigrationVersionMismatch
+        expr: max by (deployment, state) (evydence_migration_versions{state=~"pending|unexpected"}) > 0
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: Recorded migration versions differ from a process catalog
+          description: A process has pending or unexpected recorded versions; mixed binary versions during rollout can explain this comparison.
+          action: Compare deployed versions and authorized readiness, then follow the upgrade runbook without editing migration records.
+          runbook_url: docs/runbooks/observability.md#migration-state
+      - alert: EvydenceMigrationCatalogUnknown
+        expr: min by (deployment) (evydence_migration_expectations_known) == 0
+        for: 5m
+        labels:
+          severity: ticket
+        annotations:
+          summary: A process has no usable local migration catalog
+          description: Zero migration counts cannot establish database currency when the local expectations are unknown.
+          action: Check the configured migration directory, process version and authorized readiness diagnostics.
+          runbook_url: docs/runbooks/observability.md#migration-state
