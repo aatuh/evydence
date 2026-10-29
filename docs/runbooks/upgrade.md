@@ -29,6 +29,15 @@ including `.down.sql` files, are not applied. Keep the migration directory
 read-only during the run and verify the release checksums as above. Catalog
 discovery alone does not authenticate release files or verify recorded history.
 
+Updated migration runners targeting the same database schema serialize their
+work. Each file still commits in its own transaction: a later failure preserves
+earlier completed versions and rolls back the current file. Lock waits respect
+the command context. Uncertain lock cleanup returns an error and discards the
+database session, even when a version has already committed. Keep using the
+writer/worker stop procedure below; older runners do not participate in this
+coordination protocol. This coordination does not add target selection, checksum
+enforcement, or read-only application startup checks.
+
 ## Upgrade
 
 1. Stop API writers.

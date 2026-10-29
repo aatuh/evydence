@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -26,7 +27,7 @@ func (s *Store) recordMigrationExpectations(names []string) {
 	s.migrationVersions.Store(&migrationExpectations{versions: versions})
 }
 
-func (s *Store) ApplyMigrations(ctx context.Context, dir string) (int, error) {
+func (s *Store) ApplyMigrations(ctx context.Context, dir string) (applied int, resultErr error) {
 	names, err := migrationNames(dir)
 	if err != nil {
 		if s != nil {
@@ -35,14 +36,18 @@ func (s *Store) ApplyMigrations(ctx context.Context, dir string) (int, error) {
 		return 0, err
 	}
 	s.recordMigrationExpectations(names)
-	if err := s.ensureSchemaMigrationsTable(ctx); err != nil {
+	runner, err := s.acquireMigrationRunner(ctx)
+	if err != nil {
 		return 0, err
 	}
-	applied := 0
+	defer func() { resultErr = errors.Join(resultErr, runner.release(ctx)) }()
+	if _, err := runner.connection.Exec(ctx, createSchemaMigrationsTableSQL); err != nil {
+		return 0, fmt.Errorf("ensure schema migrations table: %w", err)
+	}
 	for _, name := range names {
 		version := strings.TrimSuffix(name, ".up.sql")
 		var exists bool
-		err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`, version).Scan(&exists)
+		err := runner.connection.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`, version).Scan(&exists)
 		if err != nil {
 			return applied, fmt.Errorf("check migration %s: %w", version, err)
 		}
@@ -53,16 +58,16 @@ func (s *Store) ApplyMigrations(ctx context.Context, dir string) (int, error) {
 		if err != nil {
 			return applied, fmt.Errorf("read migration %s: %w", name, err)
 		}
-		tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+		tx, err := runner.connection.BeginTx(ctx, pgx.TxOptions{})
 		if err != nil {
 			return applied, fmt.Errorf("begin migration %s: %w", version, err)
 		}
 		if _, err := tx.Exec(ctx, string(body)); err != nil {
-			_ = tx.Rollback(ctx)
+			rollbackMigration(ctx, tx)
 			return applied, fmt.Errorf("apply migration %s: %w", version, err)
 		}
 		if _, err := tx.Exec(ctx, `INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT (version) DO NOTHING`, version); err != nil {
-			_ = tx.Rollback(ctx)
+			rollbackMigration(ctx, tx)
 			return applied, fmt.Errorf("record migration %s: %w", version, err)
 		}
 		if err := tx.Commit(ctx); err != nil {
@@ -71,6 +76,12 @@ func (s *Store) ApplyMigrations(ctx context.Context, dir string) (int, error) {
 		applied++
 	}
 	return applied, nil
+}
+
+func rollbackMigration(ctx context.Context, tx pgx.Tx) {
+	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
+	defer cancel()
+	_ = tx.Rollback(cleanup)
 }
 
 func (s *Store) PendingMigrationVersions(ctx context.Context, dir string) ([]string, error) {
@@ -111,13 +122,15 @@ func (s *Store) RequireNoPendingMigrations(ctx context.Context, dir string) erro
 	return nil
 }
 
-func (s *Store) ensureSchemaMigrationsTable(ctx context.Context) error {
-	if _, err := s.pool.Exec(ctx, `
+const createSchemaMigrationsTableSQL = `
 		CREATE TABLE IF NOT EXISTS schema_migrations (
 			version text PRIMARY KEY,
 			applied_at timestamptz NOT NULL DEFAULT now()
 		)
-	`); err != nil {
+	`
+
+func (s *Store) ensureSchemaMigrationsTable(ctx context.Context) error {
+	if _, err := s.pool.Exec(ctx, createSchemaMigrationsTableSQL); err != nil {
 		return fmt.Errorf("ensure schema migrations table: %w", err)
 	}
 	return nil
