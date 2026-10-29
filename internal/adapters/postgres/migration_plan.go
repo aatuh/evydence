@@ -13,19 +13,34 @@ import (
 )
 
 var (
-	ErrMigrationPlan    = errors.New("invalid migration target or checksum inputs")
-	ErrMigrationHistory = errors.New("database migration history does not match target prefix")
+	ErrMigrationPlan          = errors.New("invalid migration target or checksum inputs")
+	ErrMigrationHistory       = errors.New("database migration history does not match target prefix")
+	ErrMigrationChecksum      = errors.New("stored migration checksum does not match input SQL")
+	ErrMigrationLegacyHistory = errors.New("legacy migration history requires explicit acknowledgement")
 	// Match the existing migrations.sha256 release format. Filenames are
 	// logical release names; only a validated basename is opened under root.
 	migrationChecksumLine = regexp.MustCompile(`^([a-f0-9]{64}) [ *]migrations/([A-Za-z0-9][A-Za-z0-9_.-]{0,250}\.sql)$`)
 )
 
-// MigrationPlan owns verified immutable input SQL. It does not authenticate its
-// checksum source or verify the SQL previously executed for existing versions.
+// MigrationPlan owns verified immutable input SQL. Preparation does not inspect
+// database history or authenticate its checksum source. Execution checks stored
+// fingerprints and requires explicit acknowledgement of unknown legacy history.
 // Its zero value is invalid; construct it with PrepareMigrationPlan.
 type MigrationPlan struct {
-	catalog []migrationScript
-	target  string
+	catalog            []migrationScript
+	target             string
+	allowLegacyHistory bool
+}
+
+// WithLegacyHistory returns a copy explicitly permitting version-only rows.
+// It never backfills those rows or permits a stored checksum mismatch.
+func (plan MigrationPlan) WithLegacyHistory() MigrationPlan {
+	plan.allowLegacyHistory = true
+	return plan
+}
+
+func migrationChecksum(body string) string {
+	return fmt.Sprintf("%x", sha256.Sum256([]byte(body)))
 }
 
 func (plan MigrationPlan) TargetVersion() string { return plan.target }
@@ -69,7 +84,7 @@ func PrepareMigrationPlan(ctx context.Context, dir, target, checksumsPath string
 	upNames := make(map[string]bool, len(catalog))
 	remaining := maxMigrationCatalogBytes
 	for _, script := range catalog {
-		if records[script.name] != fmt.Sprintf("%x", sha256.Sum256([]byte(script.body))) {
+		if records[script.name] != migrationChecksum(script.body) {
 			return MigrationPlan{}, ErrMigrationPlan
 		}
 		upNames[script.name] = true
@@ -86,7 +101,7 @@ func PrepareMigrationPlan(ctx context.Context, dir, target, checksumsPath string
 		if err != nil {
 			return MigrationPlan{}, errors.Join(ErrMigrationPlan, err)
 		}
-		if fmt.Sprintf("%x", sha256.Sum256([]byte(body))) != expected {
+		if migrationChecksum(body) != expected {
 			return MigrationPlan{}, ErrMigrationPlan
 		}
 		remaining -= len(body)
@@ -130,5 +145,5 @@ func (s *Store) ApplyMigrationPlan(ctx context.Context, plan MigrationPlan) (int
 	if len(plan.catalog) == 0 || plan.target == "" || strings.TrimSuffix(plan.catalog[len(plan.catalog)-1].name, ".up.sql") != plan.target {
 		return 0, ErrMigrationPlan
 	}
-	return s.applyMigrationCatalog(ctx, plan.catalog, true)
+	return s.applyMigrationCatalog(ctx, plan.catalog, true, plan.allowLegacyHistory)
 }

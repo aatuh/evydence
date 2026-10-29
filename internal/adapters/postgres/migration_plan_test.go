@@ -210,3 +210,21 @@ func TestMigrationPlanAcceptsCommittedReleaseChecksumFormat(t *testing.T) {
 		t.Fatal("command plan is incompatible with the committed release checksum format", err)
 	}
 }
+
+func TestMigrationPlanBoundsCombinedUpAndListedDownBytes(t *testing.T) {
+	large := strings.Repeat(" ", 4<<20)
+	bodies := map[string]string{"a.up.sql": large}
+	for i := range 7 {
+		bodies[fmt.Sprintf("%d.down.sql", i)] = large
+	}
+	dir, checksums := writeMigrationPlanFixture(t, bodies)
+	plan, err := PrepareMigrationPlan(t.Context(), dir, "a", checksums)
+	if err != nil || len(plan.catalog) != 1 || len(plan.catalog[0].body) != 4<<20 {
+		t.Fatal("verified plan rejected the combined 32MiB boundary", err)
+	}
+	bodies["z.down.sql"] = " "
+	dir, checksums = writeMigrationPlanFixture(t, bodies)
+	if plan, err := PrepareMigrationPlan(t.Context(), dir, "a", checksums); !errors.Is(err, ErrMigrationPlan) || plan.catalog != nil {
+		t.Fatal("verified plan did not count listed down files in its total byte budget", err)
+	}
+}

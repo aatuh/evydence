@@ -101,11 +101,12 @@ func newMigrationCommandFixture(t *testing.T, bodies map[string]string) *migrati
 	return f
 }
 
-func (f *migrationCommandFixture) environment(t *testing.T, target, seconds string) config.Environment {
+func (f *migrationCommandFixture) environment(t *testing.T, target, seconds string, extra ...string) config.Environment {
 	t.Helper()
-	return migrationEnvironment(t, "ENV=production", "EVYDENCE_DATABASE_URL="+f.databaseURL,
-		"EVYDENCE_MIGRATIONS_DIR="+f.dir, "EVYDENCE_MIGRATION_TARGET="+target,
-		"EVYDENCE_MIGRATION_CHECKSUMS_FILE="+f.checksums, "EVYDENCE_MIGRATION_TIMEOUT_SECONDS="+seconds)
+	entries := []string{"ENV=production", "EVYDENCE_DATABASE_URL=" + f.databaseURL,
+		"EVYDENCE_MIGRATIONS_DIR=" + f.dir, "EVYDENCE_MIGRATION_TARGET=" + target,
+		"EVYDENCE_MIGRATION_CHECKSUMS_FILE=" + f.checksums, "EVYDENCE_MIGRATION_TIMEOUT_SECONDS=" + seconds}
+	return migrationEnvironment(t, append(entries, extra...)...)
 }
 
 func (f *migrationCommandFixture) requireClosedConnections(t *testing.T) {
@@ -162,6 +163,77 @@ func TestMigrationCommandEnforcesConfiguredBudget(t *testing.T) {
 		if err := f.admin.QueryRow(f.ctx, "SELECT count(*) FROM "+table).Scan(&versions); err != nil || versions != 0 {
 			t.Fatal("timed-out command committed a migration version", versions, err)
 		}
+	}
+	f.requireClosedConnections(t)
+}
+
+func TestMigrationCommandRequiresExplicitLegacyAcknowledgement(t *testing.T) {
+	f := newMigrationCommandFixture(t, map[string]string{"a.up.sql": "SELECT 1/0;", "b.up.sql": "INSERT INTO command_effects(value)VALUES(2);"})
+	quoted := pgx.Identifier{f.schema}.Sanitize()
+	if _, err := f.admin.Exec(f.ctx, "CREATE TABLE "+quoted+`.schema_migrations(version text PRIMARY KEY,applied_at timestamptz NOT NULL DEFAULT now());
+ INSERT INTO `+quoted+`.schema_migrations(version,applied_at)VALUES('a','2001-01-01T00:00:00Z');
+ CREATE TABLE `+quoted+`.command_effects(value integer NOT NULL)`); err != nil {
+		t.Fatal(err)
+	}
+	var output bytes.Buffer
+	err := runMigrationProcess(f.ctx, f.environment(t, "b", "30"), &output, applyMigrations)
+	if !errors.Is(err, postgres.ErrMigrationLegacyHistory) {
+		t.Fatal("verified command did not reject unknown historical SQL by default", err)
+	}
+	legacyOutput := output.String()
+	f.requireClosedConnections(t)
+	output.Reset()
+	if err := runMigrationProcess(f.ctx, f.environment(t, "b", "30", "EVYDENCE_MIGRATION_ALLOW_LEGACY_HISTORY=true"), &output, applyMigrations); err != nil {
+		t.Fatal("explicit legacy acknowledgement did not permit the pending suffix", err)
+	}
+	var unknown, recorded bool
+	if err := f.admin.QueryRow(f.ctx, "SELECT checksum_sha256 IS NULL AND applied_by IS NULL AND applied_at='2001-01-01T00:00:00Z'::timestamptz FROM "+quoted+".schema_migrations WHERE version='a'").Scan(&unknown); err != nil || !unknown {
+		t.Fatal("legacy command fabricated provenance or rewrote the old row", err)
+	}
+	if err := f.admin.QueryRow(f.ctx, "SELECT checksum_sha256 IS NOT NULL AND applied_by=session_user FROM "+quoted+".schema_migrations WHERE version='b'").Scan(&recorded); err != nil || !recorded {
+		t.Fatal("pending execution did not record actual checksum/principal", err)
+	}
+	f.requireClosedConnections(t)
+	if !strings.Contains(legacyOutput, `"msg":"migration_legacy_history_required"`) || strings.Contains(legacyOutput, "PRIVATE") {
+		t.Fatal("legacy rejection did not provide a fixed safe diagnostic")
+	}
+}
+
+func TestMigrationCommandReportsStoredChecksumMismatchWithoutSQL(t *testing.T) {
+	const first = "CREATE TABLE command_effects(value integer NOT NULL); INSERT INTO command_effects(value)VALUES(1);"
+	const pending = "INSERT INTO command_effects(value)VALUES(99);"
+	f := newMigrationCommandFixture(t, map[string]string{"a.up.sql": first, "b.up.sql": pending})
+	var output bytes.Buffer
+	if err := runMigrationProcess(f.ctx, f.environment(t, "a", "30"), &output, applyMigrations); err != nil {
+		t.Fatal(err)
+	}
+	root, err := os.OpenRoot(f.dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = root.Close() }()
+	const changed = "SELECT 'PRIVATE_CHANGED_SQL';"
+	if err := root.WriteFile("a.up.sql", []byte(changed), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	parent, err := os.OpenRoot(filepath.Dir(f.checksums))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = parent.Close() }()
+	manifest := fmt.Sprintf("%x  migrations/a.up.sql\n%x  migrations/b.up.sql\n", sha256.Sum256([]byte(changed)), sha256.Sum256([]byte(pending)))
+	if err := parent.WriteFile(filepath.Base(f.checksums), []byte(manifest), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	output.Reset()
+	err = runMigrationProcess(f.ctx, f.environment(t, "b", "30", "EVYDENCE_MIGRATION_ALLOW_LEGACY_HISTORY=true"), &output, applyMigrations)
+	if !errors.Is(err, postgres.ErrMigrationChecksum) || !strings.Contains(output.String(), `"msg":"migration_checksum_mismatch"`) || strings.Contains(output.String(), "PRIVATE") {
+		t.Fatal("stored mismatch was bypassed or not safely diagnosed", err)
+	}
+	var total, versions int
+	quoted := pgx.Identifier{f.schema}.Sanitize()
+	if err := f.admin.QueryRow(f.ctx, "SELECT (SELECT sum(value) FROM "+quoted+".command_effects),(SELECT count(*) FROM "+quoted+".schema_migrations)").Scan(&total, &versions); err != nil || total != 1 || versions != 1 {
+		t.Fatal("stored mismatch reached pending SQL", total, versions, err)
 	}
 	f.requireClosedConnections(t)
 }

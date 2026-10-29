@@ -253,6 +253,41 @@ func TestPostgresBackupCommitmentProfileClassifiesEveryMigrationTableAndColumn(t
 	}
 }
 
+func TestPostgresBackupCommitmentIgnoresMigrationExecutionMetadata(t *testing.T) {
+	store, pool := openHTMLReportWiringStore(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	if _, err := pool.Exec(ctx, `INSERT INTO tenants(id,name)VALUES('tenant','Backup migration metadata')`); err != nil {
+		t.Fatal(err)
+	}
+	read := func() string {
+		t.Helper()
+		var commitment verificationapp.BackupStateCommitment
+		err := app.ExecuteUnitOfWork(ctx, store, func(txCtx context.Context, repos app.Repositories) error {
+			var err error
+			commitment, err = repos.Integrity.(verificationapp.BackupStateCommitmentReader).ReadBackupStateCommitment(txCtx, "tenant")
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return commitment.StateHash
+	}
+	baseline := read()
+	if _, err := pool.Exec(ctx, `INSERT INTO schema_migrations(version,checksum_sha256,applied_by)VALUES('operator_metadata_probe',repeat('a',64),session_user)`); err != nil {
+		t.Fatal(err)
+	}
+	if read() != baseline {
+		t.Fatal("operational migration provenance entered the tenant evidence commitment")
+	}
+	if _, err := pool.Exec(ctx, `UPDATE tenants SET name='Business state changed' WHERE id='tenant'`); err != nil {
+		t.Fatal(err)
+	}
+	if read() == baseline {
+		t.Fatal("excluding migration metadata also omitted tenant business state")
+	}
+}
+
 func TestPostgresBackupCommitmentTracksSessionLifecycleWithoutCredentials(t *testing.T) {
 	store, pool := openHTMLReportWiringStore(t)
 	seedBackupGenerationHTTP(t, pool, store)

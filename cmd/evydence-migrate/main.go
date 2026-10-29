@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -55,6 +56,9 @@ func applyMigrations(parent context.Context, settings config.Configuration) erro
 		if err != nil {
 			return err
 		}
+		if runtime.MigrationAllowLegacyHistory {
+			plan = plan.WithLegacyHistory()
+		}
 	}
 	prepared, err := postgres.PreparePoolConfig(ctx, runtime.DatabaseURL.Reveal())
 	if err != nil {
@@ -72,6 +76,12 @@ func applyMigrations(parent context.Context, settings config.Configuration) erro
 		applied, err = store.ApplyMigrations(ctx, runtime.MigrationsDir)
 	}
 	if err != nil {
+		switch {
+		case errors.Is(err, postgres.ErrMigrationLegacyHistory):
+			logging.Emit(ctx, logging.MigrationLegacyHistoryRequired, logging.Fields{Result: logging.Failed})
+		case errors.Is(err, postgres.ErrMigrationChecksum):
+			logging.Emit(ctx, logging.MigrationChecksumMismatch, logging.Fields{Result: logging.Failed})
+		}
 		return err
 	}
 	if _, err := fmt.Fprintf(os.Stdout, "applied %d migration(s)\n", applied); err != nil {

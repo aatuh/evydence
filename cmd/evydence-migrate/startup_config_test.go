@@ -95,6 +95,7 @@ func TestMigrationProcessRejectsInvalidPlanSettingsBeforeOperation(t *testing.T)
 		{"EVYDENCE_MIGRATION_TIMEOUT_SECONDS=0"},
 		{"EVYDENCE_MIGRATION_TIMEOUT_SECONDS=901"},
 		{"EVYDENCE_MIGRATION_TIMEOUT_SECONDS=PRIVATE_TIMEOUT"},
+		{"EVYDENCE_MIGRATION_ALLOW_LEGACY_HISTORY=true"},
 		{"EVYDENCE_MIGRATION_TARGET=a", "EVYDENCE_MIGRATION_CHECKSUMS_FILE=PRIVATE\nPATH"},
 		{"EVYDENCE_MIGRATION_TARGET=PRIVATE\nTARGET", "EVYDENCE_MIGRATION_CHECKSUMS_FILE=checksums"},
 		{"EVYDENCE_MIGRATION_TARGET=../PRIVATE_TARGET", "EVYDENCE_MIGRATION_CHECKSUMS_FILE=checksums"},
@@ -111,7 +112,7 @@ func TestMigrationProcessRejectsInvalidPlanSettingsBeforeOperation(t *testing.T)
 
 func TestMigrationProcessCapturesTypedPlanSettings(t *testing.T) {
 	for _, production := range []bool{false, true} {
-		entries := []string{"EVYDENCE_DATABASE_URL=host=db", "EVYDENCE_MIGRATION_TARGET= b ", "EVYDENCE_MIGRATION_CHECKSUMS_FILE= checksums ", "EVYDENCE_MIGRATION_TIMEOUT_SECONDS=900"}
+		entries := []string{"EVYDENCE_DATABASE_URL=host=db", "EVYDENCE_MIGRATION_TARGET= b ", "EVYDENCE_MIGRATION_CHECKSUMS_FILE= checksums ", "EVYDENCE_MIGRATION_TIMEOUT_SECONDS=900", "EVYDENCE_MIGRATION_ALLOW_LEGACY_HISTORY=true"}
 		if production {
 			entries = append(entries, "ENV=production")
 		}
@@ -119,7 +120,7 @@ func TestMigrationProcessCapturesTypedPlanSettings(t *testing.T) {
 		err := runMigrationProcess(t.Context(), migrationEnvironment(t, entries...), &bytes.Buffer{}, func(_ context.Context, settings config.Configuration) error {
 			called = true
 			runtime := settings.Runtime()
-			if runtime.MigrationTarget != "b" || runtime.MigrationChecksumsFile != "checksums" || runtime.MigrationTimeout != 900*time.Second {
+			if runtime.MigrationTarget != "b" || runtime.MigrationChecksumsFile != "checksums" || runtime.MigrationTimeout != 900*time.Second || !runtime.MigrationAllowLegacyHistory {
 				t.Fatal("migration operation lost normalized captured plan settings")
 			}
 			return nil

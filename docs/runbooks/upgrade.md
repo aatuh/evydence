@@ -67,7 +67,7 @@ release's `migrations.sha256` with an explicit version. Both settings are
 required together. For the current source catalog, an example is:
 
 ```sh
-EVYDENCE_MIGRATION_TARGET=20261028000100_outbox_trace_context \
+EVYDENCE_MIGRATION_TARGET=20261029000100_migration_execution_checksums \
 EVYDENCE_MIGRATION_CHECKSUMS_FILE=/srv/evydence/release/migrations.sha256 \
 EVYDENCE_MIGRATION_TIMEOUT_SECONDS=120 \
 evydence-migrate
@@ -91,19 +91,63 @@ preparation cannot change the owned SQL executed by that plan.
 Under the runner lock, existing versions must form a prefix of the selected
 target catalog. Newer, unknown or gapped history rejects the run before
 application migration SQL. Only the missing suffix through the target is
-applied, with each SQL file and its version record in one transaction. A version
-recording conflict fails that transaction. Repeating the same completed plan is
+applied, with each SQL file, version record, execution checksum and database
+principal in one transaction. A version recording conflict fails that
+transaction for both ordinary and verified execution. Repeating a completed plan is
 a no-op. Earlier committed versions survive a later SQL failure as described
 above.
 
 This compares input bytes with an operator-trusted checksum file; the file does
-not authenticate itself. Existing version rows and timestamps are preserved.
-They do not contain historical SQL checksums, so matching their names does not
-verify what SQL was previously executed. Stored checksum provenance and an
-explicit legacy-history policy remain part of EVY-1206. Without the paired
-target/checksum settings, the command retains its full-catalog behavior.
-Mandatory production job separation and deployment cutover also remain pending;
-keep stopping writers and workers as below.
+not authenticate itself. Without the paired target/checksum settings, the
+command retains its full-catalog behavior. Both paths reject a mismatch with
+any recorded checksum before applying pending SQL. Ordinary execution continues
+to accept unknown legacy history for compatibility; the verified path requires
+the acknowledgement below.
+
+## Recorded Checksums And Legacy History
+
+Updated runners record `checksum_sha256` over the exact owned SQL bytes and
+`applied_by` from PostgreSQL's authenticated `session_user`, alongside the
+existing version and application timestamp. Existing version rows keep their
+timestamps and receive null checksum/principal fields. These fields expand the
+operational tracking table before application SQL, like its initial table
+bootstrap, independently of the selected application target. Expansion can
+remain after a rejected or canceled run. The additive migration
+`20261029000100_migration_execution_checksums` declares the same nullable shape
+for older runners; older writers still insert version-only rows.
+
+A verified plan encountering a version-only row stops with the fixed log event
+`migration_legacy_history_required`. Review the deployment's prior release
+artifacts, backups and migration records through your protected database
+connection. This bounded query distinguishes recorded execution metadata from
+unknown history:
+
+```sql
+SELECT version, applied_at, checksum_sha256, applied_by
+FROM schema_migrations
+ORDER BY version
+LIMIT 1024;
+```
+
+To proceed with unknown history after that operator review, repeat the paired
+target/checksum command with `EVYDENCE_MIGRATION_ALLOW_LEGACY_HISTORY=true`.
+This acknowledgement leaves old checksums and principals null; it does not
+backfill or verify historical SQL. The setting defaults to false and requires
+the paired plan settings. Never fill old fields merely to silence the check.
+
+A stored mismatch stops with `migration_checksum_mismatch`, including when
+legacy acknowledgement is enabled. Check the intended release, artifact
+checksums and database history; use a forward fix or the paired restore
+procedure. The metadata downgrade refuses to erase any recorded execution
+checksum/principal. These database records rely on database access controls;
+they are not an external attestation or protection against a privileged database
+administrator changing records. Migration metadata stays outside the frozen
+tenant evidence commitments.
+
+Readiness remains the coordinated version-name check described above.
+Mandatory production job separation, deployment cutover and the remaining
+audited authorization profile are still pending in EVY-1206. Keep stopping
+writers and workers as below.
 
 ## Upgrade
 

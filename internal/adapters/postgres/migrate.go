@@ -32,10 +32,10 @@ func (s *Store) ApplyMigrations(ctx context.Context, dir string) (int, error) {
 		}
 		return 0, err
 	}
-	return s.applyMigrationCatalog(ctx, catalog, false)
+	return s.applyMigrationCatalog(ctx, catalog, false, true)
 }
 
-func (s *Store) applyMigrationCatalog(ctx context.Context, catalog []migrationScript, requirePrefix bool) (applied int, resultErr error) {
+func (s *Store) applyMigrationCatalog(ctx context.Context, catalog []migrationScript, requirePrefix, allowLegacy bool) (applied int, resultErr error) {
 	names := make([]string, len(catalog))
 	for i, script := range catalog {
 		names[i] = script.name
@@ -50,28 +50,17 @@ func (s *Store) applyMigrationCatalog(ctx context.Context, catalog []migrationSc
 	if _, err := runner.connection.Exec(ctx, fmt.Sprintf(createSchemaMigrationsTableSQL, table)); err != nil {
 		return 0, fmt.Errorf("ensure schema migrations table: %w", err)
 	}
-	prefix := 0
-	if requirePrefix {
-		prefix, err = runner.migrationTargetPrefix(ctx, table, names)
-		if err != nil {
-			return 0, err
-		}
+	if _, err := runner.connection.Exec(ctx, fmt.Sprintf(migrationMetadataColumnsSQL, table)); err != nil {
+		return 0, fmt.Errorf("expand migration execution metadata: %w", err)
+	}
+	existing, err := runner.migrationExecutionHistory(ctx, table, catalog, requirePrefix, allowLegacy)
+	if err != nil {
+		return 0, err
 	}
 	for i, script := range catalog {
 		version := strings.TrimSuffix(script.name, ".up.sql")
-		if requirePrefix {
-			if i < prefix {
-				continue
-			}
-		} else {
-			var exists bool
-			err := runner.connection.QueryRow(ctx, fmt.Sprintf(`SELECT EXISTS (SELECT 1 FROM %s WHERE version = $1)`, table), version).Scan(&exists)
-			if err != nil {
-				return applied, fmt.Errorf("check migration %s: %w", version, err)
-			}
-			if exists {
-				continue
-			}
+		if existing[i] {
+			continue
 		}
 		tx, err := runner.connection.BeginTx(ctx, pgx.TxOptions{})
 		if err != nil {
@@ -81,11 +70,8 @@ func (s *Store) applyMigrationCatalog(ctx context.Context, catalog []migrationSc
 			rollbackMigration(ctx, tx)
 			return applied, fmt.Errorf("apply migration %s: %w", version, err)
 		}
-		record := fmt.Sprintf(`INSERT INTO %s (version) VALUES ($1)`, table)
-		if !requirePrefix {
-			record += ` ON CONFLICT (version) DO NOTHING`
-		}
-		if _, err := tx.Exec(ctx, record, version); err != nil {
+		record := fmt.Sprintf(`INSERT INTO %s (version,checksum_sha256,applied_by) VALUES ($1,$2,session_user)`, table)
+		if _, err := tx.Exec(ctx, record, version, migrationChecksum(script.body)); err != nil {
 			rollbackMigration(ctx, tx)
 			return applied, fmt.Errorf("record migration %s: %w", version, err)
 		}
@@ -173,3 +159,12 @@ const createSchemaMigrationsTableSQL = `
 			applied_at timestamptz NOT NULL DEFAULT now()
 		)
 	`
+
+// Operational tracking expands before executing application migrations, just
+// like its initial table bootstrap. The committed migration declares the same
+// additive shape for older runners. Existing rows remain null, never backfilled.
+const migrationMetadataColumnsSQL = `ALTER TABLE %s
+ ADD COLUMN IF NOT EXISTS checksum_sha256 text
+  CHECK (checksum_sha256 IS NULL OR checksum_sha256 ~ '^[0-9a-f]{64}$'),
+ ADD COLUMN IF NOT EXISTS applied_by name
+  CHECK ((checksum_sha256 IS NULL) = (applied_by IS NULL))`

@@ -56,9 +56,11 @@ const (
 	Bootstrap
 	Drain
 	Cleanup
+	MigrationLegacyHistoryRequired
+	MigrationChecksumMismatch
 )
 
-var eventNames = [...]string{"startup", "shutdown", "http_request", "command", "outbox", "provider", "audit", "bootstrap", "drain", "cleanup"}
+var eventNames = [...]string{"startup", "shutdown", "http_request", "command", "outbox", "provider", "audit", "bootstrap", "drain", "cleanup", "migration_legacy_history_required", "migration_checksum_mismatch"}
 
 type Result uint8
 

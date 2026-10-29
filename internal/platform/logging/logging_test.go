@@ -18,6 +18,24 @@ func testIdentity() runtimeinfo.Identity {
 	return runtimeinfo.Identity{Version: "v1.2.3-rc.4", Commit: strings.Repeat("a", 40), BuildTime: "2026-10-16T05:00:00Z", Dirty: true, GoVersion: "go1.26.9", ReleaseManifestDigest: "sha256:" + strings.Repeat("b", 64)}
 }
 
+func TestMigrationRejectionsUseFixedPrivateErrorDiagnostics(t *testing.T) {
+	for _, tc := range []struct {
+		event Event
+		name  string
+	}{{MigrationLegacyHistoryRequired, "migration_legacy_history_required"}, {MigrationChecksumMismatch, "migration_checksum_mismatch"}} {
+		var output bytes.Buffer
+		logger, err := New(&output, "migrate", testIdentity(), Config{Level: "error"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		logger.Log(t.Context(), tc.event, Fields{Result: Failed, ResourceID: "PRIVATE_SQL_REFERENCE"})
+		var record map[string]any
+		if err := json.Unmarshal(output.Bytes(), &record); err != nil || record["msg"] != tc.name || record["service"] != "migrate" || record["level"] != "ERROR" || record["result_code"] != "failed" || strings.Contains(output.String(), "PRIVATE") {
+			t.Fatal("migration rejection lost its fixed private diagnostic", err)
+		}
+	}
+}
+
 func TestConfigurationRejectsUntrustedValuesWithoutEcho(t *testing.T) {
 	for _, bad := range []string{"CANARY_OPERATOR_SECRET", "info\nerror", "trace", "-4", "json\x00", strings.Repeat("x", 10000)} {
 		for _, c := range []Config{{Level: bad}, {Format: bad}} {

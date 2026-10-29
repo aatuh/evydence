@@ -85,7 +85,7 @@ func TestMigrationPlanPreservesLegacyVersionRows(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if count, err := f.stores[0].ApplyMigrationPlan(f.ctx, plan); err != nil || count != 1 {
+	if count, err := f.stores[0].ApplyMigrationPlan(f.ctx, plan.WithLegacyHistory()); err != nil || count != 1 {
 		t.Fatal("plan rewrote a legacy version or failed its pending suffix", count, err)
 	}
 	f.requireCounts(1, 2)

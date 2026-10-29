@@ -67,7 +67,7 @@ var runtimeDefinitions = []Definition{
 		Kind:        Text,
 		MaxBytes:    255,
 		Roles:       Migrate,
-		Description: "Explicit migration version without .up.sql for the verified-input command path. Set together with EVYDENCE_MIGRATION_CHECKSUMS_FILE. The target must exist in the catalog; newer, unknown or non-prefix database history is rejected. This validates inputs and version history, not historical SQL checksums.",
+		Description: "Explicit migration version without .up.sql for the verified-input command path. Set together with EVYDENCE_MIGRATION_CHECKSUMS_FILE. The target must exist; newer, unknown or gapped version history and stored checksum mismatches are rejected. Version-only legacy rows require explicit acknowledgement and remain unknown.",
 	},
 	{
 		Name:        "EVYDENCE_MIGRATION_CHECKSUMS_FILE",
@@ -75,6 +75,13 @@ var runtimeDefinitions = []Definition{
 		MaxBytes:    4096,
 		Roles:       Migrate,
 		Description: "Operator-verified release migrations.sha256 regular file, paired with EVYDENCE_MIGRATION_TARGET. Bounded to 64 KiB/256 records in the existing release checksum format; every up file and every listed SQL file must match. The checksum file does not authenticate itself or prove past database execution.",
+	},
+	{
+		Name:        "EVYDENCE_MIGRATION_ALLOW_LEGACY_HISTORY",
+		Kind:        Boolean,
+		Roles:       Migrate,
+		Default:     "false",
+		Description: "Explicitly acknowledge existing version-only migration rows when using a paired target/checksum plan. Those rows remain unknown and are never backfilled. A stored checksum mismatch is always rejected. Unset rejects unknown historical SQL on the verified command path; this is not release authentication or independent historical review.",
 	},
 	{
 		Name:        "EVYDENCE_MIGRATION_TIMEOUT_SECONDS",

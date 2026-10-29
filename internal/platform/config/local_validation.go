@@ -16,7 +16,7 @@ func validateLocalInput(input parsedInput) error {
 	if input.role == Migrate {
 		target := strings.TrimSpace(v["EVYDENCE_MIGRATION_TARGET"].text)
 		checksums := strings.TrimSpace(v["EVYDENCE_MIGRATION_CHECKSUMS_FILE"].text)
-		if (target == "") != (checksums == "") || strings.ContainsAny(target, "/\\") || strings.ContainsFunc(target, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) {
+		if (target == "") != (checksums == "") || (target == "" && v["EVYDENCE_MIGRATION_ALLOW_LEGACY_HISTORY"].boolean) || strings.ContainsAny(target, "/\\") || strings.ContainsFunc(target, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) {
 			return ErrInvalidValue
 		}
 	}
