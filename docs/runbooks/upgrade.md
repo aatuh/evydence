@@ -22,6 +22,13 @@ before changing binaries, images, Helm values, or migrations.
 7. Check that production secrets are externalized and that local plaintext
    signing-key mode is not used in production.
 
+Migration entries ending in `.up.sql` must be regular files. A matching symlink,
+directory or other non-regular entry rejects catalog discovery before migration
+SQL runs; the error does not return a partial migration list. Other entries,
+including `.down.sql` files, are not applied. Keep the migration directory
+read-only during the run and verify the release checksums as above. Catalog
+discovery alone does not authenticate release files or verify recorded history.
+
 ## Upgrade
 
 1. Stop API writers.

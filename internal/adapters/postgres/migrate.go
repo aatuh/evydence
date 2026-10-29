@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -129,8 +130,15 @@ func migrationNames(dir string) ([]string, error) {
 	}
 	names := []string{}
 	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".up.sql") {
+		if !strings.HasSuffix(entry.Name(), ".up.sql") {
 			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return nil, errors.New("read migration file metadata")
+		}
+		if !info.Mode().IsRegular() {
+			return nil, errors.New("migration up files must be regular files")
 		}
 		names = append(names, entry.Name())
 	}
