@@ -10,9 +10,24 @@ import unittest
 import dependency_admission as admission
 import dependency_advisories as advisories
 import dependency_git_objects as objects
+import dependency_exception_reviews as reviews
 
 BASE='a'*40; MERGE='b'*40; HEAD='c'*40; TODAY=date(2026,10,22)
 RULES={'schema':'evydence-dependency-policy.v1','allowed_licenses':['MIT'],'allowed_with':[],'exceptions':[]}
+
+# Exact material approved by owner GitHub records on 2026-10-29.
+# Expiry remains 2026-11-27; authenticated live verification remains mandatory.
+# This offline pin does not replace authenticated live review verification.
+# Entries may be removed; new or renewed material requires a new review.
+REVIEWED_EXCEPTION_MATERIAL = {
+    'DEP-121301': '1b583a3f9e35a9aea7d0e3a27f655e2a4bd584bd6cd9f9413edf5f712e1ba552',
+    'DEP-121302': 'a7603b1aff04952f06a6884e10d6d1329ce1d6d6cfe673bbba7c0232ec10d2fe',
+    'DEP-121303': '92bdf38764e86a7bb81f7adc348fd69b6a95aa5caf5e9dd1d299aacd26025c4f',
+    'DEP-121304': 'd3d6a1defed19cf0e545a9d47bd57e05118e9d77cf36a2759e7117b030b7b4a0',
+    'DEP-121305': '8ec731b5141fb97f9c799fb38a7a34c64705b0840c6ed481fe3c3a2c765fcea1',
+    'DEP-121306': '8427de5e9520e8738f7c2907e2e5d7ff3ea47d9cb8e724ff54d4891843e6ab34',
+}
+
 
 
 class Reader:
@@ -70,7 +85,13 @@ class PolicyTests(unittest.TestCase):
     def test_repository_policy_is_strict_and_has_no_invented_exceptions(self):
         raw=(Path(__file__).parents[1]/admission.POLICY_PATH).read_bytes()
         rules=admission.policy.validate_policy(admission.policy.parse_document(raw),datetime.now(timezone.utc).date())
-        self.assertEqual(rules['exceptions'],[])
+        for entry in rules['exceptions']:
+            with self.subTest(exception_id=entry['id']):
+                self.assertIn(entry['id'],REVIEWED_EXCEPTION_MATERIAL)
+                self.assertEqual(reviews.approval_payload(entry)['exception_sha256'],
+                                 REVIEWED_EXCEPTION_MATERIAL[entry['id']])
+                self.assertRegex(entry['review_url'],
+                    r'\Ahttps://github\.com/aatuh/evydence/pull/54#issuecomment-[1-9][0-9]*\Z')
         self.assertTrue(admission.policy.license_allowed('MIT AND Apache-2.0',rules))
         self.assertFalse(admission.policy.license_allowed('GPL-3.0-only',rules))
 

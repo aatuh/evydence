@@ -337,9 +337,10 @@ proof of binary/source equivalence, reachability analysis or license approval.
 
 ## Exact Exception Review
 
-The [policy](../../release/dependency-policy.json) currently has no exceptions.
-For an actual proposed waiver, the maintainer must approve its exact material
-fields through an authenticated GitHub record. The verifier supports an owner
+The [policy](../../release/dependency-policy.json) is the canonical list of
+exact-scope exceptions and their expiry dates. For a proposed waiver, the
+maintainer must approve its exact material fields through an authenticated
+GitHub record. The verifier supports an owner
 issue comment on a PR or a submitted `APPROVED` PR review. The reviewer profile
 is the current sole maintainer, `aatuh`; an owner's comment works on their own
 PR without requiring a second maintainer.

@@ -317,9 +317,8 @@ not these partial source observations.
 
 ## Exceptions
 
-The initial machine-readable rules are in
-[`release/dependency-policy.json`](../../release/dependency-policy.json), with no
-exception entries. The [source-package decision layer](dependency-admission.md)
+The machine-readable rules and exact-scope exception entries are in
+[`release/dependency-policy.json`](../../release/dependency-policy.json). The [source-package decision layer](dependency-admission.md)
 selects rules from the current target base and combines exact component changes
 with real advisory observations. It remains a partial decision with complete
 coverage explicitly false; it is not hosted enforcement or baseline approval.

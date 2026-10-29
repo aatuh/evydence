@@ -1,0 +1,22 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1213-tracing-license-exceptions",
+  "category": "changed",
+  "summary": "Record bounded owner-approved license exceptions for OpenTelemetry v1.45.0",
+  "details": [
+    "Record six exact-component NOASSERTION license exceptions with authenticated owner approval references, reviewed on 2026-10-29 and expiring at the start of 2026-11-27 UTC.",
+    "Pin the approved exception material in the offline repository-policy guard while retaining authenticated live review verification and strict license and advisory decisions.",
+    "Link dependency references to the canonical exception policy instead of duplicating its current entry count."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Dependency admission policy only; runtime code, module selections and persistence contracts are unchanged. The feature adopting these components must incorporate the trusted base and pass every required check."
+  },
+  "security": "Exceptions bind exact component versions, reason, owner, review date and expiry to owner-authored GitHub records. License allowlists, advisory enforcement and live approval verification are unchanged.",
+  "limitations": [
+    "The classifier cannot resolve the composition of the unchanged Apache-2.0 and BSD-3-Clause license text; the exceptions do not assert a legal interpretation or SPDX composition. Preserve upstream notices and reassess future versions.",
+    "The current exception format covers each exact component identity across origins; these are not application-only exceptions. Expiry is not extended automatically."
+  ]
+}
