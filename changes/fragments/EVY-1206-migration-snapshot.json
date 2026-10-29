@@ -1,0 +1,22 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-migration-snapshot",
+  "category": "fixed",
+  "summary": "Freeze bounded migration SQL before database coordination",
+  "details": [
+    "Load and validate every up file before acquiring the runner lock or executing SQL, so edits and deletions during a database wait cannot alter the run or cause a late file-read failure after earlier migrations commit.",
+    "Bound discovery to 1,024 up files and 8,192 directory entries, and bound loaded SQL to 4 MiB per file and 32 MiB total; reject invalid catalogs without partial snapshots or operator-controlled paths in catalog errors.",
+    "Pin the migration directory, check opened file identity and regular-file type, and use nonblocking Unix opens to avoid waiting for a replacement FIFO. Preserve catalog order and exact SQL bytes."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "SQL files, version records and per-file transaction semantics are unchanged. Catalogs exceeding the new resource limits are rejected, including when oversized files already have recorded versions. Empty regular up files and existing custom regular filenames remain supported."
+  },
+  "security": "Operator filesystem inputs are bounded and loaded before database coordination, with rooted opens and inode/type checks. Cancellation is checked between bounded local filesystem operations; no detached read continues after an abandoned caller.",
+  "limitations": [
+    "Loading is not an atomic filesystem snapshot, release authentication, recorded-history checksum verification or explicit target enforcement. Operators must protect the migration directory and verify release artifacts.",
+    "Readiness checks remain coordinated version-name checks. Target/checksum and legacy-row handling, mandatory migration job separation, worker operations, deployment hardening and full-ticket qualification remain in EVY-1206."
+  ]
+}

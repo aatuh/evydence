@@ -4,9 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -28,12 +25,16 @@ func (s *Store) recordMigrationExpectations(names []string) {
 }
 
 func (s *Store) ApplyMigrations(ctx context.Context, dir string) (applied int, resultErr error) {
-	names, err := migrationNames(dir)
+	catalog, err := loadMigrationCatalog(ctx, dir)
 	if err != nil {
 		if s != nil {
 			s.migrationVersions.Store(nil)
 		}
 		return 0, err
+	}
+	names := make([]string, len(catalog))
+	for i, script := range catalog {
+		names[i] = script.name
 	}
 	s.recordMigrationExpectations(names)
 	runner, err := s.acquireMigrationRunner(ctx)
@@ -44,8 +45,8 @@ func (s *Store) ApplyMigrations(ctx context.Context, dir string) (applied int, r
 	if _, err := runner.connection.Exec(ctx, createSchemaMigrationsTableSQL); err != nil {
 		return 0, fmt.Errorf("ensure schema migrations table: %w", err)
 	}
-	for _, name := range names {
-		version := strings.TrimSuffix(name, ".up.sql")
+	for _, script := range catalog {
+		version := strings.TrimSuffix(script.name, ".up.sql")
 		var exists bool
 		err := runner.connection.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`, version).Scan(&exists)
 		if err != nil {
@@ -54,15 +55,11 @@ func (s *Store) ApplyMigrations(ctx context.Context, dir string) (applied int, r
 		if exists {
 			continue
 		}
-		body, err := os.ReadFile(filepath.Join(dir, name)) // #nosec G304 -- name comes from ReadDir and is filtered to .up.sql files.
-		if err != nil {
-			return applied, fmt.Errorf("read migration %s: %w", name, err)
-		}
 		tx, err := runner.connection.BeginTx(ctx, pgx.TxOptions{})
 		if err != nil {
 			return applied, fmt.Errorf("begin migration %s: %w", version, err)
 		}
-		if _, err := tx.Exec(ctx, string(body)); err != nil {
+		if _, err := tx.Exec(ctx, script.body); err != nil {
 			rollbackMigration(ctx, tx)
 			return applied, fmt.Errorf("apply migration %s: %w", version, err)
 		}
@@ -85,7 +82,7 @@ func rollbackMigration(ctx context.Context, tx pgx.Tx) {
 }
 
 func (s *Store) PendingMigrationVersions(ctx context.Context, dir string) (pending []string, resultErr error) {
-	names, err := migrationNames(dir)
+	names, err := migrationNamesContext(ctx, dir)
 	if err != nil {
 		if s != nil {
 			s.migrationVersions.Store(nil)
@@ -154,26 +151,3 @@ const createSchemaMigrationsTableSQL = `
 			applied_at timestamptz NOT NULL DEFAULT now()
 		)
 	`
-
-func migrationNames(dir string) ([]string, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, fmt.Errorf("read migrations: %w", err)
-	}
-	names := []string{}
-	for _, entry := range entries {
-		if !strings.HasSuffix(entry.Name(), ".up.sql") {
-			continue
-		}
-		info, err := entry.Info()
-		if err != nil {
-			return nil, errors.New("read migration file metadata")
-		}
-		if !info.Mode().IsRegular() {
-			return nil, errors.New("migration up files must be regular files")
-		}
-		names = append(names, entry.Name())
-	}
-	sort.Strings(names)
-	return names, nil
-}

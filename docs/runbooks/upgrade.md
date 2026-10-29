@@ -25,9 +25,20 @@ before changing binaries, images, Helm values, or migrations.
 Migration entries ending in `.up.sql` must be regular files. A matching symlink,
 directory or other non-regular entry rejects catalog discovery before migration
 SQL runs; the error does not return a partial migration list. Other entries,
-including `.down.sql` files, are not applied. Keep the migration directory
-read-only during the run and verify the release checksums as above. Catalog
-discovery alone does not authenticate release files or verify recorded history.
+including `.down.sql` files, are not applied. Catalog discovery accepts at most
+1,024 up files and 8,192 total directory entries. Applying migrations reads every
+up file into an owned snapshot before acquiring the database lock or running
+SQL, with limits of 4 MiB per file and 32 MiB combined SQL. An unreadable,
+non-regular or oversized input, or a detected change during loading, rejects
+that snapshot without applying any file.
+Files edited, removed or added after snapshot loading do not change that run.
+
+Keep the migration directory read-only during loading and verify the release
+checksums as above. The loader pins its directory, checks opened file identity
+and type, and bounds reads. It does not create an atomic filesystem snapshot or
+authenticate release files. Local filesystem calls can still wait on the kernel;
+cancellation is checked between bounded operations. Catalog discovery and
+snapshot loading do not verify recorded database history or enforce a target.
 
 Updated migration runners targeting the same database schema serialize their
 work. Each file still commits in its own transaction: a later failure preserves
