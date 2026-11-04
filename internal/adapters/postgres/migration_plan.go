@@ -30,12 +30,22 @@ type MigrationPlan struct {
 	catalog            []migrationScript
 	target             string
 	allowLegacyHistory bool
+	runtimeRole        string
+	enforceRuntimeRole bool
 }
 
 // WithLegacyHistory returns a copy explicitly permitting version-only rows.
 // It never backfills those rows or permits a stored checksum mismatch.
 func (plan MigrationPlan) WithLegacyHistory() MigrationPlan {
 	plan.allowLegacyHistory = true
+	return plan
+}
+
+// WithRuntimeRole returns an immutable plan copy with managed authority,
+// append-only operation records and runtime grants under the same coordinator.
+// The selected identity must be a distinct, existing dedicated login role.
+func (plan MigrationPlan) WithRuntimeRole(role string) MigrationPlan {
+	plan.runtimeRole, plan.enforceRuntimeRole = role, true
 	return plan
 }
 
@@ -145,5 +155,12 @@ func (s *Store) ApplyMigrationPlan(ctx context.Context, plan MigrationPlan) (int
 	if len(plan.catalog) == 0 || plan.target == "" || strings.TrimSuffix(plan.catalog[len(plan.catalog)-1].name, ".up.sql") != plan.target {
 		return 0, ErrMigrationPlan
 	}
-	return s.applyMigrationCatalog(ctx, plan.catalog, true, plan.allowLegacyHistory)
+	var role string
+	if plan.enforceRuntimeRole {
+		if !validMigrationRuntimeRole(plan.runtimeRole) {
+			return 0, ErrMigrationRuntimeRole
+		}
+		role = plan.runtimeRole
+	}
+	return s.applyMigrationCatalog(ctx, plan.catalog, true, plan.allowLegacyHistory, role)
 }

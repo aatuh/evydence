@@ -4,17 +4,23 @@ This how-to is for an operator rehearsing a dedicated PostgreSQL schema from a
 verified source checkout. It covers database permissions, not API authorization,
 tenant isolation, provider credentials or independent audit retention.
 
-The executable policy is [`deploy/postgres/runtime-role.sql`](../../deploy/postgres/runtime-role.sql).
+The native migration command embeds
+[`internal/adapters/postgres/runtime_role.sql`](../../internal/adapters/postgres/runtime_role.sql).
+Its checked operator copy is
+[`deploy/postgres/runtime-role.sql`](../../deploy/postgres/runtime-role.sql).
 It grants ordinary table reads/writes, view reads and sequence use to a runtime
 role. Migration records are read-only to that role; compatibility snapshot/index
 tables are inaccessible. Schema changes and migration-record writes remain with
 the migration owner for this role boundary. Existing application checks still enforce tenant and
 append-only business rules; these grants do not enforce those rules themselves.
 
-This is a manual migration/grant procedure. The current Helm hook and Compose
-migration service do not execute this grant phase. Their automated role setup
-and grant integration remain in EVY-1206. Do not switch those deployment profiles
-to these credentials until that integration has been configured and verified.
+Select `EVYDENCE_MIGRATION_RUNTIME_ROLE` on the migration command to validate
+these identities, record the operation and apply grants under one schema lock.
+The Helm hook exposes this as `migration.runtimeRole`; the production-like
+Compose migration service passes the environment option through. Neither
+deployment creates roles or transfers existing ownership. Configure separate
+migration/runtime credentials before opting in; the base Compose database user
+does not satisfy this dedicated-role profile.
 
 ## Prepare Dedicated Identities
 
@@ -53,7 +59,7 @@ CREATE SCHEMA evydence AUTHORIZATION evydence_migrator;
 Configure the migrator and runtime connections with `search_path=evydence` and
 their respective identities. Store each connection credential separately using
 the [configuration and private-file contract](../reference/configuration.md).
-Create a separate `evydence-migrator` libpq service for the grant command below.
+Create a separate `evydence-migrator` libpq service for protected inspection or repair.
 The SQL policy creates no users, passwords or ownership transfers.
 
 An existing administrator-owned or shared schema needs a rehearsed ownership
@@ -62,19 +68,41 @@ database/object backup. The policy refuses mismatched ownership; it does not
 rewrite old migration principals, backfill unknown checksums or move data.
 Verified adoption automation remains in EVY-1206.
 
-## Run The Migration And Grant Phases
+## Run A Managed Migration
 
 1. Stop API and worker processes and let them drain, following the
    [upgrade runbook](../runbooks/upgrade.md#upgrade).
-2. Run the explicit-target, checksum-verified migration command from that
-   runbook using the migration identity. Retain its result and execution history.
-3. From the verified checkout root, apply the role policy as that same identity:
+2. Configure the migration command with the migration identity, then select the
+   existing runtime role:
 
    ```sh
-   psql "service=evydence-migrator options='-c search_path=evydence -c evydence.runtime_role=evydence_runtime -c lock_timeout=5000 -c statement_timeout=30000'" \
-     --no-psqlrc --set=ON_ERROR_STOP=1 --file=deploy/postgres/runtime-role.sql
+   export EVYDENCE_MIGRATION_RUNTIME_ROLE=evydence_runtime
    ```
 
+   Run the explicit-target, checksum-verified command from the
+   [upgrade runbook](../runbooks/upgrade.md#explicit-target-and-verified-inputs).
+   Use the same selected image/policy for the job and daemons. Keep this option
+   out of daemon environments; it is migration-only. The runner validates
+   authority before creating bookkeeping tables, commits initial grants and a
+   `started` audit row, applies each missing SQL file, then atomically commits
+   final grants and a `succeeded` row before releasing the coordinator. A no-op
+   migration still revalidates grants and records a new operation.
+3. Inspect the bounded operation history through a protected migration-owner
+   session, using the configured schema:
+
+   ```sql
+   SELECT sequence, operation_id, phase, target_version, runtime_role,
+          performed_by, committed_migrations, policy_sha256, occurred_at
+   FROM evydence.schema_migration_operations
+   ORDER BY sequence DESC LIMIT 20;
+   ```
+
+   The latest row must be `succeeded` for the intended runtime identity, target
+   and policy. `performed_by` comes from authenticated PostgreSQL `session_user`.
+   `failed` preserves the known committed prefix; `uncertain` uses a null count
+   when a commit outcome cannot be established. An interrupted connection may
+   leave only `started`. Retain logs and operator records; these rows do not
+   provide independent or administrator-proof retention.
 4. Check the grants before starting daemons with the runtime connection. For
    these example names, run the following through a protected operator session:
 
@@ -84,14 +112,27 @@ Verified adoption automation remains in EVY-1206.
    SELECT has_table_privilege('evydence_runtime', 'evydence.schema_migrations', 'SELECT') AS can_check_versions,
           has_table_privilege('evydence_runtime', 'evydence.schema_migrations', 'INSERT') AS can_record_version,
           has_table_privilege('evydence_runtime', 'evydence.schema_migrations', 'UPDATE') AS can_rewrite_version;
+   SELECT has_table_privilege('evydence_runtime', 'evydence.schema_migration_operations', 'SELECT') AS can_read_operations,
+          has_table_privilege('evydence_runtime', 'evydence.schema_migration_operations', 'UPDATE') AS can_rewrite_operations;
    ```
 
-   Expected results are `true, false` and `true, false, false`. These spot checks
+   Expected results are `true, false`, `true, false, false` and `true, false`. These spot checks
    are not a complete database permission audit. Preserve the migration command
-   result, grant-command exit status and protected operator change record.
-5. Start daemons and verify readiness and representative application work. Repeat
-   the grant phase after each upgrade: new tables deliberately receive no
-   automatic runtime grants before this policy runs.
+   result and protected operator change record.
+5. Start daemons and verify readiness and representative application work. Startup
+   and readiness use their held schema lease to require a successful operation
+   matching their authenticated runtime identity, local catalog target and
+   embedded policy digest. They also reject schema creation or migration-metadata
+   write privileges. Repeat the managed command after each upgrade: new tables
+   deliberately receive no automatic runtime grants before this policy runs.
+
+Once an operation is recorded, ordinary migration calls cannot advance the
+schema by omitting the runtime-role option. A failed final grant phase blocks
+runtime startup even when all version rows exist. Reconcile the cause, review
+recorded versions and checksums, then repeat the managed command. Never edit or
+delete operation history to clear readiness. Applying the standalone SQL copy
+can repair grants, but does not record a successful operation or clear an
+interrupted marker; a managed retry is still required.
 
 The policy changes only the selected schema's grants. It removes public object
 privileges there and resets the selected runtime role's grants. It does not
@@ -108,7 +149,7 @@ and 256 routines.
 The focused regression is:
 
 ```sh
-go test ./internal/adapters/postgres -run '^TestMigrationDatabaseRoleProfile' -count=1 -timeout=120s
+go test ./internal/adapters/postgres -run '^(TestMigrationDatabaseRoleProfile|TestManagedMigration|TestMigrationOperation)' -count=1 -timeout=120s
 ```
 
 It requires `EVYDENCE_TEST_DATABASE_URL` pointing at a disposable test database
@@ -120,8 +161,13 @@ Missing test configuration produces skips, not database-role evidence. Use the
 host's RAM gate for this live fixture/test operation.
 
 Migration execution checksums and authenticated principals remain in
-`schema_migrations`. The grant script adds no durable audit event of its own;
-retain its operator record. Automatic grant execution, durable operation-level
-audit and deployment adoption remain incomplete. These local role tests do not
+`schema_migrations`; operation events use `schema_migration_operations` and
+schema version `migration-operation.v1`. Both are operational metadata outside
+tenant evidence commitments. The additive audit migration refuses downgrade
+once events exist. Run `make migration-role-policy-check` to check the exported
+policy and versioned bootstrap DDL against their canonical sources; regenerate
+the SQL copy with `make migration-role-policy-generate` after a policy change.
+Role provisioning and existing-schema adoption remain operator-owned and need
+their own rehearsal. These local role and native-command tests do not
 verify a deployed provider, a live cluster or protection against the schema
 owner or a database administrator.

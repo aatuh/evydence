@@ -79,6 +79,14 @@ var runtimeDefinitions = []Definition{
 		Description:        "Operator-verified release migrations.sha256 regular file, paired with EVYDENCE_MIGRATION_TARGET. Bounded to 64 KiB/256 records in the existing release checksum format; every up file and every listed SQL file must match. The checksum file does not authenticate itself or prove past database execution.",
 	},
 	{
+		Name:               "EVYDENCE_MIGRATION_RUNTIME_ROLE",
+		Kind:               Text,
+		Roles:              Migrate,
+		MaxBytes:           63,
+		PreserveWhitespace: true,
+		Description:        "Opt in to managed migration authority, append-only operation audit and runtime grants for a distinct existing dedicated login role. Requires paired verified target/checksum inputs. The authenticated migrator must own the dedicated schema; managed activation cannot be bypassed by later ordinary migration calls. New runtimes require a successful operation for their identity, local target and embedded policy digest. Role provisioning/ownership transfer remains operator-owned.",
+	},
+	{
 		Name:        "EVYDENCE_MIGRATION_ALLOW_LEGACY_HISTORY",
 		Kind:        Boolean,
 		Roles:       Migrate,

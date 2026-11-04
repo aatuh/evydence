@@ -50,6 +50,7 @@ func projectRuntime(input parsedInput) RuntimeSettings {
 		MigrationsDir:               strings.TrimSpace(v["EVYDENCE_MIGRATIONS_DIR"].text),
 		MigrationTarget:             strings.TrimSpace(v["EVYDENCE_MIGRATION_TARGET"].text),
 		MigrationChecksumsFile:      strings.TrimSpace(v["EVYDENCE_MIGRATION_CHECKSUMS_FILE"].text),
+		MigrationRuntimeRole:        v["EVYDENCE_MIGRATION_RUNTIME_ROLE"].text,
 		MigrationTimeout:            v["EVYDENCE_MIGRATION_TIMEOUT_SECONDS"].duration,
 		MigrationAllowLegacyHistory: v["EVYDENCE_MIGRATION_ALLOW_LEGACY_HISTORY"].boolean,
 		PostgresLoadMode:            v["EVYDENCE_POSTGRES_LOAD_MODE"].text,

@@ -15,6 +15,9 @@ migration:
   target: ""
   timeoutSeconds: 120
   allowLegacyHistory: false
+  # Optional existing dedicated runtime login. Requires a schema-owning migrator;
+  # grants and operation audit commit before the hook releases its schema lock.
+  runtimeRole: ""
   # Separate operator-provisioned database credential; no API/provider envFrom.
   existingSecret: evydence-migrations
   secretSource: env

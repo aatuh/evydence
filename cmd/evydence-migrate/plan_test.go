@@ -39,6 +39,7 @@ type migrationCommandFixture struct {
 	application string
 	dir         string
 	checksums   string
+	ownedRoles  []string
 }
 
 func newMigrationCommandFixture(t *testing.T, bodies map[string]string) *migrationCommandFixture {
@@ -56,12 +57,23 @@ func newMigrationCommandFixture(t *testing.T, bodies map[string]string) *migrati
 	schema := fmt.Sprintf("evydence_migration_command_%d", time.Now().UnixNano())
 	quoted := pgx.Identifier{schema}.Sanitize()
 	created := false
+	fixture := &migrationCommandFixture{ctx: ctx, admin: admin, schema: schema, application: schema}
 	t.Cleanup(func() {
 		cleanup, stop := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer stop()
 		if created {
 			if _, err := admin.Exec(cleanup, "DROP SCHEMA "+quoted+" CASCADE"); err != nil {
 				t.Error(err)
+			}
+		}
+		for _, role := range fixture.ownedRoles {
+			if _, err := admin.Exec(cleanup, "DROP OWNED BY "+pgx.Identifier{role}.Sanitize()); err != nil {
+				t.Error("cannot remove owned command-role grants")
+			}
+		}
+		for i := len(fixture.ownedRoles) - 1; i >= 0; i-- {
+			if _, err := admin.Exec(cleanup, "DROP ROLE "+pgx.Identifier{fixture.ownedRoles[i]}.Sanitize()); err != nil {
+				t.Error("cannot remove owned command role")
 			}
 		}
 		if err := admin.Close(cleanup); err != nil {
@@ -80,8 +92,8 @@ func newMigrationCommandFixture(t *testing.T, bodies map[string]string) *migrati
 	query.Set("search_path", quoted)
 	query.Set("application_name", schema)
 	parsed.RawQuery = query.Encode()
-	f := &migrationCommandFixture{ctx: ctx, admin: admin, schema: schema, databaseURL: parsed.String(), application: schema,
-		dir: t.TempDir(), checksums: filepath.Join(t.TempDir(), "migrations.sha256")}
+	f := fixture
+	f.databaseURL, f.dir, f.checksums = parsed.String(), t.TempDir(), filepath.Join(t.TempDir(), "migrations.sha256")
 	names := make([]string, 0, len(bodies))
 	for name := range bodies {
 		names = append(names, name)

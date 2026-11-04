@@ -132,7 +132,7 @@ func (s *Store) CheckMigrationState(ctx context.Context, dir string) error {
 	if s == nil || s.pool == nil {
 		return app.ErrValidation
 	}
-	if err := s.RequireNoPendingMigrations(ctx, dir); err != nil {
+	if err := s.requireNoPendingMigrations(ctx, dir, true); err != nil {
 		return fmt.Errorf("check migration readiness: %w", err)
 	}
 	return nil

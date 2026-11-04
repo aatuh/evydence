@@ -82,7 +82,8 @@ def helm_fixture(case, process, mode):
 
 
 def helm_migration_fixture(case, mode):
-    values = {"migration": {"existingSecret": "migration-credentials", "secretSource": mode},
+    values = {"migration": {"existingSecret": "migration-credentials", "secretSource": mode,
+                            "runtimeRole": "fixture runtime-'quoted"},
               "podSecurityContext": {"fsGroup": 2000}}
     rendered = case.render(values)
     if rendered.returncode:
@@ -130,6 +131,7 @@ def compose_fixture(case, process, mode):
                   MINIO_ROOT_PASSWORD=SECRET_VALUES["EVYDENCE_S3_SECRET_ACCESS_KEY"],
                   EVYDENCE_API_KEY_PEPPER=SECRET_VALUES["EVYDENCE_API_KEY_PEPPER"],
                   EVYDENCE_SIGNING_EXECUTOR_TOKEN=SECRET_VALUES["EVYDENCE_SIGNING_EXECUTOR_TOKEN"])
+    values["EVYDENCE_MIGRATION_RUNTIME_ROLE"] = "fixture runtime-'quoted"
     service = case.compose_services(values)[process]
     expected = {name: value for name, value in service["environment"].items() if name in SECRET_VALUES}
     mounts = [image_migration_checksum()] if process == "migrate" else []

@@ -93,3 +93,21 @@ func TestRuntimeMigrationFenceRejectsInsufficientPoolBeforeDial(t *testing.T) {
 		})
 	}
 }
+
+func TestRuntimeStartupRejectsIncompleteManagedMigrationBeforeObjects(t *testing.T) {
+	_, pool := openHTMLReportWiringStore(t)
+	if _, err := pool.Exec(t.Context(), `INSERT INTO schema_migration_operations(sequence,operation_id,phase,target_version,runtime_role,committed_migrations,policy_sha256)VALUES(1,'interrupted-job','started','incomplete',session_user,0,repeat('a',64))`); err != nil {
+		t.Fatal(err)
+	}
+	objects := filepath.Join(t.TempDir(), "PRIVATE_UNOPENED_OBJECTS")
+	runtime, err := OpenRuntime(t.Context(), RuntimeConfig{Process: Worker, Profile: PostgreSQL, Production: true, SkipMigrations: true, DatabaseURL: pool.Config().ConnString(), MigrationsDir: "../../../migrations", ObjectStore: ObjectStoreConfig{Backend: "filesystem", Directory: objects}})
+	if runtime != nil {
+		runtime.Close()
+	}
+	if err == nil || !strings.Contains(err.Error(), "check migrations") {
+		t.Fatal("runtime startup ignored an interrupted managed migration", err)
+	}
+	if _, err := os.Stat(objects); !errors.Is(err, os.ErrNotExist) {
+		t.Fatal("rejected managed runtime opened object storage")
+	}
+}

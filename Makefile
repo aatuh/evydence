@@ -254,6 +254,13 @@ error-catalog-check: ## Validate generated error-code docs and SDK types
 config-generate: ## Regenerate owned configuration sections from the runtime schema
 	@$(GO) run ./cmd/config-artifacts --write
 
+.PHONY: migration-role-policy-generate migration-role-policy-check
+migration-role-policy-generate: ## Export the canonical embedded runtime-role SQL for operators
+	@cp internal/adapters/postgres/runtime_role.sql deploy/postgres/runtime-role.sql
+
+migration-role-policy-check: ## Verify the operator role-policy artifact and versioned audit DDL
+	@$(GO) test ./internal/adapters/postgres -run '^TestMigrationRolePolicyArtifactsMatchCanonicalSources$$' -count=1 -timeout=1m
+
 config-check: ## Fail when generated configuration sections have drifted
 	@$(GO) run ./cmd/config-artifacts --check
 	@$(GO) test ./internal/platform/configartifact -run '^TestHelm(Bounds|SecretFileOptions)MatchRuntimeSchema$$' -count=1 -timeout=5m
@@ -766,7 +773,7 @@ observability-check: ## Validate exporter contract, monitoring examples and diag
 	@GOWORK=off $(GO) -C tools test -mod=readonly ./cmd/observability-check -count=1
 	@GOWORK=off $(GO) -C tools run -mod=readonly ./cmd/observability-check --root ..
 
-deploy-check: observability-check ## Validate deployment assets, rendered Helm and shutdown budgets
+deploy-check: observability-check migration-role-policy-check ## Validate deployment assets, rendered Helm and shutdown budgets
 	@python3 scripts/test_local_dependency_images.py
 	@python3 scripts/test_deployment_lifecycle.py
 	@$(MAKE) deployment-config-check

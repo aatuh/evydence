@@ -61,7 +61,8 @@ so a waiting migrator cannot block the runtime behind a second lock acquisition
 and a healthy replacement pool connection cannot hide a lost lease. Standalone
 version checks use temporary shared leases and remain read-only.
 Missing tracking metadata reports the local catalog as pending; checking does
-not create the table or apply SQL. Readiness uses the same check. Results cover
+not create the table or apply SQL. Startup/readiness also check the managed
+operation marker when present, as described below. Version results cover
 the configured schema and preserve local catalog order without returning
 unrelated recorded versions. These are version-name checks, not schema-content
 or checksum verification. Cleanup waits for database work and closes owned
@@ -78,7 +79,7 @@ release's `migrations.sha256` with an explicit version. Both settings are
 required together and mandatory for `ENV=production`. For the current source catalog, an example is:
 
 ```sh
-EVYDENCE_MIGRATION_TARGET=20261029000100_migration_execution_checksums \
+EVYDENCE_MIGRATION_TARGET=20261104000100_migration_operation_audit \
 EVYDENCE_MIGRATION_CHECKSUMS_FILE=/srv/evydence/release/migrations.sha256 \
 EVYDENCE_MIGRATION_TIMEOUT_SECONDS=120 \
 evydence-migrate
@@ -155,23 +156,40 @@ they are not an external attestation or protection against a privileged database
 administrator changing records. Migration metadata stays outside the frozen
 tenant evidence commitments.
 
-Readiness remains the coordinated version-name check described above.
+For a schema with managed operation history, startup/readiness additionally
+require its latest operation to have succeeded for the authenticated runtime
+role, local catalog target and embedded role-policy digest. They reject
+effective schema-create or migration-metadata write permissions. Missing or
+empty operation history preserves the legacy version-check behavior; this does
+not prove role separation. Configure the migration/runtime identities using
+the [database role procedure](../how-to/database-roles.md).
+
+`EVYDENCE_MIGRATION_RUNTIME_ROLE` selects managed validation, append-only
+operation audit and runtime grants under the existing coordinator. This path
+requires the paired target/checksum inputs. Once activated, ordinary migration
+execution cannot bypass it by omitting the role option. Failed, interrupted or
+uncertain operations block runtime even when no SQL remains pending. Review and
+repair the cause, then rerun the managed plan; never clear or rewrite audit rows.
+The runner bootstraps `schema_migration_operations` before application SQL; the
+additive `20261104000100_migration_operation_audit` declares the same shape for
+other runners. Its downgrade refuses to erase recorded operation events.
+
 The production-like Compose stack runs its migration service before either
 daemon. The Helm chart runs a pre-install/pre-upgrade migration Job with the
 selected image's `/app/migrations.sha256` and an operator-selected target. Stop
 existing API and worker pods before upgrading: Helm runs pre-upgrade hooks
 before updating Deployments, and an active runtime intentionally prevents the
 job from migrating. See [Kubernetes deployment](../kubernetes.md#install-or-upgrade).
-The remaining audited authorization profile, worker operations and broader
+Role provisioning, existing-schema adoption, worker operations and broader
 deployment hardening are still pending in EVY-1206. The lock protocol does not
 protect against older binaries or a database administrator bypassing it.
 
 ## Upgrade
 
 For the separate database-identity rehearsal, use the
-[database role procedure](../how-to/database-roles.md). Its grant phase runs
-after migrations and before daemons restart; it is not yet integrated into the
-Helm/Compose migration command. The policy never transfers ownership or changes
+[database role procedure](../how-to/database-roles.md). With the optional role
+selected, the Helm/Compose migration command commits grants and operation audit
+before daemons restart. The policy never transfers ownership or changes
 legacy execution metadata.
 
 1. Stop API writers.

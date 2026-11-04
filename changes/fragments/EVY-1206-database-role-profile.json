@@ -17,7 +17,7 @@
   },
   "security": "Database ACLs enforce migration/runtime separation within the selected dedicated schema. Migration records remain readable but not writable by the runtime role; ordinary tenant and append-only business policies remain application-owned. Authenticated migration principals and checksums are preserved, with no claim of administrator-proof history.",
   "limitations": [
-    "The Helm/Compose migration command does not yet execute the grant phase. Automated role setup/adoption and durable operation-level audit remain in EVY-1206; retain the protected operator grant-command record.",
+    "The standalone SQL policy does not append operation audit. Use the opt-in managed migration command for coordinated grants and operation records; automated role setup/adoption remains in EVY-1206. Retain protected operator records for manual grant repairs.",
     "This profile does not change database-wide grants, other schemas or role attributes, and local role tests do not verify a deployed provider or live cluster. Full-ticket production, restore and broad final gates remain pending."
   ]
 }

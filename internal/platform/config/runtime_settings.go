@@ -20,6 +20,7 @@ type RuntimeSettings struct {
 	MigrationsDir               string        `env:"EVYDENCE_MIGRATIONS_DIR"`
 	MigrationTarget             string        `env:"EVYDENCE_MIGRATION_TARGET"`
 	MigrationChecksumsFile      string        `env:"EVYDENCE_MIGRATION_CHECKSUMS_FILE"`
+	MigrationRuntimeRole        string        `env:"EVYDENCE_MIGRATION_RUNTIME_ROLE"`
 	MigrationTimeout            time.Duration `env:"EVYDENCE_MIGRATION_TIMEOUT_SECONDS"`
 	MigrationAllowLegacyHistory bool          `env:"EVYDENCE_MIGRATION_ALLOW_LEGACY_HISTORY"`
 	PostgresLoadMode            string        `env:"EVYDENCE_POSTGRES_LOAD_MODE"`

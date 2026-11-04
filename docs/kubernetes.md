@@ -47,6 +47,12 @@ the chart does not automatically detect updates to that external object.
   profile documented in the configuration reference.
 
 The chart does not create databases, buckets, KMS keys, or secrets.
+For separately provisioned migration/runtime database identities, set
+`--set-string migration.runtimeRole=evydence_runtime`. The hook validates
+authority and commits grants plus operation audit under its migration lock;
+see the [database role procedure](how-to/database-roles.md). This option does
+not create roles or transfer ownership. Keep daemon credentials separate from
+the schema-owning migration Secret.
 Its default `secretSource: env` loads additional runtime variables, such as S3
 credentials and API signing gateway settings, from the selected Secret. Set `api.existingSecret` and
 `worker.existingSecret` to separate Secrets when identities differ; each falls
@@ -285,6 +291,7 @@ runtime explanations and private-file handling.
 | `EVYDENCE_MIGRATIONS_DIR` | API, worker, migration, parser replay, reconciliation | path | `migrations` | input bytes <= 4096 | Migration directory for API startup and `cmd/evydence-migrate`. |
 | `EVYDENCE_MIGRATION_ALLOW_LEGACY_HISTORY` | migration | boolean | `false` | schema validation | Explicitly acknowledge existing version-only migration rows when using a paired target/checksum plan. Those rows remain unknown and are never backfilled. A stored checksum mismatch is always rejected. Unset rejects unknown historical SQL on the verified command path; this is not release authentication or independent historical review. |
 | `EVYDENCE_MIGRATION_CHECKSUMS_FILE` | migration | path | unset | input bytes <= 4096 | Operator-verified release migrations.sha256 regular file, paired with EVYDENCE_MIGRATION_TARGET. Bounded to 64 KiB/256 records in the existing release checksum format; every up file and every listed SQL file must match. The checksum file does not authenticate itself or prove past database execution. Required in production: migration. |
+| `EVYDENCE_MIGRATION_RUNTIME_ROLE` | migration | text | unset | input bytes <= 63 | Opt in to managed migration authority, append-only operation audit and runtime grants for a distinct existing dedicated login role. Requires paired verified target/checksum inputs. The authenticated migrator must own the dedicated schema; managed activation cannot be bypassed by later ordinary migration calls. New runtimes require a successful operation for their identity, local target and embedded policy digest. Role provisioning/ownership transfer remains operator-owned. |
 | `EVYDENCE_MIGRATION_TARGET` | migration | text | unset | input bytes <= 255 | Explicit migration version without .up.sql for the verified-input command path. Set together with EVYDENCE_MIGRATION_CHECKSUMS_FILE. The target must exist; newer, unknown or gapped version history and stored checksum mismatches are rejected. Version-only legacy rows require explicit acknowledgement and remain unknown. Required in production: migration. |
 | `EVYDENCE_MIGRATION_TIMEOUT_SECONDS` | migration | seconds | `30` | 1..900 seconds | Migration command budget for input loading, database connection, coordinator waits and SQL; one through 900 whole seconds. The default preserves the former 30-second command budget. Local kernel filesystem calls remain subject to the documented cancellation boundary. |
 | `EVYDENCE_OBJECT_DIR` | API, worker, parser replay, reconciliation | path | `tmp/objects` | input bytes <= 4096 | Local raw payload storage root. |

@@ -216,7 +216,7 @@ func OpenRuntime(ctx context.Context, config RuntimeConfig) (_ *Runtime, err err
 	if err != nil {
 		return nil, runtimeAdapterError("acquire runtime migration lease", err)
 	}
-	if err = store.RequireNoPendingMigrations(migrateCtx, migrationsDir); err != nil {
+	if err = store.CheckMigrationState(migrateCtx, migrationsDir); err != nil {
 		return nil, runtimeAdapterError("check migrations", err)
 	}
 	runtime.Objects, _, err = OpenObjectStore(ctx, config.ObjectStore)

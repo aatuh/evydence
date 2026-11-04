@@ -60,6 +60,9 @@ func applyMigrations(parent context.Context, settings config.Configuration) (res
 		if runtime.MigrationAllowLegacyHistory {
 			plan = plan.WithLegacyHistory()
 		}
+		if runtime.MigrationRuntimeRole != "" {
+			plan = plan.WithRuntimeRole(runtime.MigrationRuntimeRole)
+		}
 	}
 	prepared, err := postgres.PreparePoolConfig(ctx, runtime.DatabaseURL.Reveal())
 	if err == nil {

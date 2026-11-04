@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 // validateLocalInput checks local combinations without resolving names, opening
@@ -19,6 +20,10 @@ func validateLocalInput(input parsedInput) error {
 	if input.role == Migrate {
 		target := strings.TrimSpace(v["EVYDENCE_MIGRATION_TARGET"].text)
 		checksums := strings.TrimSpace(v["EVYDENCE_MIGRATION_CHECKSUMS_FILE"].text)
+		role := v["EVYDENCE_MIGRATION_RUNTIME_ROLE"].text
+		if role != "" && (target == "" || strings.TrimSpace(role) == "" || !utf8.ValidString(role) || strings.ContainsFunc(role, unicode.IsControl)) {
+			return ErrInvalidValue
+		}
 		if (target == "") != (checksums == "") || (target == "" && v["EVYDENCE_MIGRATION_ALLOW_LEGACY_HISTORY"].boolean) || strings.ContainsAny(target, "/\\") || strings.ContainsFunc(target, func(r rune) bool { return unicode.IsSpace(r) || unicode.IsControl(r) }) {
 			return ErrInvalidValue
 		}

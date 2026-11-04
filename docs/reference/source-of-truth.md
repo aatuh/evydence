@@ -57,7 +57,7 @@ product-boundary language across the docs.
 | Backup/restore | `docs/runbooks/backup-restore.md` and `docs/runbooks/object-store-recovery.md` | Operator rehearsal steps, object-store recovery, and evidence to keep. |
 | Evidence-format compatibility | `docs/reference/evidence-format-compatibility.md` | Tested input shapes, parser identities, resource bounds, unsupported encodings, and compatibility limits. |
 | Upgrade | `docs/runbooks/upgrade.md` and `docs/reference/upgrade-compatibility-policy.md` | Migration, release artifact verification, supported paths, and API compatibility. |
-| Database role separation | `deploy/postgres/runtime-role.sql` and `docs/how-to/database-roles.md` | Executable schema-scoped runtime grants, manual migration/grant procedure, ownership preconditions and automation/audit limits. |
+| Database role separation | `internal/adapters/postgres/runtime_role.sql`, its checked `deploy/postgres/runtime-role.sql` copy, and `docs/how-to/database-roles.md` | Canonical schema-scoped grants, native managed operation audit/readiness, deployment selection, ownership preconditions and adoption limits. |
 | Incident response | `docs/runbooks/incident-response.md` | Secrets, tenant, object-store, signing, provider, and package boundaries. |
 | Key rotation | `docs/runbooks/key-rotation.md` | Credential and signing-provider rotation boundaries. |
 | Capacity and failure modes | `docs/reference/capacity-and-failures.md` and `docs/reference/benchmark-results.md` | Benchmark results are narrow and local. |

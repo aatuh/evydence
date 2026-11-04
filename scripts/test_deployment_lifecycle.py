@@ -14,7 +14,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 CHART = ROOT / "deploy/helm/evydence"
-MIGRATION_TARGET = "20261029000100_migration_execution_checksums"
+MIGRATION_TARGET = "20261104000100_migration_operation_audit"
 
 
 class DeploymentLifecycleTests(unittest.TestCase):
@@ -385,6 +385,34 @@ class DeploymentLifecycleTests(unittest.TestCase):
         for overrides in ({"target": ""}, {"target": "../escape"}, {"timeoutSeconds": 0},
                           {"timeoutSeconds": 901}, {"timeoutSeconds": "120"}, {"allowLegacyHistory": "true"}):
             self.assertNotEqual(self.render({"migration": overrides}).returncode, 0, overrides)
+
+    def test_managed_runtime_role_reaches_only_the_migration_job(self):
+        role = "runtime role-'quoted"
+        for mode in ("env", "files"):
+            result = self.render({"migration": {"runtimeRole": role, "secretSource": mode},
+                                  "podSecurityContext": {"fsGroup": 2000}})
+            self.assertEqual(result.returncode, 0, result.stderr)
+            docs = [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+            job = next(doc for doc in docs if doc["kind"] == "Job")
+            env = {item["name"]: item for item in job["spec"]["template"]["spec"]["containers"][0]["env"]}
+            self.assertEqual(env["EVYDENCE_MIGRATION_RUNTIME_ROLE"]["value"], role)
+            config = next(doc["data"] for doc in docs if doc["kind"] == "ConfigMap")
+            self.assertNotIn("EVYDENCE_MIGRATION_RUNTIME_ROLE", config)
+            for doc in docs:
+                if doc["kind"] == "Deployment":
+                    for container in doc["spec"]["template"]["spec"]["containers"]:
+                        self.assertNotIn("EVYDENCE_MIGRATION_RUNTIME_ROLE",
+                                         {item["name"] for item in container.get("env", [])})
+        services = self.compose_services({"EVYDENCE_MIGRATION_RUNTIME_ROLE": role})
+        self.assertEqual(services["migrate"]["environment"]["EVYDENCE_MIGRATION_RUNTIME_ROLE"], role)
+        for component in ("api", "worker"):
+            self.assertNotIn("EVYDENCE_MIGRATION_RUNTIME_ROLE", services[component]["environment"])
+
+    def test_migration_hook_rejects_invalid_managed_runtime_role(self):
+        for role in (" ", "role\n", "role\x7f", "role\u0085", "a" * 64, "é" * 32, 123, True):
+            with self.subTest(role=repr(role)):
+                self.assertNotEqual(self.render({"migration": {"runtimeRole": role}}).returncode, 0)
+        self.assertEqual(self.render({"migration": {"runtimeRole": "é" * 31}}).returncode, 0)
         self.assertNotEqual(self.render({"migration": {"secretSource": "files"}}).returncode, 0)
 
     def test_migration_job_names_fit_kubernetes_for_long_release_names(self):

@@ -29,6 +29,11 @@
         "allowLegacyHistory": {
           "type": "boolean"
         },
+        "runtimeRole": {
+          "type": "string",
+          "maxLength": 63,
+          "pattern": "^[^\u0000-\u001f\u007f-\u009f]*$"
+        },
         "existingSecret": {
           "type": "string",
           "minLength": 1,

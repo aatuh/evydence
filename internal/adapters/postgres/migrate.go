@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -32,10 +31,10 @@ func (s *Store) ApplyMigrations(ctx context.Context, dir string) (int, error) {
 		}
 		return 0, err
 	}
-	return s.applyMigrationCatalog(ctx, catalog, false, true)
+	return s.applyMigrationCatalog(ctx, catalog, false, true, "")
 }
 
-func (s *Store) applyMigrationCatalog(ctx context.Context, catalog []migrationScript, requirePrefix, allowLegacy bool) (applied int, resultErr error) {
+func (s *Store) applyMigrationCatalog(ctx context.Context, catalog []migrationScript, requirePrefix, allowLegacy bool, runtimeRole string) (applied int, resultErr error) {
 	names := make([]string, len(catalog))
 	for i, script := range catalog {
 		names[i] = script.name
@@ -45,13 +44,23 @@ func (s *Store) applyMigrationCatalog(ctx context.Context, catalog []migrationSc
 	if err != nil {
 		return 0, err
 	}
-	defer func() { resultErr = errors.Join(resultErr, runner.release(ctx)) }()
+	execution := migrationExecution{runner: runner, runtimeRole: runtimeRole}
+	if len(catalog) > 0 {
+		execution.target = strings.TrimSuffix(catalog[len(catalog)-1].name, ".up.sql")
+	}
+	defer func() { resultErr = errors.Join(resultErr, execution.close(ctx, resultErr, applied)) }()
+	if err := execution.validate(ctx); err != nil {
+		return 0, err
+	}
 	table := pgx.Identifier{runner.schema, "schema_migrations"}.Sanitize()
 	if _, err := runner.connection.Exec(ctx, fmt.Sprintf(createSchemaMigrationsTableSQL, table)); err != nil {
 		return 0, fmt.Errorf("ensure schema migrations table: %w", err)
 	}
 	if _, err := runner.connection.Exec(ctx, fmt.Sprintf(migrationMetadataColumnsSQL, table)); err != nil {
 		return 0, fmt.Errorf("expand migration execution metadata: %w", err)
+	}
+	if err := execution.start(ctx); err != nil {
+		return 0, err
 	}
 	existing, err := runner.migrationExecutionHistory(ctx, table, catalog, requirePrefix, allowLegacy)
 	if err != nil {
@@ -67,29 +76,31 @@ func (s *Store) applyMigrationCatalog(ctx context.Context, catalog []migrationSc
 			return applied, fmt.Errorf("begin migration %s: %w", version, err)
 		}
 		if _, err := tx.Exec(ctx, script.body); err != nil {
-			rollbackMigration(ctx, tx)
+			execution.rollback(ctx, tx)
 			return applied, fmt.Errorf("apply migration %s: %w", version, err)
 		}
 		record := fmt.Sprintf(`INSERT INTO %s (version,checksum_sha256,applied_by) VALUES ($1,$2,session_user)`, table)
 		if _, err := tx.Exec(ctx, record, version, migrationChecksum(script.body)); err != nil {
-			rollbackMigration(ctx, tx)
+			execution.rollback(ctx, tx)
 			return applied, fmt.Errorf("record migration %s: %w", version, err)
 		}
 		if err := tx.Commit(ctx); err != nil {
+			execution.uncertain = true
 			return applied, fmt.Errorf("commit migration %s: %w", version, err)
 		}
 		applied++
 	}
+	if err := execution.complete(ctx, applied); err != nil {
+		return applied, err
+	}
 	return applied, nil
 }
 
-func rollbackMigration(ctx context.Context, tx pgx.Tx) {
-	cleanup, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-	defer cancel()
-	_ = tx.Rollback(cleanup)
+func (s *Store) PendingMigrationVersions(ctx context.Context, dir string) ([]string, error) {
+	return s.pendingMigrationVersions(ctx, dir, false)
 }
 
-func (s *Store) PendingMigrationVersions(ctx context.Context, dir string) (pending []string, resultErr error) {
+func (s *Store) pendingMigrationVersions(ctx context.Context, dir string, runtimeReady bool) (pending []string, resultErr error) {
 	names, err := migrationNamesContext(ctx, dir)
 	if err != nil {
 		if s != nil {
@@ -118,6 +129,11 @@ func (s *Store) PendingMigrationVersions(ctx context.Context, dir string) (pendi
 		return nil, fmt.Errorf("check migration tracking table: %w", err)
 	}
 	if !exists {
+		if runtimeReady && len(versions) == 0 {
+			if err := reader.checkMigrationOperationReady(ctx, ""); err != nil {
+				return nil, err
+			}
+		}
 		return versions, nil
 	}
 	// Only the quoted identifier is SQL text. All versions are bound values;
@@ -139,11 +155,25 @@ func (s *Store) PendingMigrationVersions(ctx context.Context, dir string) (pendi
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("read pending migration versions: %w", err)
 	}
+	rows.Close()
+	if runtimeReady && len(pending) == 0 {
+		target := ""
+		if len(versions) > 0 {
+			target = versions[len(versions)-1]
+		}
+		if err := reader.checkMigrationOperationReady(ctx, target); err != nil {
+			return nil, err
+		}
+	}
 	return pending, nil
 }
 
 func (s *Store) RequireNoPendingMigrations(ctx context.Context, dir string) error {
-	pending, err := s.PendingMigrationVersions(ctx, dir)
+	return s.requireNoPendingMigrations(ctx, dir, false)
+}
+
+func (s *Store) requireNoPendingMigrations(ctx context.Context, dir string, runtimeReady bool) error {
+	pending, err := s.pendingMigrationVersions(ctx, dir, runtimeReady)
 	if err != nil {
 		return err
 	}

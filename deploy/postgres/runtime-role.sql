@@ -2,10 +2,14 @@
 -- Connect as its non-administrative migration owner. Supply search_path and
 -- evydence.runtime_role as connection settings; this file creates no roles,
 -- passwords or default grants and transfers no ownership. The DO statement is
--- atomic, including when a grant fails. See docs/runbooks/upgrade.md.
+-- atomic, including when a grant fails. The native runner uses a read-only
+-- validation phase before bookkeeping/SQL and the grant phase under its lock.
+-- Canonical source: internal/adapters/postgres/runtime_role.sql.
+-- Regenerate the deployment copy with make migration-role-policy-generate.
 DO $evydence_runtime_role$
 DECLARE
     target_schema name := pg_catalog.current_schema();
+    phase text := COALESCE(NULLIF(pg_catalog.current_setting('evydence.runtime_role_phase', true), ''), 'grant');
     runtime_name text := pg_catalog.current_setting('evydence.runtime_role', true);
     schema_id oid;
     migration_id oid;
@@ -13,7 +17,7 @@ DECLARE
     tracking_id oid;
     relation record;
 BEGIN
-    IF target_schema IS NULL OR target_schema = 'information_schema'
+    IF phase NOT IN ('validate', 'grant') OR target_schema IS NULL OR target_schema = 'information_schema'
        OR target_schema::text LIKE 'pg\_%' ESCAPE '\'
        OR runtime_name IS NULL OR pg_catalog.octet_length(runtime_name) NOT BETWEEN 1 AND 63
        OR current_user <> session_user THEN
@@ -40,7 +44,10 @@ BEGIN
     SELECT entry.oid INTO tracking_id FROM pg_catalog.pg_class entry
         WHERE entry.relnamespace = schema_id AND entry.relname = 'schema_migrations'
           AND entry.relkind = 'r' AND entry.relowner = migration_id;
-    IF tracking_id IS NULL
+    IF (tracking_id IS NULL AND phase = 'grant')
+       OR EXISTS (SELECT 1 FROM pg_catalog.pg_class entry WHERE entry.relnamespace = schema_id
+           AND entry.relname IN ('schema_migrations','schema_migration_operations')
+           AND (entry.relkind <> 'r' OR entry.relowner <> migration_id))
        OR EXISTS (SELECT 1 FROM pg_catalog.pg_class entry WHERE entry.relnamespace = schema_id
            AND (entry.relowner <> migration_id OR entry.relkind NOT IN ('r', 'p', 'i', 'I', 'v', 'm', 'S')))
        OR EXISTS (SELECT 1 FROM pg_catalog.pg_proc routine WHERE routine.pronamespace = schema_id
@@ -64,6 +71,10 @@ BEGIN
         RAISE EXCEPTION USING ERRCODE = '42501', MESSAGE = 'Evydence runtime role profile refuses broad default table grants';
     END IF;
 
+    IF phase = 'validate' THEN
+        RETURN;
+    END IF;
+
     -- Never cascade revocations into another role's dependent grants. Such a
     -- dependency requires operator review and rolls back this entire statement.
     EXECUTE pg_catalog.format('REVOKE CREATE ON SCHEMA %I FROM PUBLIC', target_schema);
@@ -81,7 +92,7 @@ BEGIN
             CONTINUE;
         ELSIF relation.relkind = 'S' THEN
             EXECUTE pg_catalog.format('GRANT USAGE, SELECT ON SEQUENCE %I.%I TO %I', target_schema, relation.relname, runtime_name);
-        ELSIF relation.oid = tracking_id OR relation.relkind IN ('v', 'm') THEN
+        ELSIF relation.relname IN ('schema_migrations','schema_migration_operations') OR relation.relkind IN ('v', 'm') THEN
             EXECUTE pg_catalog.format('GRANT SELECT ON TABLE %I.%I TO %I', target_schema, relation.relname, runtime_name);
         ELSE
             EXECUTE pg_catalog.format('GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE %I.%I TO %I', target_schema, relation.relname, runtime_name);
@@ -92,8 +103,10 @@ BEGIN
     -- success while such a path retains forbidden privileges. Reject the
     -- graph atomically instead of cascading into another role's grants.
     IF pg_catalog.has_schema_privilege(runtime_id, schema_id, 'CREATE')
-       OR pg_catalog.has_table_privilege(runtime_id, tracking_id, 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
-       OR pg_catalog.has_any_column_privilege(runtime_id, tracking_id, 'INSERT,UPDATE,REFERENCES')
+       OR EXISTS (SELECT 1 FROM pg_catalog.pg_class entry WHERE entry.relnamespace = schema_id
+           AND entry.relname IN ('schema_migrations','schema_migration_operations')
+           AND (pg_catalog.has_table_privilege(runtime_id, entry.oid, 'INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER')
+                OR pg_catalog.has_any_column_privilege(runtime_id, entry.oid, 'INSERT,UPDATE,REFERENCES')))
        OR EXISTS (SELECT 1 FROM pg_catalog.pg_namespace namespace
            CROSS JOIN LATERAL pg_catalog.aclexplode(namespace.nspacl) grant_entry
            WHERE namespace.oid = schema_id AND
@@ -105,7 +118,7 @@ BEGIN
            WHERE entry.relnamespace = schema_id AND grant_entry.grantee IN (0, runtime_id)
                AND (grant_entry.grantee = 0 OR grant_entry.is_grantable
                     OR entry.relname IN ('ledger_state', 'resource_index')
-                    OR (entry.oid = tracking_id AND grant_entry.privilege_type <> 'SELECT')
+                    OR (entry.relname IN ('schema_migrations','schema_migration_operations') AND grant_entry.privilege_type <> 'SELECT')
                     OR (entry.relkind IN ('v', 'm') AND grant_entry.privilege_type <> 'SELECT')
                     OR (entry.relkind = 'S' AND grant_entry.privilege_type NOT IN ('USAGE', 'SELECT'))
                     OR (entry.relkind IN ('r', 'p') AND grant_entry.privilege_type NOT IN ('SELECT', 'INSERT', 'UPDATE', 'DELETE'))))

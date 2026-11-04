@@ -216,7 +216,7 @@ func TestPostgresBackupCommitmentProfileClassifiesEveryMigrationTableAndColumn(t
 	}
 	// The head table and response view contain only relationships already
 	// committed by decision records and supersessions, not independent history.
-	excludedTables := map[string]bool{"ledger_state": true, "resource_index": true, "schema_migrations": true, "idempotency_records": true, "vulnerability_decision_heads": true, "vulnerability_decision_projection": true}
+	excludedTables := map[string]bool{"ledger_state": true, "resource_index": true, "schema_migrations": true, "schema_migration_operations": true, "idempotency_records": true, "vulnerability_decision_heads": true, "vulnerability_decision_projection": true}
 	// Diagnostic correlation is operational metadata, not evidence state. Keep
 	// exact exclusions; the mutation regression below still requires job-state
 	// changes to affect the tenant commitment.
@@ -279,6 +279,12 @@ func TestPostgresBackupCommitmentIgnoresMigrationExecutionMetadata(t *testing.T)
 	}
 	if read() != baseline {
 		t.Fatal("operational migration provenance entered the tenant evidence commitment")
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO schema_migration_operations(sequence,operation_id,phase,target_version,runtime_role,committed_migrations,policy_sha256)VALUES(1,'operator_metadata_probe','started','probe',session_user,0,repeat('a',64))`); err != nil {
+		t.Fatal(err)
+	}
+	if read() != baseline {
+		t.Fatal("operational migration audit entered the tenant evidence commitment")
 	}
 	if _, err := pool.Exec(ctx, `UPDATE tenants SET name='Business state changed' WHERE id='tenant'`); err != nil {
 		t.Fatal(err)

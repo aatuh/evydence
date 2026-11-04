@@ -29,6 +29,9 @@ func TestDeploymentMigrationStartup(t *testing.T) {
 				err := runMigrationProcess(t.Context(), environment, &output, func(_ context.Context, settings config.Configuration) error {
 					called = true
 					runtime := settings.Runtime()
+					if runtime.MigrationRuntimeRole != "fixture runtime-'quoted" || runtime.MigrationRuntimeRole != fixture.Environment["EVYDENCE_MIGRATION_RUNTIME_ROLE"] {
+						t.Fatal("rendered managed runtime role was not preserved")
+					}
 					if !settings.Production() || settings.Role() != config.Migrate || runtime.DatabaseURL.Reveal() != fixture.Expected["EVYDENCE_DATABASE_URL"] || runtime.MigrationsDir != "/app/migrations" || runtime.MigrationTarget == "" || runtime.MigrationChecksumsFile != fixture.Environment["EVYDENCE_MIGRATION_CHECKSUMS_FILE"] || runtime.MigrationTimeout.Seconds() != 120 || runtime.MigrationAllowLegacyHistory {
 						t.Fatal("rendered migration settings were not preserved")
 					}
