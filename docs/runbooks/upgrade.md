@@ -180,8 +180,8 @@ selected image's `/app/migrations.sha256` and an operator-selected target. Stop
 existing API and worker pods before upgrading: Helm runs pre-upgrade hooks
 before updating Deployments, and an active runtime intentionally prevents the
 job from migrating. See [Kubernetes deployment](../kubernetes.md#install-or-upgrade).
-Role provisioning, existing-schema adoption, worker operations and broader
-deployment hardening are still pending in EVY-1206. The lock protocol does not
+Role provisioning, existing-schema adoption and worker operations are described
+in the linked procedures. Validate them against the target deployment. The lock protocol does not
 protect against older binaries or a database administrator bypassing it.
 
 ## Upgrade
@@ -200,6 +200,74 @@ legacy execution metadata.
 5. Start worker replicas.
 6. Verify `/v1/ready`, a release-readiness report, an audit-chain verification,
    a release bundle verification, and a representative package/export.
+
+## Stop And Restart The Reference Deployment
+
+First capture [bounded operator receipts](incident-response.md#capture-bounded-operator-evidence)
+and a paired backup. Record intended replica counts, authenticated old/target
+images, migration target and private configuration references. Before Helm
+upgrades, provision distinct API/worker/migration Secrets and reviewed network
+allowlists using the [chart procedure](../kubernetes.md#network-and-disruption-policy).
+Existing shared references and tag-only production values no longer render.
+
+For production-like Compose, run from the checkout with the configured private
+deployment environment. Select the reviewed image and migration settings;
+build or pull that image through the normal deployment process first. Keep
+PostgreSQL, bucket initialization and object storage available. Do not use
+`down -v`:
+
+```sh
+docker compose -f compose.production-like.yml stop api worker
+docker compose -f compose.production-like.yml ps --all api worker
+```
+
+`stop` sends SIGTERM and waits through the configured grace period. Inspect
+container exit status and shutdown records; a timeout/forced kill is an uncertain
+job outcome. Confirm every daemon has stopped before migrating:
+
+```sh
+docker compose -f compose.production-like.yml run --rm --no-deps migrate
+```
+
+The one-shot command uses the migration service's separate configuration;
+nonzero exit is a stop condition. After a successful run, start the selected image:
+
+```sh
+docker compose -f compose.production-like.yml up -d --no-deps api worker
+docker compose -f compose.production-like.yml exec -T worker evydence-worker healthcheck
+```
+
+Check API readiness and authorized outbox diagnostics, then the business
+artifacts listed above. `--no-deps` avoids restarting dependencies or rerunning
+an old migration container; it assumes the one-shot migration and dependencies
+have succeeded.
+
+For Helm's default release `evydence` in a reviewed namespace, list current
+pods and owners, then scale both Deployments to zero:
+
+```sh
+namespace=evydence
+kubectl -n "$namespace" get pods -o 'custom-columns=NAME:.metadata.name,OWNER:.metadata.ownerReferences[0].name,PHASE:.status.phase'
+kubectl -n "$namespace" scale deployment evydence-evydence-api evydence-evydence-worker --replicas=0
+```
+
+Wait for **every** pod belonging to those Deployments to disappear. Use exact
+reviewed names from the listing, for example:
+
+```sh
+kubectl -n "$namespace" wait --for=delete pod reviewed-api-pod reviewed-worker-pod --timeout=120s
+```
+
+Replace the example names and include all worker replicas and terminating old
+pods. Older chart pods may lack release labels; the new release selector alone
+cannot prove they stopped. Review shutdown results and allow the configured
+drain/cleanup budgets. Scale-to-zero is a planned outage; PDBs do not prevent it.
+Use the [canonical Helm upgrade command](../kubernetes.md#install-or-upgrade)
+with `--namespace "$namespace"` and values restoring intended replicas. An active
+runtime intentionally makes the hook wait/fail rather than migrate under
+traffic. Inspect the retained Job result and managed operation history from the
+[database role procedure](../how-to/database-roles.md#run-a-managed-migration).
+Never erase audit rows or relax checksum/history checks to restart.
 
 ## Current Prerelease API Contract Correction
 

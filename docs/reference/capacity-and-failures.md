@@ -110,6 +110,12 @@ programs.
 
 | Failure | Expected Behavior | Operator Action |
 | --- | --- | --- |
+| Migrator starts while a runtime holds its schema lease | Coordinator waits within the migration deadline; no migration runs under an updated active daemon. | Use the [stop/drain procedure](../runbooks/upgrade.md#stop-and-restart-the-reference-deployment); verify every old process stopped before retrying the reviewed plan. |
+| Managed migration ends failed/interrupted/uncertain | Startup/readiness rejects an unsatisfied managed operation even if version rows look current. | Inspect bounded [operation history](../how-to/database-roles.md#run-a-managed-migration), repair and rerun the managed plan; do not erase audit rows. |
+| Empty/mismatched network allowlists | An enforcing CNI prevents intended database/storage/provider access; startup or readiness can fail. | Review [chart network peers](../kubernetes.md#network-and-disruption-policy), DNS and CNI observations; do not classify blocked reads as missing objects. |
+| Non-root pod cannot read projected files | Private credential loading fails before normal processing. | Check numeric IDs, fsGroup, selected Secret keys and volume permissions; do not make credentials world-readable. |
+| Node drain cannot evict the API | The default PDB retains the only available writer. | Coordinate the planned maintenance outage; explicit scaling and node failure are outside that budget's protection. |
+| Dead-letter projection returns 409 | Unsafe/oversized stored metadata rejects the whole page. | Preserve the failure and investigate; do not edit historical rows or return partial diagnostics. |
 | Second API writer starts | Production startup fails when writer mode or PostgreSQL advisory lease rejects it. | Keep one API writer replica and investigate deployment drift. |
 | Worker crashes | Persisted outbox jobs remain claimable by another worker after retry/backoff. | Check worker logs and outbox metrics; restart worker after fixing configuration. |
 | Object payload missing | Parser, verification, or package generation fails safely. | Restore object payload from backup and re-run verification. |
@@ -119,6 +125,15 @@ programs.
 | Provider validation unavailable | Provider verification records failed/limited checks. | Retry after provider/gateway recovery; do not treat metadata capture as provider truth. |
 
 ## Benchmark Policy
+
+Use [bounded operator receipts](../runbooks/incident-response.md#capture-bounded-operator-evidence)
+for backlog and reviewed dead letters. Compare eligible/overdue/expired-lease
+signals, database pool waits and object/provider outcomes through the
+[observability runbook](../runbooks/observability.md); pending count alone does
+not establish throughput or worker liveness. Drain preserves lease fencing and
+replay requires an explicit audited operation after fixing the cause. Read-only
+root filesystems use bounded disposable scratch, not durable evidence storage;
+measure pod memory and ephemeral-storage usage against configured limits.
 
 Do not publish broad throughput or scale claims without recording:
 

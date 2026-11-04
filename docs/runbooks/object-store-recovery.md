@@ -31,6 +31,14 @@ regional availability.
 
 ## Recovery Procedure
 
+Use the [reference stop/drain commands](upgrade.md#stop-and-restart-the-reference-deployment)
+when freezing the affected deployment. Capture
+[bounded receipts](incident-response.md#capture-bounded-operator-evidence)
+first, then correlate object operation failures and terminal worker outcomes
+through the [observability runbook](observability.md#object-store). Check DNS,
+network policy and credential changes; permission denial or an incomplete read
+is not proof of a missing object.
+
 1. Select the database backup and object-store backup that belong to the same
    paired generation. Before starting Evydence, verify the recorded pair with
    `scripts/paired_backup_manifest.py verify`. A database-newer, objects-newer,
@@ -65,7 +73,7 @@ Set the normal worker database and object-store environment first, then start
 with the non-mutating command:
 
 ```sh
-go run ./cmd/evydence-worker reconcile \
+evydence-worker reconcile \
   --tenant tenant-id \
   --limit 100 \
   --provider-limit 1000
@@ -91,7 +99,7 @@ quarantine and recovery. The age threshold is required explicitly and must be
 at least one hour:
 
 ```sh
-go run ./cmd/evydence-worker reconcile \
+evydence-worker reconcile \
   --tenant tenant-id \
   --apply \
   --orphan-staged-after 24h
@@ -110,6 +118,14 @@ The authenticated `/v1/metrics` endpoint also exposes tenant-scoped
 reconciliation receipt counters when PostgreSQL receipt metrics are configured.
 Those metrics contain counters and receipt age only, never object identifiers
 or raw evidence.
+
+Use the authenticated release's worker binary with its separately scoped
+database/object-store credentials. Retain dry-run and applied receipts. After
+recovering valid bytes, inspect terminal jobs with the
+[outbox CLI](../reference/worker-outbox.md#operator-cli) and explicitly replay
+only a reviewed job whose cause is corrected. Reuse its operation key on
+uncertainty, then verify the durable outcome and audit entry; replay acceptance
+does not prove payload integrity.
 
 ## Retention Observation Review
 
