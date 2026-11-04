@@ -290,6 +290,7 @@ func cliCommands(mask config.CLICommand) string {
 		{config.CLIUpload, "upload commands"},
 		{config.CLIGitHubBuild, "github-actions upload-build"},
 		{config.CLIPreflight, "ci preflight"},
+		{config.CLIOutbox, "outbox commands"},
 	} {
 		if mask&command.mask != 0 {
 			result = append(result, code(command.name))

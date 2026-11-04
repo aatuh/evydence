@@ -71,6 +71,40 @@ explicit `instance:admin` scope cannot use this operation. `GET /v1/admin/outbox
 returns aggregate pending, running, terminal, and oldest-pending metrics without
 tenant IDs, job payloads, or raw failure details.
 
+## Operator CLI
+
+Use the existing instance-admin API through the online CLI. Configure the
+endpoint and an operator-managed private credential file, following the
+[configuration reference](configuration.md#private-secret-files):
+
+```sh
+export EVYDENCE_API_URL=https://evydence.example.com
+export EVYDENCE_API_KEY_FILE=/run/evydence/instance-admin-key
+evydence outbox backlog
+evydence outbox replay --job-id job_example --idempotency-key replay-operation-001
+```
+
+`backlog` returns pending, running and terminal counts plus the oldest pending
+creation time. `replay` requests one known terminal job and returns its job ID,
+queued status and replay time. Both print a JSON `data` envelope containing only
+those selected fields. The server requires explicit `instance:admin` authority;
+the CLI grants no additional privileges. Replay uses the existing atomic audit
+and idempotency transaction.
+
+Choose a new explicit operation key for each intended replay and reuse it when
+retrying an uncertain request. Keys contain 1–128 printable non-space ASCII
+bytes. The CLI does not retry automatically; each request has a 30-second
+budget. It rejects redirects, duplicate flags, missing replay inputs and
+ambiguous path components. HTTP failures return the status without echoing
+server diagnostic details. `--help` works without resolving credentials.
+
+Drain workers through their deployment's normal `SIGTERM` stop and grace
+budget, as described above. Backlog inspection does not initiate drain.
+Detailed dead-letter listing remains pending in EVY-1206; these commands do not
+expose job payloads, raw errors or a new worker-control endpoint.
+
+## Supported Job Kinds
+
 Configured job kinds:
 
 - `finalize_payload`

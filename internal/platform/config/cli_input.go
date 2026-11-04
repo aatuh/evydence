@@ -14,7 +14,8 @@ const (
 	CLIUpload CLICommand = 1 << iota
 	CLIGitHubBuild
 	CLIPreflight
-	allCLICommands = CLIUpload | CLIGitHubBuild | CLIPreflight
+	CLIOutbox
+	allCLICommands = CLIUpload | CLIGitHubBuild | CLIPreflight | CLIOutbox
 )
 
 var ErrInvalidCLICommand = errors.New("invalid CLI configuration command or flag")
