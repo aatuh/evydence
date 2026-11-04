@@ -1,0 +1,23 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-operator-route-contract-coverage",
+  "category": "changed",
+  "summary": "Review dead-letter inspection in exact authorization and native route inventories",
+  "details": [
+    "Advance both manually reviewed route inventory guards from 194 to 195 operations for the already implemented dead-letter inspection endpoint, retaining exact counts and every per-route validation.",
+    "Assert each outbox operator route's exact method, path, central action, authenticated-principal mode, explicit instance boundary and sole instance:admin scope.",
+    "Extend the PostgreSQL native route sweep with explicit tenant-SSO denial and a successful bounded dead-letter read through the focused query while the legacy aggregate remains unreadable. Downgrading the instance key to tenant wildcard authority must deny the next request.",
+    "Retain native valid-write/restart/idempotency checks and the final aggregate canary. The full production gate and a focused real PostgreSQL reproduction exposed the stale inventory guards before this repair."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Test-only compatibility coverage for an existing endpoint. Route registration, authorization policy, public schemas, storage and credentials are unchanged; future route changes still fail exact inventory guards until reviewed."
+  },
+  "security": "Keep explicit instance capability distinct from tenant administration or wildcard grants. Verify actual native authorization and bounded query composition without aggregate loading; policy metadata remains a declaration and does not replace behavioral checks.",
+  "limitations": [
+    "Local native tests use isolated PostgreSQL fixtures and synthetic credentials, not a deployed customer's identity or data.",
+    "Focused qualification does not close EVY-1206. Required full production validation must pass after the repairs, with all failed gate evidence retained."
+  ]
+}

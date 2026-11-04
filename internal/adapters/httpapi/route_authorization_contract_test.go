@@ -13,7 +13,7 @@ import (
 
 func TestEveryRegisteredRouteDeclaresAuthorizationPolicyContract(t *testing.T) {
 	routes := (&Server{}).routeDefinitions()
-	if len(routes) != 194 {
+	if len(routes) != 195 {
 		t.Fatalf("route inventory changed: %d; review every new/removed policy contract", len(routes))
 	}
 	seen := map[string]bool{}
@@ -51,6 +51,36 @@ func TestEveryRegisteredRouteDeclaresAuthorizationPolicyContract(t *testing.T) {
 		} else if !ok || p.Mode != "authenticated-principal" || p.TenantRule != "current-tenant-grant" || !slices.Equal(p.Actions, []authz.Action{authz.ActionMembershipsManage}) {
 			t.Fatal("SAML binding administrator policy drift", p)
 		}
+	}
+}
+
+func TestOutboxRoutesDeclareExplicitInstanceActions(t *testing.T) {
+	for _, tc := range []struct {
+		operation, method, path string
+		action                  authz.Action
+	}{
+		{"outboxOperatorDiagnostics", http.MethodGet, "/v1/admin/outbox", authz.ActionOutboxDiagnosticsRead},
+		{"listOutboxDeadLetters", http.MethodGet, "/v1/admin/outbox/dead-letters", authz.ActionOutboxDiagnosticsRead},
+		{"replayTerminalOutboxJob", http.MethodPost, "/v1/admin/outbox/{id}/replay", authz.ActionOutboxReplay},
+	} {
+		t.Run(tc.operation, func(t *testing.T) {
+			found := 0
+			for _, route := range (&Server{}).routeDefinitions() {
+				if route.op.OperationID != tc.operation {
+					continue
+				}
+				found++
+				policy, ok := route.op.Extensions[routeAuthorizationExtension].(routeAuthorizationPolicy)
+				if !ok || route.method != tc.method || route.path != tc.path ||
+					policy.Mode != "authenticated-principal" || policy.TenantRule != "explicit-instance-capability" ||
+					!slices.Equal(policy.Actions, []authz.Action{tc.action}) || !slices.Equal(route.op.Scopes, []string{"instance:admin"}) {
+					t.Fatal("outbox route lost its reviewed instance authority contract", route.op.OperationID)
+				}
+			}
+			if found != 1 {
+				t.Fatal("outbox operation missing or duplicated", tc.operation, found)
+			}
+		})
 	}
 }
 
