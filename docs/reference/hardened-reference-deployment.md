@@ -49,7 +49,8 @@ worker-scaling stance, recovery boundaries, and multi-writer prerequisites.
 ## Helm Values
 
 For Kubernetes, start from `deploy/helm/evydence/values.yaml` and set an
-explicit image tag or digest. The chart intentionally defaults
+authenticated image digest, using `image.digest` or a digest-qualified tag.
+Production rendering rejects mutable tag-only references. The chart intentionally defaults
 `api.replicas` to `1` and `api.writerMode` to `single`.
 Provision the separate migration Secret and stop existing daemons before an
 upgrade, following [the Kubernetes procedure](../kubernetes.md#install-or-upgrade).
@@ -61,7 +62,7 @@ system.
 ```sh
 helm upgrade --install evydence ./deploy/helm/evydence \
   --set image.repository=ghcr.io/aatuh/evydence \
-  --set image.tag='<verified-tag>@sha256:<verified-digest>' \
+  --set-string image.digest='sha256:<verified-digest>' \
   --set migration.target='<reviewed-release-migration-version>' \
   --set api.replicas=1 \
   --set api.writerMode=single \

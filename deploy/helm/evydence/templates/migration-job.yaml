@@ -1,4 +1,4 @@
-{{- $imageTag := required "image.tag is required for Evydence release installs" .Values.image.tag -}}
+{{- $image := include "evydence.image" . -}}
 {{- $target := required "migration.target is required for an explicitly reviewed release" .Values.migration.target -}}
 {{- $runtimeRole := .Values.migration.runtimeRole -}}
 {{- if and $runtimeRole (or (gt (len $runtimeRole) 63) (eq (trim $runtimeRole) "")) -}}
@@ -25,9 +25,14 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: {{ include "evydence.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/component: migrate
     spec:
       restartPolicy: Never
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       serviceAccountName: {{ include "evydence.migrationName" . }}
       automountServiceAccountToken: false
       terminationGracePeriodSeconds: {{ add (int64 .Values.cleanupTimeoutSeconds) 5 }}
@@ -45,7 +50,7 @@ spec:
       {{- end }}
       containers:
         - name: migrate
-          image: "{{ .Values.image.repository }}:{{ $imageTag }}"
+          image: {{ $image | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           command: ["evydence-migrate"]
           securityContext:

@@ -797,8 +797,7 @@ deploy-check: observability-check migration-role-policy-check ## Validate deploy
 	@grep -F 'EVYDENCE_API_WRITER_REPLICAS' deploy/helm/evydence/templates/_helpers.tpl >/dev/null
 	@grep -F 'runAsNonRoot: true' deploy/helm/evydence/values.yaml >/dev/null
 	@grep -F 'allowPrivilegeEscalation: false' deploy/helm/evydence/values.yaml >/dev/null
-	@grep -F 'required "image.tag is required' deploy/helm/evydence/templates/deployment-api.yaml >/dev/null
-	@grep -F 'required "image.tag is required' deploy/helm/evydence/templates/deployment-worker.yaml >/dev/null
+	@# Shared image selection and all three immutable references are exercised by the render checks above.
 	@grep -F 'evydence-worker' deploy/helm/evydence/templates/deployment-worker.yaml >/dev/null
 	@grep -F 'healthcheck' deploy/helm/evydence/values.yaml >/dev/null
 	@grep -F 'single API writer replica' docs/kubernetes.md >/dev/null

@@ -1,9 +1,14 @@
 image:
   repository: ghcr.io/aatuh/evydence
-  # Release installs must set an explicit immutable tag or digest-style tag.
-  # Local demos may override this with a local development tag.
+  # Production requires a digest, here or in tag@sha256 form. A local tag is
+  # accepted only when env.production=false; it does not pin image contents.
   tag: ""
+  digest: ""
   pullPolicy: IfNotPresent
+  pullSecrets: []
+
+# Disk-backed disposable scratch; payloads remain in the configured object store.
+scratchSizeMi: 128
 
 # Shared resource cleanup budget after request/job drain.
 cleanupTimeoutSeconds: 5
@@ -29,6 +34,7 @@ migration:
       memory: 512Mi
 
 api:
+  serviceAccountAnnotations: {}
   # Optional daemon-specific runtime Secret; otherwise use existingSecret.
   existingSecret: ""
   # env preserves inline Secret variables; files projects private credentials.
@@ -70,10 +76,13 @@ api:
     requests:
       cpu: 100m
       memory: 128Mi
+      ephemeral-storage: 128Mi
     limits:
       memory: 512Mi
+      ephemeral-storage: 512Mi
 
 worker:
+  serviceAccountAnnotations: {}
   existingSecret: ""
   secretSource: env
   environmentSecret: ""
@@ -90,8 +99,10 @@ worker:
     requests:
       cpu: 100m
       memory: 128Mi
+      ephemeral-storage: 128Mi
     limits:
       memory: 512Mi
+      ephemeral-storage: 512Mi
   probes:
     enabled: true
     startupCommand:
@@ -131,15 +142,19 @@ ingress:
 
 podSecurityContext:
   runAsNonRoot: true
+  # Numeric IDs let Kubernetes enforce non-root even with a named image USER.
+  runAsUser: 10001
+  runAsGroup: 10001
   seccompProfile:
     type: RuntimeDefault
 
 containerSecurityContext:
+  privileged: false
   allowPrivilegeEscalation: false
   capabilities:
     drop:
       - ALL
-  readOnlyRootFilesystem: false
+  readOnlyRootFilesystem: true
 
 networkPolicy:
   enabled: false

@@ -31,10 +31,10 @@ class DeploymentLifecycleTests(unittest.TestCase):
             selected = json.loads(json.dumps(overrides or {}))
             if isinstance(selected.setdefault("migration", {}), dict):
                 selected["migration"].setdefault("target", MIGRATION_TARGET)
+            if image and isinstance(selected.setdefault("image", {}), dict):
+                selected["image"].setdefault("digest", "sha256:" + "a" * 64)
             values.write_text(json.dumps(selected))
             command = [self.helm, "template", release, str(CHART), "--values", str(values)]
-            if image:
-                command += ["--set", "image.tag=lifecycle-fixture"]
             return subprocess.run(command, check=False, capture_output=True, text=True, timeout=20)
 
     def manifests(self, overrides=None):
@@ -177,7 +177,9 @@ class DeploymentLifecycleTests(unittest.TestCase):
                     self.assertIn("fsGroup", result.stderr)
             result = self.render({component: {"secretSource": "files"}, "podSecurityContext": None})
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("fsGroup", result.stderr)
+            # Removing the whole context now fails the stronger required-map
+            # guard; individual absent/invalid groups still fail fsGroup above.
+            self.assertIn("podSecurityContext", result.stderr)
             for selected in ("evydence-secrets", "custom-files"):
                 overrides = {"secretSource": "files", "environmentSecret": selected}
                 if selected != "evydence-secrets":
@@ -285,6 +287,113 @@ class DeploymentLifecycleTests(unittest.TestCase):
         result = self.render(image=False)
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("image.tag", result.stderr)
+
+    def test_production_images_require_valid_immutable_digest(self):
+        for tag in ("latest", "v0.1.0", "development", "v1@sha256:short", "v1@sha256:" + "A" * 64):
+            with self.subTest(tag=tag):
+                result = self.render({"env": {"production": True}, "image": {"tag": tag}}, image=False)
+                self.assertNotEqual(result.returncode, 0, "production accepted an unpinned or malformed image")
+        digest = "sha256:" + "a" * 64
+        for image, expected in (({"digest": digest}, "ghcr.io/aatuh/evydence@" + digest),
+                                ({"tag": "v1", "digest": digest}, "ghcr.io/aatuh/evydence:v1@" + digest),
+                                ({"tag": "v1@" + digest}, "ghcr.io/aatuh/evydence:v1@" + digest)):
+            result = self.render({"image": image}, image=False)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            documents = [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+            images = [doc["spec"]["template"]["spec"]["containers"][0]["image"]
+                      for doc in documents if doc["kind"] in ("Deployment", "Job")]
+            self.assertEqual(images, [expected] * 3, "job and daemons must use the same reviewed image")
+
+    def test_development_can_use_local_tag_and_conflicting_digests_fail(self):
+        result = self.render({"env": {"production": False}, "image": {"tag": "local-test"}}, image=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = self.render({"image": {"tag": "v1@sha256:" + "b" * 64,
+                                        "digest": "sha256:" + "a" * 64}}, image=False)
+        self.assertNotEqual(result.returncode, 0, "conflicting image selections were accepted")
+
+    def test_production_rejects_relaxed_pod_guards_and_invalid_image_inputs(self):
+        for overrides in (
+            {"containerSecurityContext": {"privileged": True}},
+            {"containerSecurityContext": {"allowPrivilegeEscalation": True}},
+            {"containerSecurityContext": {"readOnlyRootFilesystem": False}},
+            {"containerSecurityContext": {"capabilities": {"add": ["SYS_ADMIN"]}}},
+            {"containerSecurityContext": {"capabilities": {"drop": ["NET_RAW"]}}},
+            {"podSecurityContext": {"runAsNonRoot": False}},
+            {"podSecurityContext": {"runAsUser": 0}},
+            {"podSecurityContext": {"runAsGroup": 0}},
+            {"podSecurityContext": {"seccompProfile": {"type": "Unconfined"}}},
+            {"env": {"objectStore": "filesystem"}},
+            {"image": {"repository": "ghcr.io/aatuh/evydence:latest"}},
+            {"image": {"repository": "ghcr.io/PRIVATE_USER@evydence"}},
+            {"image": {"digest": "sha256:" + "a" * 63}},
+            {"image": {"digest": "sha1:" + "a" * 64}},
+            {"scratchSizeMi": 0}, {"scratchSizeMi": 1025}, {"scratchSizeMi": "128"},
+        ):
+            with self.subTest(overrides=overrides):
+                self.assertNotEqual(self.render(overrides).returncode, 0)
+
+    def test_pull_secret_refs_and_service_account_annotations_are_component_scoped(self):
+        selected = [{"name": "image-credentials"}]
+        result = self.render({"image": {"pullSecrets": selected},
+                              "api": {"serviceAccountAnnotations": {"example.test/identity": "api-identity"}},
+                              "worker": {"serviceAccountAnnotations": {"example.test/identity": "worker-identity"}}})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        docs = [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+        accounts = {doc["metadata"]["name"]: doc for doc in docs if doc["kind"] == "ServiceAccount"}
+        for doc in docs:
+            if doc["kind"] not in ("Deployment", "Job"):
+                continue
+            pod = doc["spec"]["template"]["spec"]
+            component = doc["spec"]["template"]["metadata"]["labels"]["app.kubernetes.io/component"]
+            self.assertEqual(pod["imagePullSecrets"], selected)
+            if component in ("api", "worker"):
+                self.assertEqual(accounts[pod["serviceAccountName"]]["metadata"]["annotations"],
+                                 {"example.test/identity": component + "-identity"})
+            else:
+                self.assertNotIn("example.test/identity", accounts[pod["serviceAccountName"]]["metadata"].get("annotations", {}))
+
+    def test_daemons_have_tokenless_accounts_and_bounded_scratch(self):
+        result = self.render()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        docs = [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+        accounts = {doc["metadata"]["name"]: doc for doc in docs if doc["kind"] == "ServiceAccount"}
+        selected = []
+        for deployment in (doc for doc in docs if doc["kind"] == "Deployment"):
+            pod = deployment["spec"]["template"]["spec"]
+            self.assertFalse(pod.get("automountServiceAccountToken", True))
+            self.assertGreater(pod["securityContext"]["runAsUser"], 0)
+            self.assertGreater(pod["securityContext"]["runAsGroup"], 0)
+            account = pod["serviceAccountName"]
+            self.assertNotEqual(account, "default")
+            self.assertFalse(accounts[account].get("automountServiceAccountToken", True))
+            selected.append(account)
+            container = pod["containers"][0]
+            self.assertTrue(container["securityContext"]["readOnlyRootFilesystem"])
+            scratch = next(volume for volume in pod["volumes"] if volume["name"] == "scratch")
+            self.assertEqual(scratch["emptyDir"], {"sizeLimit": "128Mi"})
+            mount = next(mount for mount in container["volumeMounts"] if mount["name"] == "scratch")
+            self.assertEqual(mount["mountPath"], "/tmp")
+            self.assertFalse(mount.get("readOnly", False))
+            self.assertEqual(next(item["value"] for item in container["env"] if item["name"] == "TMPDIR"), "/tmp")
+        self.assertEqual(len(set(selected)), 2)
+        self.assertFalse({"Role", "RoleBinding", "ClusterRole", "ClusterRoleBinding"} & {doc["kind"] for doc in docs})
+
+    def test_service_selects_only_its_release_and_accounts_keep_component_suffix(self):
+        result = self.render(release="r" * 53)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        docs = [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+        service = next(doc for doc in docs if doc["kind"] == "Service")
+        self.assertEqual(service["spec"]["selector"]["app.kubernetes.io/instance"], "r" * 53)
+        names = []
+        for doc in docs:
+            if doc["kind"] in ("Deployment", "Job"):
+                component = doc["spec"]["template"]["metadata"]["labels"]["app.kubernetes.io/component"]
+                self.assertEqual(doc["spec"]["template"]["metadata"]["labels"]["app.kubernetes.io/instance"], "r" * 53)
+                name = doc["spec"]["template"]["spec"]["serviceAccountName"]
+                self.assertLessEqual(len(name), 63)
+                self.assertTrue(name.endswith("-" + component))
+                names.append(name)
+        self.assertEqual(len(set(names)), 3)
 
     def test_grace_types_and_bounds_are_not_coerced(self):
         for component in ("api", "worker"):

@@ -30,7 +30,7 @@ the chart does not automatically detect updates to that external object.
 
 ## Prerequisites
 
-- An Evydence image with an explicit immutable tag or digest in a registry the
+- An Evydence image pinned by digest in a registry the
   cluster can pull from. Project-owned release-candidate images are published
   through the maintainer Container Image workflow as
   `ghcr.io/aatuh/evydence:<tag>` when that workflow has run for the tag.
@@ -69,6 +69,52 @@ provider-owned, or legal/review-owned for the deployment.
 Use [Hardened reference deployment](reference/hardened-reference-deployment.md)
 for the full self-hosted topology, backup pairing, ingress/TLS, monitoring,
 and signing review.
+
+## Image And Pod Policy
+
+The production configuration (`env.production=true`, the default) requires a
+lowercase SHA-256 image digest. Set `image.digest=sha256:<64 hex characters>`;
+an optional `image.tag` is retained as a readable locator. Existing
+`image.tag=<tag>@sha256:<digest>` values remain accepted. Conflicting digests,
+malformed inputs and production tag-only references fail rendering. One helper
+selects the identical image for migration, API and worker pods. A digest pins
+content; authenticate the publisher and release through the
+[release verification procedure](runbooks/upgrade.md#before-upgrade).
+See Kubernetes [image references](https://kubernetes.io/docs/concepts/containers/images/).
+
+Tag-only local images require `env.production=false`, which also selects
+development mode for API/worker configuration. The separate migration hook
+retains its production preflight. This chart policy is a configuration guard;
+it does not change the product's release-readiness status.
+
+Daemon pods use separate release/component ServiceAccounts with automatic
+Kubernetes API token mounting disabled on both the account and pod. The chart
+creates no RBAC grants. Provider identity annotations can be supplied through
+`api.serviceAccountAnnotations` and `worker.serviceAccountAnnotations`; their
+external federation/grants remain operator-owned. `image.pullSecrets` references
+pre-existing registry Secrets for all three processes, including the hook, so
+provision those Secrets before installing. See Kubernetes
+[service-account token controls](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/).
+
+Pods default to numeric UID/GID `10001`, non-root execution and RuntimeDefault
+seccomp, with all capabilities dropped and no privilege escalation. Roots are
+read-only. API/worker pods get only a disposable disk-backed `/tmp` volume, with
+`TMPDIR=/tmp` and `scratchSizeMi=128` (allowed range 1–1024 MiB). Each daemon
+requests 128 MiB of ephemeral storage with a 512 MiB limit. Kubelet/node storage
+enforcement applies; scratch is not durable evidence or an object-store backup.
+The migration hook needs no writable scratch volume. Production rejects relaxed
+pod guards and requires S3-compatible object storage. Keep mounted private-file
+permissions compatible with the chosen numeric identity and `fsGroup`; custom
+Localhost seccomp profiles must exist on the target nodes. The chart accepts
+the declared container security fields; identity and seccomp overrides belong
+to `podSecurityContext`.
+
+Pod labels and the API Service selector now include the Helm release identity,
+so a Service cannot select another release's API pods merely because they use
+the same chart. Existing immutable Deployment selectors are preserved. Follow
+the stop/drain upgrade procedure below so old pods are replaced with the new
+labels and identity. Offline render/native-input checks do not verify live
+cluster admission, filesystem permissions, provider identity or CNI behavior.
 
 ## Create Secrets
 
@@ -175,7 +221,7 @@ a Helm timeout covering the migration budget plus pod startup.
 ```sh
 helm upgrade --install evydence ./deploy/helm/evydence \
   --set image.repository=ghcr.io/aatuh/evydence \
-  --set image.tag='<verified-release-tag>@sha256:<verified-image-digest>' \
+  --set-string image.digest='sha256:<verified-image-digest>' \
   --set migration.target='<reviewed-release-migration-version>' \
   --timeout 10m --wait \
   --set env.s3Endpoint=s3.example.com \
@@ -193,7 +239,10 @@ Relevant chart values are defined in `deploy/helm/evydence/values.yaml`:
 
 | Value | Purpose |
 |-------|---------|
-| `image.repository`, `image.tag` | Shared migration, API and worker image. |
+| `image.repository`, `image.tag`, `image.digest` | Shared image; production requires a digest, with an optional tag. |
+| `image.pullPolicy`, `image.pullSecrets` | Pull policy and pre-provisioned registry Secret references, shared by all processes. |
+| `scratchSizeMi` | Bounded disposable disk-backed daemon `/tmp`, default 128 MiB; not durable payload storage. |
+| `api.serviceAccountAnnotations`, `worker.serviceAccountAnnotations` | Public provider-identity annotations on separate tokenless runtime accounts; no RBAC or provider grants are created. |
 | `migration.target`, `migration.timeoutSeconds` | Required reviewed version and migration command budget (default 120 seconds, range 1–900). |
 | `migration.existingSecret`, `migration.secretSource` | Separate database-only Secret (default `evydence-migrations`); `env` or `files`. File mode requires a positive `podSecurityContext.fsGroup`. |
 | `migration.allowLegacyHistory` | Default false; explicit acknowledgement after reviewing unknown historical execution. See the upgrade runbook. |
@@ -208,7 +257,7 @@ Relevant chart values are defined in `deploy/helm/evydence/values.yaml`:
 | `cleanupTimeoutSeconds` | Shared daemon resource-cleanup budget; see the generated runtime bounds and defaults below. |
 | `api.terminationGracePeriodSeconds`, `worker.terminationGracePeriodSeconds` | Pod grace periods, default `40`; each must cover its drain budget plus cleanup plus a five-second margin. Invalid combinations fail rendering. |
 | `api.resources`, `worker.resources` | Resource requests and limits. |
-| `podSecurityContext`, `containerSecurityContext` | Non-root and least-privilege pod/container defaults. |
+| `podSecurityContext`, `containerSecurityContext` | Numeric non-root identities, seccomp, read-only roots and least-privilege defaults; production validates the declared guards. |
 | `worker.probes.*` | Enable/override startup, readiness and liveness exec commands. Defaults query the running worker with their distinct modes. |
 | `networkPolicy.enabled` | Optional starter NetworkPolicy for API ingress. |
 | `existingSecret`, `api.existingSecret`, `worker.existingSecret` | Shared runtime Secret and optional daemon-specific overrides. Default mode loads environment variables; file mode projects selected credentials. Prefer separate scoped credentials. |

@@ -1,8 +1,26 @@
 {
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
-  "required": ["api", "worker", "cleanupTimeoutSeconds", "env", "migration"],
+  "required": ["api", "worker", "cleanupTimeoutSeconds", "env", "migration", "image", "scratchSizeMi", "podSecurityContext", "containerSecurityContext"],
   "properties": {
+    "image": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "tag", "digest", "pullPolicy", "pullSecrets"],
+      "properties": {
+        "repository": {"type": "string", "minLength": 1, "maxLength": 255, "pattern": "^(?:[A-Za-z0-9]|\\[)[A-Za-z0-9._:/\\[\\]-]*$"},
+        "tag": {"type": "string", "pattern": "^(?:$|[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}(?:@sha256:[a-f0-9]{64})?)$"},
+        "digest": {"type": "string", "pattern": "^(?:$|sha256:[a-f0-9]{64})$"},
+        "pullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]},
+        "pullSecrets": {
+          "type": "array", "maxItems": 16, "uniqueItems": true,
+          "items": {"type": "object", "additionalProperties": false, "required": ["name"], "properties": {
+            "name": {"type": "string", "minLength": 1, "maxLength": 253, "pattern": "^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"}
+          }}
+        }
+      }
+    },
+    "scratchSizeMi": {"type": "integer", "minimum": 1, "maximum": 1024},
     "migration": {
       "type": "object",
       "additionalProperties": false,
@@ -77,6 +95,7 @@
         "secretFiles"
       ],
       "properties": {
+        "serviceAccountAnnotations": {"$ref": "#/definitions/annotations"},
         "existingSecret": {"type": "string", "maxLength": 253, "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"},
         "replicas": {"type": "integer", "const": 1},
         "writerMode": {"type": "string", "enum": ["single", "single-writer"]},
@@ -122,6 +141,7 @@
         "secretFiles"
       ],
       "properties": {
+        "serviceAccountAnnotations": {"$ref": "#/definitions/annotations"},
         "existingSecret": {"type": "string", "maxLength": 253, "pattern": "^$|^[a-z0-9]([-a-z0-9.]*[a-z0-9])?$"},
         "healthPort": {"type": "integer", "minimum": 1, "maximum": 65535},
         "probes": {
@@ -151,20 +171,53 @@
     },
     "env": {
       "type": "object",
-      "required": ["databaseURLSecretKey", "apiKeyPepperSecretKey"],
+      "required": ["production", "objectStore", "databaseURLSecretKey", "apiKeyPepperSecretKey"],
       "properties": {
+        "production": {"type": "boolean"},
+        "objectStore": {"type": "string", "enum": ["s3", "filesystem"]},
         "databaseURLSecretKey": {"$ref": "#/definitions/secretKey"},
         "apiKeyPepperSecretKey": {"$ref": "#/definitions/secretKey"}
       }
     },
     "podSecurityContext": {
       "type": "object",
+      "required": ["runAsNonRoot", "runAsUser", "runAsGroup", "seccompProfile"],
       "properties": {
+        "runAsNonRoot": {"type": "boolean"},
+        "runAsUser": {"type": "integer", "minimum": 0, "maximum": 4294967294},
+        "runAsGroup": {"type": "integer", "minimum": 0, "maximum": 4294967294},
+        "seccompProfile": {
+          "type": "object", "required": ["type"],
+          "properties": {"type": {"type": "string", "enum": ["RuntimeDefault", "Localhost", "Unconfined"]}, "localhostProfile": {"type": "string", "minLength": 1}},
+          "allOf": [{"if": {"properties": {"type": {"const": "Localhost"}}}, "then": {"required": ["localhostProfile"]}}]
+        },
         "fsGroup": {"type": "integer", "minimum": 1, "maximum": 4294967294}
+      }
+    },
+    "containerSecurityContext": {
+      "type": "object", "additionalProperties": false,
+      "required": ["privileged", "allowPrivilegeEscalation", "readOnlyRootFilesystem", "capabilities"],
+      "properties": {
+        "privileged": {"type": "boolean"},
+        "allowPrivilegeEscalation": {"type": "boolean"},
+        "readOnlyRootFilesystem": {"type": "boolean"},
+        "capabilities": {
+          "type": "object", "additionalProperties": false, "required": ["drop"],
+          "properties": {"add": {"type": "array", "items": {"type": "string"}}, "drop": {"type": "array", "items": {"type": "string"}, "minItems": 1}}
+        }
       }
     }
   },
+  "allOf": [{
+    "if": {"properties": {"env": {"properties": {"production": {"const": true}}}}},
+    "then": {"properties": {
+      "env": {"properties": {"objectStore": {"const": "s3"}}},
+      "podSecurityContext": {"properties": {"runAsNonRoot": {"const": true}, "runAsUser": {"minimum": 1}, "runAsGroup": {"minimum": 1}, "seccompProfile": {"properties": {"type": {"enum": ["RuntimeDefault", "Localhost"]}}}}},
+      "containerSecurityContext": {"properties": {"privileged": {"const": false}, "allowPrivilegeEscalation": {"const": false}, "readOnlyRootFilesystem": {"const": true}, "capabilities": {"properties": {"add": {"maxItems": 0}, "drop": {"contains": {"const": "ALL"}}}}}}
+    }}
+  }],
   "definitions": {
+    "annotations": {"type": "object", "maxProperties": 32, "additionalProperties": {"type": "string", "maxLength": 4096}},
     "secretKey": {"type": "string", "minLength": 1, "maxLength": 253, "pattern": "^[A-Za-z0-9._-]+$"}
   }
 }

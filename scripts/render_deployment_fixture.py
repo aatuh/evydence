@@ -69,9 +69,16 @@ def helm_fixture(case, process, mode):
             environment[entry["name"]] = secrets[reference["name"]][reference["key"]]
     mounts = []
     for mount in container["volumeMounts"]:
+        volume = next(entry for entry in pod["volumes"] if entry["name"] == mount["name"])
+        if "emptyDir" in volume:
+            if (mount["name"] != "scratch" or mount["mountPath"] != "/tmp" or mount.get("readOnly")
+                    or "subPath" in mount or volume["emptyDir"] != {"sizeLimit": "128Mi"}):
+                raise ValueError("fixture expects one bounded disk-backed scratch mount")
+            # Native startup fixtures model only credential/config projections.
+            # Scratch semantics belong to render checks and container rehearsals.
+            continue
         if not mount.get("readOnly") or "subPath" in mount:
             raise ValueError("fixture expects read-only directory projections")
-        volume = next(entry for entry in pod["volumes"] if entry["name"] == mount["name"])
         kind = "secret" if "secret" in volume else "configMap"
         reference = volume[kind]
         data = secrets[reference["secretName"]] if kind == "secret" else config_maps[reference["name"]]
