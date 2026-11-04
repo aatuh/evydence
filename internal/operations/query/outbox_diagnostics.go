@@ -17,6 +17,7 @@ type OutboxCounts struct {
 }
 
 type OutboxDiagnosticsReader interface {
+	OutboxDeadLetterReader
 	ReadOutboxCounts(context.Context) (OutboxCounts, error)
 }
 

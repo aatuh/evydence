@@ -26,7 +26,7 @@ func isOnlineCLICommand(args []string) bool {
 	}
 	switch args[0] {
 	case "outbox":
-		return args[1] == "backlog" || args[1] == "replay"
+		return args[1] == "backlog" || args[1] == "replay" || args[1] == "dead-letters"
 	case "github-actions":
 		return args[1] == "upload-build"
 	case "ci":

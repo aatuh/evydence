@@ -76,6 +76,12 @@ func TestOutboxCLIRejectsInvalidArgumentsBeforeNetwork(t *testing.T) {
 		{"replay", "--job-id", "job_1", "--idempotency-key", strings.Repeat("x", 129)},
 		{"replay", "--job-id", "job_1", "--job-id", "job_2", "--idempotency-key", "operation-1"},
 		{"replay", "--job-id", "job_1", "--idempotency-key", "one", "--idempotency-key", "two"},
+		{"dead-letters", "--page-size", "0"}, {"dead-letters", "--page-size", "501"},
+		{"dead-letters", "--page-size", "01"}, {"dead-letters", "--page-size", "+2"},
+		{"dead-letters", "--page-size", "2", "--page-size", "3"},
+		{"dead-letters", "--direction", "sideways"}, {"dead-letters", "--cursor", ""},
+		{"dead-letters", "--cursor", "PRIVATE\nCURSOR"}, {"dead-letters", "--cursor", strings.Repeat("x", 4097)},
+		{"dead-letters", "--job-id", "job_1"},
 	} {
 		command := append([]string{"outbox", args[0], "--url", server.URL}, args[1:]...)
 		output, err := captureStdout(t, func() error { return run(command) })
@@ -131,7 +137,7 @@ func TestOutboxCLIRejectsRedirectsAndHidesServerFailureDetails(t *testing.T) {
 func TestOutboxCLIHelpDoesNotResolveCredentials(t *testing.T) {
 	cleanCLIEnvironment(t)
 	t.Setenv("EVYDENCE_API_KEY_FILE", "/PRIVATE_MISSING_KEY")
-	for _, command := range []string{"backlog", "replay"} {
+	for _, command := range []string{"backlog", "replay", "dead-letters"} {
 		output, err := captureStdout(t, func() error { return run([]string{"outbox", command, "--help"}) })
 		if err != nil || !strings.Contains(output, "usage:") || strings.Contains(output, "PRIVATE") {
 			t.Fatal("operator help resolved an unused credential source", err)

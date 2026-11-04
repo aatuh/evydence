@@ -113,7 +113,7 @@ func (s *Server) parsePageRequestWithLegacyLimit(r *http.Request, actor domain.A
 
 func paginationOptions(resource string) (appquery.Sort, appquery.Direction, map[appquery.Sort]bool) {
 	switch resource {
-	case "control-framework-template-packs", "sbom-components":
+	case "control-framework-template-packs", "sbom-components", "outbox-dead-letters":
 		return appquery.SortID, appquery.Ascending, map[appquery.Sort]bool{appquery.SortID: true}
 	case "evidence-search", "audit-log":
 		return appquery.SortCreatedAt, appquery.Descending, map[appquery.Sort]bool{

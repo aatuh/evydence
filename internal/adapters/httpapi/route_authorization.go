@@ -271,7 +271,7 @@ func authorizationPolicyForOperation(id string) (routeAuthorizationPolicy, bool)
 		return actionRoutePolicy(authz.ActionInstanceReadinessRead), true
 	case "instanceAdminSnapshot":
 		return actionRoutePolicy(authz.ActionInstanceSnapshotRead), true
-	case "outboxOperatorDiagnostics":
+	case "outboxOperatorDiagnostics", "listOutboxDeadLetters":
 		return actionRoutePolicy(authz.ActionOutboxDiagnosticsRead), true
 	case "replayTerminalOutboxJob":
 		return actionRoutePolicy(authz.ActionOutboxReplay), true

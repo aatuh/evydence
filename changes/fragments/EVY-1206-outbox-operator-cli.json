@@ -17,6 +17,6 @@
   },
   "security": "The CLI remains an authenticated client of existing focused operator services. Closed response projections exclude payloads and raw errors; redirects cannot forward operator credentials. Private-file conflicts, input validation and context cancellation retain the existing configuration boundary.",
   "limitations": [
-    "Detailed dead-letter listing, remaining deployment/runbook work and required full-ticket closure gates remain pending in incomplete EVY-1206. Local command tests do not verify a deployed operator credential or live provider."
+    "Remaining deployment/runbook work and required full-ticket closure gates remain pending in incomplete EVY-1206. Local command tests do not verify a deployed operator credential or live provider."
   ]
 }

@@ -79,7 +79,7 @@ release's `migrations.sha256` with an explicit version. Both settings are
 required together and mandatory for `ENV=production`. For the current source catalog, an example is:
 
 ```sh
-EVYDENCE_MIGRATION_TARGET=20261104000100_migration_operation_audit \
+EVYDENCE_MIGRATION_TARGET=20261104000200_outbox_dead_letter_lookup \
 EVYDENCE_MIGRATION_CHECKSUMS_FILE=/srv/evydence/release/migrations.sha256 \
 EVYDENCE_MIGRATION_TIMEOUT_SECONDS=120 \
 evydence-migrate

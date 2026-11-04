@@ -120,7 +120,7 @@ export POSTGRES_PASSWORD='replace-with-long-random-password'
 export MINIO_ROOT_PASSWORD='replace-with-long-random-password'
 export EVYDENCE_API_KEY_PEPPER='replace-with-long-random-pepper'
 # Choose the target from the verified release; this is the current source target:
-export EVYDENCE_MIGRATION_TARGET=20261104000100_migration_operation_audit
+export EVYDENCE_MIGRATION_TARGET=20261104000200_outbox_dead_letter_lookup
 export EVYDENCE_SIGNING_EXECUTOR_URL='https://signer.example.com/sign'
 export EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64='<trusted-Ed25519-public-key-in-base64>'
 # Set this too when your gateway requires a bearer credential:

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 )
@@ -14,6 +15,10 @@ type outboxDiagnosticsReaderFake struct {
 	result OutboxCounts
 	err    error
 	reads  int
+}
+
+func (f *outboxDiagnosticsReaderFake) ReadOutboxDeadLettersPage(context.Context, appquery.PageRequest, *appquery.SortKey) (appquery.Result[OutboxDeadLetter], error) {
+	return appquery.Result[OutboxDeadLetter]{}, ErrValidation
 }
 
 func (f *outboxDiagnosticsReaderFake) ReadOutboxCounts(context.Context) (OutboxCounts, error) {

@@ -9,16 +9,19 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
 	"unicode/utf8"
 
+	appquery "github.com/aatuh/evydence/internal/app/query"
+	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 	"github.com/aatuh/evydence/internal/platform/config"
 )
 
 var (
-	errOutboxArguments = errors.New("usage: evydence outbox backlog --url URL | evydence outbox replay --url URL --job-id ID --idempotency-key KEY")
+	errOutboxArguments = errors.New("usage: evydence outbox backlog --url URL | evydence outbox dead-letters --url URL [--page-size N --direction asc|desc --cursor TOKEN] | evydence outbox replay --url URL --job-id ID --idempotency-key KEY")
 	errOutboxResponse  = errors.New("outbox API response is invalid")
 	errOutboxRequest   = errors.New("outbox API request failed")
 )
@@ -75,17 +78,25 @@ func validOutboxOperationKey(key string) bool {
 }
 
 func runOutboxCLI(ctx context.Context, input cliInput, args []string, output, diagnostics io.Writer) error {
-	if len(args) == 0 || (args[0] != "backlog" && args[0] != "replay") {
+	if len(args) == 0 || (args[0] != "backlog" && args[0] != "replay" && args[0] != "dead-letters") {
 		return errOutboxArguments
 	}
 	fs := flag.NewFlagSet("outbox "+args[0], flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	var endpoint, credential, jobID, operation outboxStringFlag
+	pageSize := outboxStringFlag{value: strconv.Itoa(appquery.DefaultPageSize)}
+	direction := outboxStringFlag{value: string(appquery.Ascending)}
+	var cursor outboxStringFlag
 	fs.Var(&endpoint, "url", "Evydence API URL")
 	fs.Var(&credential, "api-key", "Evydence API key; a private credential file is also supported")
-	if args[0] == "replay" {
+	switch args[0] {
+	case "replay":
 		fs.Var(&jobID, "job-id", "Terminal job to replay")
 		fs.Var(&operation, "idempotency-key", "Explicit operation key; reuse the same key when retrying")
+	case "dead-letters":
+		fs.Var(&pageSize, "page-size", "Maximum records, from 1 through 500 (default 50)")
+		fs.Var(&direction, "direction", "ID ordering: asc (default) or desc")
+		fs.Var(&cursor, "cursor", "Opaque next_cursor from the preceding page")
 	}
 	if err := fs.Parse(args[1:]); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -95,6 +106,10 @@ func runOutboxCLI(ctx context.Context, input cliInput, args []string, output, di
 		return errOutboxArguments
 	}
 	if fs.NArg() != 0 || args[0] == "replay" && (!validOutboxJobID(jobID.value) || !validOutboxOperationKey(operation.value)) {
+		return errOutboxArguments
+	}
+	pageLimit, err := strconv.Atoi(pageSize.value)
+	if args[0] == "dead-letters" && (err != nil || strconv.Itoa(pageLimit) != pageSize.value || pageLimit < 1 || pageLimit > appquery.MaxPageSize || (direction.value != "asc" && direction.value != "desc") || cursor.set && !validOutboxCursor(cursor.value)) {
 		return errOutboxArguments
 	}
 	return runConfiguredCLI(ctx, input, diagnostics, fs, config.CLIOutbox, func(ctx context.Context, settings config.CLISettings) error {
@@ -108,9 +123,16 @@ func runOutboxCLI(ctx context.Context, input cliInput, args []string, output, di
 		client := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
 		var body []byte
 		var err error
-		if args[0] == "backlog" {
+		switch args[0] {
+		case "backlog":
 			body, err = getEvydence(requestCtx, client, settings.APIURL, settings.APIKey.Reveal(), "/v1/admin/outbox")
-		} else {
+		case "dead-letters":
+			query := url.Values{"page_size": {pageSize.value}, "direction": {direction.value}}
+			if cursor.set {
+				query.Set("cursor", cursor.value)
+			}
+			body, err = getEvydence(requestCtx, client, settings.APIURL, settings.APIKey.Reveal(), "/v1/admin/outbox/dead-letters?"+query.Encode())
+		case "replay":
 			body, err = postRawEvydence(requestCtx, client, settings.APIURL, settings.APIKey.Reveal(), "/v1/admin/outbox/"+url.PathEscape(jobID.value)+"/replay", operation.value, []byte(`{}`))
 		}
 		if err != nil {
@@ -118,6 +140,9 @@ func runOutboxCLI(ctx context.Context, input cliInput, args []string, output, di
 		}
 		if rejectDuplicateJSONKeys(body, "outbox response") != nil {
 			return errOutboxResponse
+		}
+		if args[0] == "dead-letters" {
+			return writeOutboxDeadLetterPage(output, body, pageLimit, direction.value)
 		}
 		if args[0] == "backlog" {
 			var response struct {
@@ -142,6 +167,38 @@ func runOutboxCLI(ctx context.Context, input cliInput, args []string, output, di
 		}
 		return json.NewEncoder(output).Encode(response)
 	})
+}
+
+func validOutboxCursor(cursor string) bool {
+	return cursor != "" && len(cursor) <= 4096 && utf8.ValidString(cursor) && !strings.ContainsFunc(cursor, func(r rune) bool { return unicode.IsControl(r) || unicode.IsSpace(r) })
+}
+
+func writeOutboxDeadLetterPage(output io.Writer, body []byte, pageSize int, direction string) error {
+	var response struct {
+		Data []operationsquery.OutboxDeadLetter `json:"data"`
+		Meta *struct {
+			APIVersion string `json:"api_version"`
+			PageSize   int    `json:"page_size"`
+			Sort       string `json:"sort"`
+			Direction  string `json:"direction"`
+			NextCursor string `json:"next_cursor,omitempty"`
+		} `json:"meta"`
+	}
+	if json.Unmarshal(body, &response) != nil || response.Data == nil || response.Meta == nil || len(response.Data) > pageSize {
+		return errOutboxResponse
+	}
+	meta := response.Meta
+	if meta.APIVersion != "v1" || meta.PageSize != pageSize || meta.Sort != "id" || meta.Direction != direction || meta.NextCursor != "" && (!validOutboxCursor(meta.NextCursor) || len(response.Data) != pageSize) {
+		return errOutboxResponse
+	}
+	previous := ""
+	for _, item := range response.Data {
+		if operationsquery.ValidateOutboxDeadLetter(item) != nil || previous != "" && ((direction == "asc" && item.ID <= previous) || (direction == "desc" && item.ID >= previous)) {
+			return errOutboxResponse
+		}
+		previous = item.ID
+	}
+	return json.NewEncoder(output).Encode(response)
 }
 
 func outboxRequestError(err error) error {

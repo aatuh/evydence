@@ -14,7 +14,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 CHART = ROOT / "deploy/helm/evydence"
-MIGRATION_TARGET = "20261104000100_migration_operation_audit"
+MIGRATION_TARGET = "20261104000200_outbox_dead_letter_lookup"
 
 
 class DeploymentLifecycleTests(unittest.TestCase):

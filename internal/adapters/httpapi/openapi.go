@@ -170,6 +170,18 @@ func registerCriticalSchemas(registry *specs.Registry) {
 		"oldest_pending_created_at": map[string]any{"type": "string", "format": "date-time"},
 	}, "pending_jobs", "running_jobs", "terminal_jobs"))
 	registry.RegisterSchema("OutboxDiagnosticsEnvelope", dataEnvelopeSchema("#/components/schemas/OutboxDiagnostics"))
+	registry.RegisterSchema("OutboxDeadLetter", objectSchema(map[string]any{
+		"id":            map[string]any{"type": "string", "minLength": 1, "maxLength": 1024},
+		"kind":          map[string]any{"type": "string", "minLength": 1, "maxLength": 96, "pattern": "^[a-z0-9_]+$"},
+		"status":        map[string]any{"type": "string", "enum": []string{"dead_letter"}},
+		"attempts":      map[string]any{"type": "integer", "minimum": 0},
+		"max_attempts":  map[string]any{"type": "integer", "minimum": 1},
+		"failure_class": map[string]any{"type": "string", "enum": []string{"transient", "permanent", "poisoned"}},
+		"failure_code":  map[string]any{"type": "string", "minLength": 1, "maxLength": 96, "pattern": "^[a-z0-9_]+$"},
+		"created_at":    map[string]any{"type": "string", "format": "date-time"},
+		"terminal_at":   map[string]any{"type": "string", "format": "date-time"},
+	}, "id", "kind", "status", "attempts", "max_attempts", "failure_class", "failure_code", "created_at", "terminal_at"))
+	registry.RegisterSchema("OutboxDeadLetterListEnvelope", dataArrayEnvelopeSchema("#/components/schemas/OutboxDeadLetter", "id"))
 	registry.RegisterSchema("OutboxReplay", objectSchema(map[string]any{
 		"job_id":      map[string]any{"type": "string"},
 		"status":      map[string]any{"type": "string", "enum": []string{"queued"}},
@@ -2800,13 +2812,16 @@ func dataEnvelopeSchema(dataRef string) map[string]any {
 	}, "data", "meta")
 }
 
-func dataArrayEnvelopeSchema(itemRef string) map[string]any {
+func dataArrayEnvelopeSchema(itemRef string, sorts ...string) map[string]any {
+	if len(sorts) == 0 {
+		sorts = []string{"created_at", "id"}
+	}
 	return objectSchema(map[string]any{
 		"data": map[string]any{"type": "array", "items": map[string]any{"$ref": itemRef}},
 		"meta": objectSchema(map[string]any{
 			"api_version": map[string]any{"type": "string"},
 			"page_size":   map[string]any{"type": "integer", "minimum": 1, "maximum": 500},
-			"sort":        map[string]any{"type": "string", "enum": []string{"created_at", "id"}},
+			"sort":        map[string]any{"type": "string", "enum": sorts},
 			"direction":   map[string]any{"type": "string", "enum": []string{"asc", "desc"}},
 			"next_cursor": map[string]any{"type": "string", "description": "Opaque cursor for the next page; absent when no additional page exists."},
 		}, "api_version", "page_size", "sort", "direction"),
