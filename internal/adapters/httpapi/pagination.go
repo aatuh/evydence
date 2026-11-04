@@ -163,7 +163,7 @@ func writePaginatedWithLegacyLimit[T any](s *Server, w http.ResponseWriter, r *h
 	writePage(s, w, r, actor, resource, request, page)
 }
 
-func writePage[T any](s *Server, w http.ResponseWriter, r *http.Request, actor domain.Actor, resource string, request pageRequest, page appquery.Result[T]) {
+func writePage[T any](s *Server, w http.ResponseWriter, r *http.Request, actor domain.Actor, resource string, request pageRequest, page appquery.Result[T], cursorErrors ...error) {
 	meta := map[string]any{
 		"api_version": "v1",
 		"page_size":   request.pageSize,
@@ -180,7 +180,11 @@ func writePage[T any](s *Server, w http.ResponseWriter, r *http.Request, actor d
 			Key:       *page.Next,
 		})
 		if err != nil {
-			writeProblem(w, r, app.ErrValidation)
+			failure := app.ErrValidation
+			if len(cursorErrors) > 0 && cursorErrors[0] != nil {
+				failure = cursorErrors[0]
+			}
+			writeProblem(w, r, failure)
 			return
 		}
 		meta["next_cursor"] = next

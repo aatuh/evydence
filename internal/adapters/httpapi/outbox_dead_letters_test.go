@@ -77,6 +77,16 @@ func TestOutboxDeadLetterRouteReturnsBoundedMetadata(t *testing.T) {
 	}
 }
 
+func TestOutboxDeadLetterRouteRejectsOversizedContinuationAsProjectionConflict(t *testing.T) {
+	item := deadLetterHTTPItem(strings.Repeat("<", 1024))
+	reader := &deadLetterHTTPReader{result: appquery.Result[operationsquery.OutboxDeadLetter]{Items: []operationsquery.OutboxDeadLetter{item}, Next: &appquery.SortKey{Value: item.ID, ID: item.ID}}}
+	server, secret := newDeadLetterHTTPFixture(t, reader)
+	response := deadLetterHTTPGet(t, server, secret, "/v1/admin/outbox/dead-letters?page_size=1", http.StatusConflict)
+	if reader.reads != 1 || strings.Contains(response.Body.String(), `"data"`) || strings.Contains(response.Body.String(), "next_cursor") {
+		t.Fatal("unrepresentable projection cursor exposed a partial page")
+	}
+}
+
 func TestOutboxDeadLetterRouteBindsAndContinuesItsCursor(t *testing.T) {
 	reader := &deadLetterHTTPReader{result: appquery.Result[operationsquery.OutboxDeadLetter]{Items: []operationsquery.OutboxDeadLetter{deadLetterHTTPItem("job_a"), deadLetterHTTPItem("job_b")}, Next: &appquery.SortKey{Value: "job_b", ID: "job_b"}}}
 	server, secret := newDeadLetterHTTPFixture(t, reader)

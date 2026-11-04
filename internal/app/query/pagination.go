@@ -88,7 +88,7 @@ func (c CursorCodec) Encode(cursor Cursor) (string, error) {
 		return "", ErrInvalidCursor
 	}
 	payload, err := json.Marshal(cursor)
-	if err != nil || len(payload) > maxCursorBytes {
+	if err != nil || len(payload) > maxCursorBytes || base64.RawURLEncoding.EncodedLen(len(payload))+1+base64.RawURLEncoding.EncodedLen(sha256.Size) > maxCursorBytes {
 		return "", ErrInvalidCursor
 	}
 	mac := hmac.New(sha256.New, c.secret)

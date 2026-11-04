@@ -110,7 +110,8 @@ The view changes as jobs are replayed or newly fail. Continuation does not need
 the prior job to remain in the dead-letter set and does not freeze the queue.
 Responses use `Cache-Control: no-store`. Invalid or oversized stored metadata
 rejects the whole page with 409 rather than returning raw errors or partial
-results. Apply the target release's migrations before serving the new route;
+results. This includes continuation metadata that cannot fit the shared 4 KiB
+encoded cursor limit. Apply the target release's migrations before serving the new route;
 `20261104000200_outbox_dead_letter_lookup` adds its partial ID index without
 changing job rows.
 

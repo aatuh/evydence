@@ -60,7 +60,7 @@ func (s *Server) listOutboxDeadLetters(w http.ResponseWriter, r *http.Request) {
 		writeProblem(w, r, mapInstanceAdminQueryError(err))
 		return
 	}
-	writePage(s, w, r, actor, resource, request, page)
+	writePage(s, w, r, actor, resource, request, page, app.ErrConflict)
 }
 
 func (s *Server) replayTerminalOutboxJob(w http.ResponseWriter, r *http.Request) {
