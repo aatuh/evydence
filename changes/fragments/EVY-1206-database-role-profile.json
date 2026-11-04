@@ -1,0 +1,23 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-database-role-profile",
+  "category": "added",
+  "summary": "Add a tested schema-scoped migration/runtime database permission profile",
+  "details": [
+    "Apply atomic runtime grants only from a dedicated, non-administrative schema owner, rejecting role memberships, administrative capabilities, foreign ownership, unsafe routines and broad default table grants before changing permissions.",
+    "Allow ordinary business-table writes, view reads, sequence use and read-only migration checks while denying schema DDL, migration-record mutation, grant options and access to compatibility ledger_state/resource_index tables.",
+    "Use safely quoted role/schema identifiers, preserve other schemas and fail atomically on dependent grants without cascading revocations or ownership transfers.",
+    "Test actual independent PostgreSQL role connections, the complete committed schema, permission revocation, column grants, invoker triggers, views and sequences; document the manual migration/grant phase and adoption limits."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "This opt-in operator SQL policy creates no users, passwords, ownership transfers or default grants. Existing deployments are unchanged until an operator explicitly applies it. Run it after migrations and before daemon startup, repeating after upgrades; new objects receive no automatic runtime access. Existing administrator-owned/shared schemas require a separately rehearsed adoption procedure."
+  },
+  "security": "Database ACLs enforce migration/runtime separation within the selected dedicated schema. Migration records remain readable but not writable by the runtime role; ordinary tenant and append-only business policies remain application-owned. Authenticated migration principals and checksums are preserved, with no claim of administrator-proof history.",
+  "limitations": [
+    "The Helm/Compose migration command does not yet execute the grant phase. Automated role setup/adoption and durable operation-level audit remain in EVY-1206; retain the protected operator grant-command record.",
+    "This profile does not change database-wide grants, other schemas or role attributes, and local role tests do not verify a deployed provider or live cluster. Full-ticket production, restore and broad final gates remain pending."
+  ]
+}

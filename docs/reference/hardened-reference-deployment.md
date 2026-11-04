@@ -19,6 +19,12 @@ The narrow supported topology is:
 - paired database and object-store backups with restore rehearsal evidence;
 - authenticated metrics, admin, audit, and package-access surfaces.
 
+The [database role procedure](../how-to/database-roles.md) provides a tested,
+schema-scoped manual migration/runtime permission profile. It requires dedicated
+identities and ownership; automated Helm/Compose adoption and operation-level
+audit remain in EVY-1206. Do not infer deployed role separation from the chart's
+separate Secret reference alone.
+
 Use the [pilot deployment checklist](../how-to/pilot-deployment-checklist.md)
 for the copy-paste go/no-go record and the
 [external controls matrix](external-controls-matrix.md) to assign operator,

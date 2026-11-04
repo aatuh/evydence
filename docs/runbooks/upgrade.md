@@ -168,6 +168,12 @@ protect against older binaries or a database administrator bypassing it.
 
 ## Upgrade
 
+For the separate database-identity rehearsal, use the
+[database role procedure](../how-to/database-roles.md). Its grant phase runs
+after migrations and before daemons restart; it is not yet integrated into the
+Helm/Compose migration command. The policy never transfers ownership or changes
+legacy execution metadata.
+
 1. Stop API writers.
 2. Let workers finish or stop them after recording pending outbox counts.
 3. Apply migrations with `make migrate` or `evydence-migrate` using the target
