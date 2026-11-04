@@ -103,9 +103,12 @@ class DeploymentLifecycleTests(unittest.TestCase):
             self.assertNotEqual(self.render({"worker": {"healthPort": invalid}}).returncode, 0)
 
     def test_runtime_credentials_use_selected_secret_without_overriding_chart_safety(self):
-        for overrides, selected in [({}, {"api": "evydence-secrets", "worker": "evydence-secrets"}),
+        for overrides, selected in [({}, {"api": "evydence-api", "worker": "evydence-worker"}),
                                     ({"api": {"existingSecret": "api-runtime"}, "worker": {"existingSecret": "worker-runtime"}},
-                                     {"api": "api-runtime", "worker": "worker-runtime"})]:
+                                     {"api": "api-runtime", "worker": "worker-runtime"}),
+                                    ({"env": {"production": False}, "api": {"existingSecret": ""},
+                                      "worker": {"existingSecret": ""}, "existingSecret": "legacy-runtime"},
+                                     {"api": "legacy-runtime", "worker": "legacy-runtime"})]:
             _, deployments = self.manifests(overrides)
             for component in ("api", "worker"):
                 container = deployments[component]["spec"]["template"]["spec"]["containers"][0]
@@ -180,9 +183,9 @@ class DeploymentLifecycleTests(unittest.TestCase):
             # Removing the whole context now fails the stronger required-map
             # guard; individual absent/invalid groups still fail fsGroup above.
             self.assertIn("podSecurityContext", result.stderr)
-            for selected in ("evydence-secrets", "custom-files"):
+            for selected in ("evydence-" + component, "custom-files"):
                 overrides = {"secretSource": "files", "environmentSecret": selected}
-                if selected != "evydence-secrets":
+                if selected == "custom-files":
                     overrides["existingSecret"] = selected
                 result = self.render({"podSecurityContext": {"fsGroup": 2000}, component: overrides})
                 self.assertNotEqual(result.returncode, 0)
@@ -402,6 +405,131 @@ class DeploymentLifecycleTests(unittest.TestCase):
                     result = self.render({component: {"terminationGracePeriodSeconds": invalid}})
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn("terminationGracePeriodSeconds", result.stderr)
+
+    def test_production_secret_references_cannot_share_migration_or_other_daemon_authority(self):
+        cases = [
+            {"api": {"existingSecret": "same"}, "worker": {"existingSecret": "same"}},
+            {"api": {"existingSecret": "evydence-migrations"}},
+            {"worker": {"existingSecret": "evydence-migrations"}},
+            {"api": {"existingSecret": ""}, "worker": {"existingSecret": ""}},
+            {"api": {"environmentSecret": "evydence-worker"}},
+            {"worker": {"environmentSecret": "evydence-api"}},
+            {"api": {"environmentSecret": "evydence-migrations"}},
+            {"worker": {"environmentSecret": "evydence-migrations"}},
+            {"api": {"environmentSecret": "shared-options"}, "worker": {"environmentSecret": "shared-options"}},
+        ]
+        for overrides in cases:
+            with self.subTest(overrides=overrides):
+                result = self.render(overrides)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Secret", result.stderr)
+
+    def test_disruption_budgets_are_component_and_release_scoped(self):
+        result = self.render(release="r" * 53)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        docs = [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+        budgets = {doc["spec"]["selector"]["matchLabels"]["app.kubernetes.io/component"]: doc
+                   for doc in docs if doc["kind"] == "PodDisruptionBudget"}
+        self.assertEqual(set(budgets), {"api", "worker"})
+        self.assertEqual(budgets["api"]["spec"]["minAvailable"], 1)
+        self.assertNotIn("maxUnavailable", budgets["api"]["spec"])
+        self.assertEqual(budgets["worker"]["spec"]["maxUnavailable"], 1)
+        for component, budget in budgets.items():
+            deployment = next(doc for doc in docs if doc["kind"] == "Deployment"
+                              and doc["spec"]["template"]["metadata"]["labels"]["app.kubernetes.io/component"] == component)
+            self.assertEqual(budget["spec"]["selector"]["matchLabels"], deployment["spec"]["template"]["metadata"]["labels"])
+            self.assertLessEqual(len(budget["metadata"]["name"]), 63)
+
+    def test_network_defaults_isolate_all_processes_and_hook_precedes_migration(self):
+        result = self.render(release="r" * 53)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        docs = [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+        policies = {doc["spec"]["podSelector"]["matchLabels"]["app.kubernetes.io/component"]: doc
+                    for doc in docs if doc["kind"] == "NetworkPolicy"}
+        self.assertEqual(set(policies), {"api", "worker", "migrate"})
+        self.assertEqual(len({doc["metadata"]["name"] for doc in policies.values()}), 3)
+        for component, policy in policies.items():
+            spec = policy["spec"]
+            self.assertEqual(set(spec["policyTypes"]), {"Ingress", "Egress"})
+            self.assertEqual(spec["ingress"], [])
+            self.assertEqual(spec["egress"], [{"to": [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "kube-system"}},
+                                                     "podSelector": {"matchLabels": {"k8s-app": "kube-dns"}}}],
+                                               "ports": [{"protocol": "UDP", "port": 53}, {"protocol": "TCP", "port": 53}]}])
+            self.assertEqual(spec["podSelector"]["matchLabels"], {"app.kubernetes.io/name": "evydence",
+                             "app.kubernetes.io/instance": "r" * 53, "app.kubernetes.io/component": component})
+            self.assertLessEqual(len(policy["metadata"]["name"]), 63)
+        annotations = policies["migrate"]["metadata"]["annotations"]
+        self.assertEqual(annotations["helm.sh/hook"], "pre-install,pre-upgrade")
+        self.assertEqual(annotations["helm.sh/hook-delete-policy"], "before-hook-creation")
+        hook_weight = int(annotations["helm.sh/hook-weight"])
+        for doc in docs:
+            if doc["kind"] in ("Job", "ServiceAccount") and "helm.sh/hook" in doc["metadata"].get("annotations", {}):
+                self.assertLess(hook_weight, int(doc["metadata"]["annotations"]["helm.sh/hook-weight"]))
+
+    def test_network_allowlists_are_explicit_and_do_not_cross_process_roles(self):
+        ingress = [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "ingress"}},
+                    "podSelector": {"matchLabels": {"app": "gateway"}}}]
+        database = {"to": [{"ipBlock": {"cidr": "192.0.2.10/32"}}], "ports": [{"protocol": "TCP", "port": 5432}]}
+        storage = {"to": [{"ipBlock": {"cidr": "198.51.100.20/32"}}], "ports": [{"protocol": "TCP", "port": 443}]}
+        signer = {"to": [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "signing"}},
+                          "podSelector": {"matchLabels": {"app": "signer"}}}], "ports": [{"protocol": "TCP", "port": 8443}]}
+        result = self.render({"networkPolicy": {"dnsPeers": [], "apiIngressFrom": ingress,
+                             "apiEgress": [database, storage, signer], "workerEgress": [database, storage], "migrationEgress": [database]}})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        policies = {doc["spec"]["podSelector"]["matchLabels"]["app.kubernetes.io/component"]: doc["spec"]
+                    for doc in yaml.safe_load_all(result.stdout) if doc and doc["kind"] == "NetworkPolicy"}
+        self.assertEqual(set(policies), {"api", "worker", "migrate"})
+        self.assertEqual(policies["api"]["ingress"], [{"from": ingress, "ports": [{"protocol": "TCP", "port": 8080}]}])
+        self.assertEqual(policies["api"]["egress"], [database, storage, signer])
+        self.assertEqual(policies["worker"]["egress"], [database, storage])
+        self.assertEqual(policies["migrate"]["egress"], [database])
+        for component in ("worker", "migrate"):
+            self.assertEqual(policies[component]["ingress"], [])
+
+    def test_network_and_disruption_controls_can_be_explicitly_disabled(self):
+        result = self.render({"networkPolicy": {"enabled": False}, "api": {"disruptionBudget": {"enabled": False}},
+                              "worker": {"disruptionBudget": {"enabled": False}}})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse({"NetworkPolicy", "PodDisruptionBudget"} & {doc["kind"] for doc in yaml.safe_load_all(result.stdout) if doc})
+        result = self.render({"networkPolicy": {"dnsPeers": []}})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for doc in yaml.safe_load_all(result.stdout):
+            if doc and doc["kind"] == "NetworkPolicy":
+                self.assertEqual(doc["spec"]["egress"], [])
+
+    def test_reference_network_values_render_separate_database_storage_and_signing_access(self):
+        values = yaml.safe_load((ROOT / "deploy/helm/reference-network-values.yaml").read_text())
+        result = self.render(values)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        policies = {doc["spec"]["podSelector"]["matchLabels"]["app.kubernetes.io/component"]: doc["spec"]
+                    for doc in yaml.safe_load_all(result.stdout) if doc and doc["kind"] == "NetworkPolicy"}
+        for component, key in (("api", "apiEgress"), ("worker", "workerEgress"), ("migrate", "migrationEgress")):
+            self.assertEqual(policies[component]["egress"][1:], values["networkPolicy"][key])
+        self.assertEqual(len(policies["migrate"]["egress"]), 2, "migration needs only DNS and database access")
+        self.assertEqual(len(policies["worker"]["egress"]), 3, "worker must not acquire the signing gateway rule")
+        self.assertEqual(len(policies["api"]["egress"]), 4)
+
+    def test_network_values_reject_accidental_unrestricted_rules(self):
+        invalid = [
+            {"enabled": "true"}, {"apiIngressFrom": [{}]}, {"dnsPeers": [{}]},
+            {"apiEgress": [{}]}, {"workerEgress": [{"to": [], "ports": [{"port": 443}]}]},
+            {"migrationEgress": [{"to": [{"ipBlock": {"cidr": "192.0.2.10/32"}}]}]},
+            {"apiEgress": [{"to": [{"podSelector": {}}], "ports": []}]},
+            {"apiEgress": [{"to": [{"podSelector": {}}], "ports": [{"port": 0}]}]},
+            {"apiEgress": [{"to": [{"podSelector": {}}], "ports": [{"port": True}]}]},
+            {"apiEgress": [{"to": [{"podSelector": {}}], "ports": [{"port": "443"}]}]},
+            {"apiEgress": [{"to": [{"podSelector": {}}], "ports": [{"port": 443, "protocol": "ALL"}]}]},
+            {"apiIngressFrom": [{"namespaceSelector": {}, "ipBlock": {"cidr": "192.0.2.10/32"}}]},
+            {"migrationEgress": [{"to": [{"ipBlocks": {"cidr": "192.0.2.10/32"}}], "ports": [{"port": 5432}]}]},
+            {"apiEgess": []},
+            {"apiIngressFrom": [{"podSelector": {"matchExpressions": [{"key": "app", "operator": "In", "values": []}]}}]},
+            {"dnsPeers": [{"namespaceSelector": {"matchExpressions": [{"key": "namespace", "operator": "Exists", "values": ["extra"]}]}}]},
+        ]
+        for override in invalid:
+            with self.subTest(override=override):
+                self.assertNotEqual(self.render({"networkPolicy": override}).returncode, 0)
+        for component in ("api", "worker"):
+            self.assertNotEqual(self.render({component: {"disruptionBudget": {"enabled": "true"}}}).returncode, 0)
 
     def compose_services(self, overrides=None, compose_override=None):
         env = {key: value for key, value in os.environ.items()

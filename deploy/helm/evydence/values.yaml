@@ -35,8 +35,10 @@ migration:
 
 api:
   serviceAccountAnnotations: {}
-  # Optional daemon-specific runtime Secret; otherwise use existingSecret.
-  existingSecret: ""
+  # Distinct pre-provisioned credentials; production rejects shared references.
+  existingSecret: evydence-api
+  disruptionBudget:
+    enabled: true
   # env preserves inline Secret variables; files projects private credentials.
   # files requires an explicit positive podSecurityContext.fsGroup.
   secretSource: env
@@ -83,7 +85,9 @@ api:
 
 worker:
   serviceAccountAnnotations: {}
-  existingSecret: ""
+  existingSecret: evydence-worker
+  disruptionBudget:
+    enabled: true
   secretSource: env
   environmentSecret: ""
   secretFiles:
@@ -128,6 +132,8 @@ env:
   s3UseSSL: "true"
   signingKeyMode: external
 
+# Legacy fallback for an explicitly empty daemon existingSecret. Production
+# still requires distinct selected API, worker and migration Secret references.
 existingSecret: evydence-secrets
 
 service:
@@ -157,4 +163,19 @@ containerSecurityContext:
   readOnlyRootFilesystem: true
 
 networkPolicy:
-  enabled: false
+  enabled: true
+  # Empty allowlists deny application traffic until the operator supplies peers.
+  apiIngressFrom: []
+  # Adapt for the cluster's DNS pods or node-local resolver before installation.
+  dnsPeers:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+  # Rules require both nonempty to and ports. Include database/storage for each
+  # daemon, API signing/provider access, and any configured telemetry gateways.
+  apiEgress: []
+  workerEgress: []
+  migrationEgress: []

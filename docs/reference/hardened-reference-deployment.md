@@ -52,6 +52,13 @@ For Kubernetes, start from `deploy/helm/evydence/values.yaml` and set an
 authenticated image digest, using `image.digest` or a digest-qualified tag.
 Production rendering rejects mutable tag-only references. The chart intentionally defaults
 `api.replicas` to `1` and `api.writerMode` to `single`.
+Prepare `/srv/evydence/network-values.yaml` using the
+[network and disruption procedure](../kubernetes.md#network-and-disruption-policy).
+The chart enables per-process ingress/egress isolation; empty application
+allowlists intentionally prevent database/storage/signing access until reviewed
+peers are supplied. Provision the distinct default API/worker Secrets and
+verify CNI enforcement. Disruption budgets coordinate voluntary eviction but
+do not remove the single-writer maintenance outage.
 Provision the separate migration Secret and stop existing daemons before an
 upgrade, following [the Kubernetes procedure](../kubernetes.md#install-or-upgrade).
 Use `.production.env.example` as the environment-variable checklist when
@@ -61,6 +68,7 @@ system.
 
 ```sh
 helm upgrade --install evydence ./deploy/helm/evydence \
+  --values /srv/evydence/network-values.yaml \
   --set image.repository=ghcr.io/aatuh/evydence \
   --set-string image.digest='sha256:<verified-digest>' \
   --set migration.target='<reviewed-release-migration-version>' \
@@ -80,8 +88,8 @@ Expected result:
 - Helm renders both API and worker deployments.
 - The API deployment uses one writer replica.
 - Worker replicas can be scaled to match parser/signing/report load.
-- Pods read sensitive values from `existingSecret`, not literal values in the
-  chart.
+- Pods read sensitive values from distinct selected Secret references; no
+  credential values are stored in the chart.
 - Startup fails closed if production mode uses unsafe defaults.
 
 ## Ingress, TLS, And Upload Limits

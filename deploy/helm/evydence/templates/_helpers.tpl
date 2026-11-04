@@ -72,6 +72,21 @@ EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS: {{ .Values.worker.shutdownTimeoutSecon
 {{- default .fallback .process.existingSecret -}}
 {{- end -}}
 
+{{/* Compare references only; chart templates never inspect credential bytes. */}}
+{{- define "evydence.validateSecretSeparation" -}}
+{{- if .Values.env.production -}}
+{{- $api := include "evydence.runtimeSecret" (dict "process" .Values.api "fallback" .Values.existingSecret) -}}
+{{- $worker := include "evydence.runtimeSecret" (dict "process" .Values.worker "fallback" .Values.existingSecret) -}}
+{{- $migrate := .Values.migration.existingSecret -}}
+{{- if or (eq $api $worker) (eq $api $migrate) (eq $worker $migrate) -}}
+{{- fail "production requires distinct API, worker and migration Secret references" -}}
+{{- end -}}
+{{- if or (and .Values.api.environmentSecret (or (eq .Values.api.environmentSecret $worker) (eq .Values.api.environmentSecret $migrate))) (and .Values.worker.environmentSecret (or (eq .Values.worker.environmentSecret $api) (eq .Values.worker.environmentSecret $migrate))) (and .Values.api.environmentSecret (eq .Values.api.environmentSecret .Values.worker.environmentSecret)) -}}
+{{- fail "production environmentSecret must not import another process's Secret authority" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{/* Schema-supported file options only; no secret values enter templates. */}}
 {{- define "evydence.secretFiles" -}}
 {{- $files := dict "EVYDENCE_DATABASE_URL_FILE" .root.Values.env.databaseURLSecretKey -}}

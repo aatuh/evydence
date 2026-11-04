@@ -40,6 +40,9 @@ the chart does not automatically detect updates to that external object.
 - Helm; the repository's render checks use the pinned CI tool described in
   [Release validation](reference/release-validation.md#build-toolchain).
 - A pre-created object-store bucket.
+- A NetworkPolicy-enforcing CNI and reviewed network allowlists. The chart
+  defaults to no application ingress/egress; configure peers as described
+  below before installing, including the migration database connection.
 - Runtime Secrets containing database and object-store credentials for each
   daemon, plus the API pepper and its selected signing configuration.
 - A signing setup compatible with `EVYDENCE_SIGNING_KEY_MODE=external`,
@@ -54,9 +57,14 @@ see the [database role procedure](how-to/database-roles.md). This option does
 not create roles or transfer ownership. Keep daemon credentials separate from
 the schema-owning migration Secret.
 Its default `secretSource: env` loads additional runtime variables, such as S3
-credentials and API signing gateway settings, from the selected Secret. Set `api.existingSecret` and
-`worker.existingSecret` to separate Secrets when identities differ; each falls
-back to `existingSecret`. The API requires its database and pepper keys; the
+credentials and API signing gateway settings, from the selected Secret.
+`api.existingSecret` defaults to `evydence-api` and `worker.existingSecret` to
+`evydence-worker`. The migration default is `evydence-migrations`. Production
+rejects shared references and `environmentSecret` references that import
+another process's credentials. An explicitly empty daemon reference uses the
+legacy `existingSecret` fallback, still subject to those production guards.
+Distinct Secret names do not prove distinct credential bytes or provider grants;
+the operator must provision least-privilege contents. The API requires its database and pepper keys; the
 worker requires a database key and does not consume the API pepper. Grant only
 the permissions each daemon needs, including separately scoped object-store
 credentials. A worker does not need the API's cloud signing credentials. Chart ConfigMap
@@ -116,15 +124,77 @@ the stop/drain upgrade procedure below so old pods are replaced with the new
 labels and identity. Offline render/native-input checks do not verify live
 cluster admission, filesystem permissions, provider identity or CNI behavior.
 
+## Network And Disruption Policy
+
+`networkPolicy.enabled=true` creates release/component policies for API, worker
+and migration pods with both ingress and egress isolation. API ingress is empty
+until `networkPolicy.apiIngressFrom` lists reviewed peers; allowed peers can
+reach TCP 8080. Worker and migration ingress remains empty. Egress initially
+allows only UDP/TCP 53 to pods labeled `k8s-app=kube-dns` in `kube-system`.
+Adapt `networkPolicy.dnsPeers` for the actual resolver, especially node-local
+DNS. Set it to `[]` to remove that allowance.
+
+Create an operator-managed network values file from
+[`deploy/helm/reference-network-values.yaml`](../deploy/helm/reference-network-values.yaml).
+Replace its documentation-only IPs, labels, namespaces and ports. Put database
+access in all three egress lists, storage access in API/worker, and signing or
+other provider access only in the processes that use it. Add configured
+telemetry, identity/token exchange and provider gateway destinations as needed.
+Each egress rule requires nonempty `to` and numeric `ports`; protocol defaults
+to TCP when omitted. Peers support namespace/pod label selectors or `ipBlock`.
+Empty selectors intentionally select all matching namespace/pod members;
+review them carefully. Kubernetes admission owns CIDR and label syntax checks.
+NetworkPolicy does not provide FQDN or TLS authorization: for dynamic cloud
+endpoints use operator-controlled egress infrastructure and explicit allowlists.
+
+The migration policy is a retained `pre-install,pre-upgrade` hook with weight
+`-20`, before the account (`-10`) and Job (`-5`). This orders resource creation;
+it does not prove the CNI has applied the policy before execution. The hook
+policy survives completion/uninstall and is replaced before the next hook run.
+After uninstalling, or disabling policy on an existing release, remove its
+retained migration NetworkPolicy only after confirming migration Jobs/pods have
+stopped. For the default release name, it is `evydence-evydence-migrate`.
+Daemon policies are ordinary Helm resources and the API retains its prior
+policy name for upgrades.
+
+Verify allowed and denied paths in the target cluster, including DNS, database,
+storage, signing and diagnostics, before opening traffic. NetworkPolicies are
+additive; other matching policies may allow more traffic. A non-enforcing CNI,
+node/host traffic and policy propagation limits prevent treating these manifests
+as a complete firewall. See Kubernetes
+[NetworkPolicy behavior](https://kubernetes.io/docs/concepts/services-networking/network-policies/).
+`networkPolicy.enabled=false` omits chart policies when equivalent external
+controls are selected; record and verify those controls separately.
+
+Both daemons default to a release-scoped `policy/v1` PodDisruptionBudget. API
+`minAvailable=1` blocks voluntary eviction of the single writer, so coordinate
+node drain with an explicit maintenance window. Worker `maxUnavailable=1`
+permits one worker eviction, including the only worker at the default scale.
+Budget selectors match each release's component pods. A budget does not provide
+HA, protect against node failure, or prevent explicit scaling/deletion and
+Deployment rollouts. The documented scale-to-zero migration upgrade remains a
+planned outage. Each budget can be omitted through
+`api.disruptionBudget.enabled=false` or `worker.disruptionBudget.enabled=false`.
+See Kubernetes [disruption budgets](https://kubernetes.io/docs/tasks/run-application/configure-pdb/).
+
 ## Create Secrets
 
 ```sh
-kubectl create secret generic evydence-secrets \
-  --from-literal=EVYDENCE_DATABASE_URL='postgres://user:password@postgres.example.com:5432/evydence?sslmode=require' \
-  --from-literal=EVYDENCE_API_KEY_PEPPER='replace-with-long-random-value'
+kubectl create secret generic evydence-api \
+  --from-file=EVYDENCE_DATABASE_URL=/secure/api-database-url \
+  --from-file=EVYDENCE_API_KEY_PEPPER=/secure/api-pepper \
+  --from-file=EVYDENCE_S3_ACCESS_KEY_ID=/secure/api-s3-access-key-id \
+  --from-file=EVYDENCE_S3_SECRET_ACCESS_KEY=/secure/api-s3-secret-access-key
+kubectl create secret generic evydence-worker \
+  --from-file=EVYDENCE_DATABASE_URL=/secure/worker-database-url \
+  --from-file=EVYDENCE_S3_ACCESS_KEY_ID=/secure/worker-s3-access-key-id \
+  --from-file=EVYDENCE_S3_SECRET_ACCESS_KEY=/secure/worker-s3-secret-access-key
 ```
 
-Store real values in your secret manager or sealed-secret process. Do not commit rendered secrets.
+These paths refer to operator-managed private files. Add the API's selected
+signing configuration through its own Secret. Provision the database-only
+migration Secret as described below. Store real values in your secret manager
+or sealed-secret process. Do not commit rendered secrets.
 
 ## Project Private Credential Files
 
@@ -208,7 +278,8 @@ exercise the manifests; they do not prove a live cluster's permissions or rollou
 Provision a separate `evydence-migrations` Secret containing only
 `EVYDENCE_DATABASE_URL` for the migration identity. Grant database migration
 permissions through your deployment's database policy; the chart creates no
-database roles or grants. Choose `migration.target` from the authenticated
+database roles. With `migration.runtimeRole` selected, its migration command
+applies the documented runtime grants under the coordinator. Choose `migration.target` from the authenticated
 release catalog and use the same verified image for the job and both daemons.
 
 For upgrades, stop API and worker Deployments and wait for their pods to finish
@@ -220,6 +291,7 @@ a Helm timeout covering the migration budget plus pod startup.
 
 ```sh
 helm upgrade --install evydence ./deploy/helm/evydence \
+  --values /srv/evydence/network-values.yaml \
   --set image.repository=ghcr.io/aatuh/evydence \
   --set-string image.digest='sha256:<verified-image-digest>' \
   --set migration.target='<reviewed-release-migration-version>' \
@@ -259,8 +331,9 @@ Relevant chart values are defined in `deploy/helm/evydence/values.yaml`:
 | `api.resources`, `worker.resources` | Resource requests and limits. |
 | `podSecurityContext`, `containerSecurityContext` | Numeric non-root identities, seccomp, read-only roots and least-privilege defaults; production validates the declared guards. |
 | `worker.probes.*` | Enable/override startup, readiness and liveness exec commands. Defaults query the running worker with their distinct modes. |
-| `networkPolicy.enabled` | Optional starter NetworkPolicy for API ingress. |
-| `existingSecret`, `api.existingSecret`, `worker.existingSecret` | Shared runtime Secret and optional daemon-specific overrides. Default mode loads environment variables; file mode projects selected credentials. Prefer separate scoped credentials. |
+| `networkPolicy.*` | Enabled ingress/egress isolation with explicit API peers, DNS peers and per-process egress lists; requires reviewed operator inputs and CNI enforcement. |
+| `api.disruptionBudget.enabled`, `worker.disruptionBudget.enabled` | Default true; API retains one available pod, worker allows one unavailable. Does not provide HA or replace the planned migration outage. |
+| `existingSecret`, `api.existingSecret`, `worker.existingSecret` | Distinct default runtime Secrets; explicit empty values use the legacy fallback subject to production separation guards. Default mode loads environment variables; file mode projects selected credentials. |
 | `api.secretSource`, `worker.secretSource` | Default `env` or opt-in `files` with private role-scoped projections. |
 | `api.environmentSecret`, `worker.environmentSecret` | Optional additional runtime environment Secret, before the chart ConfigMap. In file mode it must differ from the projected Secret. |
 | `api.secretFiles`, `worker.secretFiles` | Additional supported file-option names mapped to keys in the selected credential Secret. Database/API-pepper keys retain the existing selectors below. |
