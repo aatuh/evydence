@@ -1,16 +1,44 @@
 image:
   repository: ghcr.io/aatuh/evydence
-  # Release installs must set an explicit immutable tag or digest-style tag.
-  # Local demos may override this with a local development tag.
+  # Production requires a digest, here or in tag@sha256 form. A local tag is
+  # accepted only when env.production=false; it does not pin image contents.
   tag: ""
+  digest: ""
   pullPolicy: IfNotPresent
+  pullSecrets: []
+
+# Disk-backed disposable scratch; payloads remain in the configured object store.
+scratchSizeMi: 128
 
 # Shared resource cleanup budget after request/job drain.
 cleanupTimeoutSeconds: 5
 
+# Stop API and worker pods before an upgrade. The pre-upgrade hook cannot
+# migrate while a runtime retains its shared schema lease.
+migration:
+  # Explicitly choose the target from the authenticated image's release catalog.
+  target: ""
+  timeoutSeconds: 120
+  allowLegacyHistory: false
+  # Optional existing dedicated runtime login. Requires a schema-owning migrator;
+  # grants and operation audit commit before the hook releases its schema lock.
+  runtimeRole: ""
+  # Separate operator-provisioned database credential; no API/provider envFrom.
+  existingSecret: evydence-migrations
+  secretSource: env
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      memory: 512Mi
+
 api:
-  # Optional daemon-specific runtime Secret; otherwise use existingSecret.
-  existingSecret: ""
+  serviceAccountAnnotations: {}
+  # Distinct pre-provisioned credentials; production rejects shared references.
+  existingSecret: evydence-api
+  disruptionBudget:
+    enabled: true
   # env preserves inline Secret variables; files projects private credentials.
   # files requires an explicit positive podSecurityContext.fsGroup.
   secretSource: env
@@ -50,11 +78,16 @@ api:
     requests:
       cpu: 100m
       memory: 128Mi
+      ephemeral-storage: 128Mi
     limits:
       memory: 512Mi
+      ephemeral-storage: 512Mi
 
 worker:
-  existingSecret: ""
+  serviceAccountAnnotations: {}
+  existingSecret: evydence-worker
+  disruptionBudget:
+    enabled: true
   secretSource: env
   environmentSecret: ""
   secretFiles:
@@ -70,8 +103,10 @@ worker:
     requests:
       cpu: 100m
       memory: 128Mi
+      ephemeral-storage: 128Mi
     limits:
       memory: 512Mi
+      ephemeral-storage: 512Mi
   probes:
     enabled: true
     startupCommand:
@@ -97,6 +132,8 @@ env:
   s3UseSSL: "true"
   signingKeyMode: external
 
+# Legacy fallback for an explicitly empty daemon existingSecret. Production
+# still requires distinct selected API, worker and migration Secret references.
 existingSecret: evydence-secrets
 
 service:
@@ -111,15 +148,34 @@ ingress:
 
 podSecurityContext:
   runAsNonRoot: true
+  # Numeric IDs let Kubernetes enforce non-root even with a named image USER.
+  runAsUser: 10001
+  runAsGroup: 10001
   seccompProfile:
     type: RuntimeDefault
 
 containerSecurityContext:
+  privileged: false
   allowPrivilegeEscalation: false
   capabilities:
     drop:
       - ALL
-  readOnlyRootFilesystem: false
+  readOnlyRootFilesystem: true
 
 networkPolicy:
-  enabled: false
+  enabled: true
+  # Empty allowlists deny application traffic until the operator supplies peers.
+  apiIngressFrom: []
+  # Adapt for the cluster's DNS pods or node-local resolver before installation.
+  dnsPeers:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+  # Rules require both nonempty to and ports. Include database/storage for each
+  # daemon, API signing/provider access, and any configured telemetry gateways.
+  apiEgress: []
+  workerEgress: []
+  migrationEgress: []

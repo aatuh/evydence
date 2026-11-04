@@ -1,0 +1,24 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-operator-recovery-runbooks",
+  "category": "changed",
+  "summary": "Make reference deployment drain, replay and recovery procedures explicit",
+  "details": [
+    "Document bounded private operator receipts and authorized single-job replay with explicit idempotency keys and durable outcome review.",
+    "Specify Compose and Helm stop/drain-before-migrate commands, prior-pod owner review, retained Job/audit inspection and planned single-writer outage boundaries.",
+    "Connect paired backup/object recovery to tenant-scoped checkpoints, role/operation-history restoration, current worker reconciliation binaries and post-recovery telemetry.",
+    "Replace obsolete long-lived release-signing-key advice with the current protected-workflow trust procedure, and explain restart-based infrastructure credential rotation.",
+    "Extend capacity failure guidance for active schema leases, interrupted managed migrations, restrictive network peers, private-file permissions, disruption budgets and whole-page dead-letter conflicts."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Documentation only. Commands require the target authenticated release, private configured credentials, reviewed resource names and the existing operator-owned deployment and recovery controls. No live deployment, credential rotation, provider settings or evidence records are changed."
+  },
+  "security": "Keep credentials outside command arguments and receipts private. Preserve migration coordination, append-only audit, lease fencing, replay idempotency and paired-generation recovery. Neither liveness, replay acceptance, backlog counts nor Secret names establish business integrity or provider authority.",
+  "limitations": [
+    "Local source, shell syntax and project checks do not replace an operator rehearsal on the target cluster, object-store snapshot mechanism, KMS/provider or backup scheduler.",
+    "EVY-1206 completion remains subject to required migration/deployment/restore/production and final gates with recorded evidence; this fragment alone is not completion evidence."
+  ]
+}

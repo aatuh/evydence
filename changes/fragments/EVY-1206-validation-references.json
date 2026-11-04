@@ -1,0 +1,24 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-validation-references",
+  "category": "fixed",
+  "summary": "Align deployment observations and the operator API reference",
+  "details": [
+    "Regenerate the source-bound linux/amd64 image inventory with qualified Syft 1.54.1 and verified existing local fixture image IDs after Dockerfile, production Compose and Helm values changes.",
+    "Retain all nine image declarations, seven scanned images and two operator-selected gaps. Fresh scans preserve the same image IDs, manifests, package coordinates and license observations while binding the current deployment source bytes.",
+    "Refresh the dependent source-bound maintenance report from current package/repository metadata and the updated image inventory, preserving all 2,889 component and nine image identities and explicit unknown-source gaps.",
+    "List the existing instance-admin dead-letter endpoint in the API reference and link to the canonical worker outbox contract for CLI, drain and pagination behavior."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Generated image/maintenance observations, API reference and changelog metadata only; runtime behavior, selected dependency versions, image selections and dependency-admission rules are unchanged."
+  },
+  "security": "Preserve manifest/config/scanner correspondence, qualified scanner identity, bounded package projection and explicit operator-selected coverage gaps. Source-binding checks still reject stale records; maintenance age/activity observations remain review signals with health certification explicitly false.",
+  "limitations": [
+    "These declared linux/amd64 image observations remain partial and are not complete application artifact SBOMs or vulnerability-admission results.",
+    "Operator-selected runtime images require their own evidence. Full production qualification remains required before EVY-1206 is complete.",
+    "Public metadata, age and activity signals do not establish dependency maintenance health or replace trusted dependency admission."
+  ]
+}

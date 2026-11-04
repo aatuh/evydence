@@ -20,6 +20,13 @@ immutable build identity. Unsupported metadata formats are reported as
 `unknown`; a development binary may also legitimately have unknown fields.
 Level filtering applies to lifecycle records too.
 
+The migration command emits fixed error events
+`migration_legacy_history_required` when a verified plan needs explicit legacy
+acknowledgement, and `migration_checksum_mismatch` when a stored execution
+checksum differs from the input SQL. Both use `result_code=failed` and error
+level without SQL, version names, paths, credentials or database-principal
+values. See the [upgrade runbook](../runbooks/upgrade.md) for the operator steps.
+
 The operational schema also includes `request_id`, `tenant_id`, `resource_id`,
 `job_id`, `receipt_id`, `operation_id`, `duration_ms`, numeric HTTP `status`,
 `attempt`, `result_code`, and `retry_class`. Missing identifiers are empty;

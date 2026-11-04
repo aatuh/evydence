@@ -19,6 +19,13 @@ The narrow supported topology is:
 - paired database and object-store backups with restore rehearsal evidence;
 - authenticated metrics, admin, audit, and package-access surfaces.
 
+The [database role procedure](../how-to/database-roles.md) provides a tested,
+schema-scoped migration/runtime permission profile. Managed migrations validate
+authority, record operation events and commit runtime grants under their schema
+lock. It requires separately provisioned dedicated identities and ownership;
+existing-schema adoption remains in EVY-1206. Do not infer deployed role separation from the chart's
+separate Secret reference alone.
+
 Use the [pilot deployment checklist](../how-to/pilot-deployment-checklist.md)
 for the copy-paste go/no-go record and the
 [external controls matrix](external-controls-matrix.md) to assign operator,
@@ -42,8 +49,18 @@ worker-scaling stance, recovery boundaries, and multi-writer prerequisites.
 ## Helm Values
 
 For Kubernetes, start from `deploy/helm/evydence/values.yaml` and set an
-explicit image tag or digest. The chart intentionally defaults
+authenticated image digest, using `image.digest` or a digest-qualified tag.
+Production rendering rejects mutable tag-only references. The chart intentionally defaults
 `api.replicas` to `1` and `api.writerMode` to `single`.
+Prepare `/srv/evydence/network-values.yaml` using the
+[network and disruption procedure](../kubernetes.md#network-and-disruption-policy).
+The chart enables per-process ingress/egress isolation; empty application
+allowlists intentionally prevent database/storage/signing access until reviewed
+peers are supplied. Provision the distinct default API/worker Secrets and
+verify CNI enforcement. Disruption budgets coordinate voluntary eviction but
+do not remove the single-writer maintenance outage.
+Provision the separate migration Secret and stop existing daemons before an
+upgrade, following [the Kubernetes procedure](../kubernetes.md#install-or-upgrade).
 Use `.production.env.example` as the environment-variable checklist when
 translating settings into Kubernetes Secrets or another secret manager; keep
 the empty secret fields empty in git and fill them only in the deployment
@@ -51,8 +68,10 @@ system.
 
 ```sh
 helm upgrade --install evydence ./deploy/helm/evydence \
+  --values /srv/evydence/network-values.yaml \
   --set image.repository=ghcr.io/aatuh/evydence \
-  --set image.tag='<verified-tag>@sha256:<verified-digest>' \
+  --set-string image.digest='sha256:<verified-digest>' \
+  --set migration.target='<reviewed-release-migration-version>' \
   --set api.replicas=1 \
   --set api.writerMode=single \
   --set worker.replicas=2 \
@@ -69,8 +88,8 @@ Expected result:
 - Helm renders both API and worker deployments.
 - The API deployment uses one writer replica.
 - Worker replicas can be scaled to match parser/signing/report load.
-- Pods read sensitive values from `existingSecret`, not literal values in the
-  chart.
+- Pods read sensitive values from distinct selected Secret references; no
+  credential values are stored in the chart.
 - Startup fails closed if production mode uses unsafe defaults.
 
 ## Ingress, TLS, And Upload Limits

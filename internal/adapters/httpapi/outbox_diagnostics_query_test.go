@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
+	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/application"
 	identitydomain "github.com/aatuh/evydence/internal/identity/domain"
 	operationsquery "github.com/aatuh/evydence/internal/operations/query"
@@ -17,6 +18,11 @@ import (
 type outboxDiagnosticsQueryFake struct {
 	reads int
 	err   error
+}
+
+func (f *outboxDiagnosticsQueryFake) DeadLettersPage(context.Context, identitydomain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[operationsquery.OutboxDeadLetter], error) {
+	f.reads++
+	return appquery.Result[operationsquery.OutboxDeadLetter]{Items: []operationsquery.OutboxDeadLetter{}}, f.err
 }
 
 func (f *outboxDiagnosticsQueryFake) Diagnostics(context.Context, identitydomain.Actor) (operationsquery.OutboxCounts, error) {

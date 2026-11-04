@@ -11,6 +11,8 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"github.com/aatuh/evydence/internal/adapters/postgres"
 )
 
 func TestWorkerProbePostgresRuntimeRecoversFromObjectOutageAndStops(t *testing.T) {
@@ -66,6 +68,20 @@ func workerProbePostgresRuntime(t *testing.T, metricsEnabled bool) {
 			t.Error(err)
 		}
 	}()
+	// Match the production deployment: finish the separate migration operation
+	// before starting a daemon which may only check the prepared schema.
+	databaseURL := postgresURLWithSearchPath(t, base, schema)
+	migrator, err := postgres.OpenWithOptions(t.Context(), databaseURL, postgres.StoreOptions{
+		LoadMode: postgres.LoadModeRelationalOnly, DisableSnapshotWrites: true,
+	})
+	if err != nil {
+		t.Fatal("open separate worker fixture migrator")
+	}
+	applied, migrationErr := migrator.ApplyMigrations(t.Context(), "../../migrations")
+	migrator.Close()
+	if migrationErr != nil || applied == 0 {
+		t.Fatal("prepare separate worker migration prerequisite", migrationErr)
+	}
 	reserved, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -88,8 +104,8 @@ func workerProbePostgresRuntime(t *testing.T, metricsEnabled bool) {
 		metricsFile = workerMetricsTokenFixture(t)
 	}
 	for name, value := range map[string]string{
-		"ENV": "production", "EVYDENCE_RUNTIME_PROFILE": "postgres", "EVYDENCE_DATABASE_URL": postgresURLWithSearchPath(t, base, schema),
-		"EVYDENCE_MIGRATIONS_DIR": "../../migrations", "EVYDENCE_SKIP_MIGRATIONS": "false", "EVYDENCE_POSTGRES_LOAD_MODE": "relational_only",
+		"ENV": "production", "EVYDENCE_RUNTIME_PROFILE": "postgres", "EVYDENCE_DATABASE_URL": databaseURL,
+		"EVYDENCE_MIGRATIONS_DIR": "../../migrations", "EVYDENCE_SKIP_MIGRATIONS": "true", "EVYDENCE_POSTGRES_LOAD_MODE": "relational_only",
 		"EVYDENCE_OBJECT_STORE": "filesystem", "EVYDENCE_OBJECT_DIR": objects, "EVYDENCE_WORKER_HEALTH_ADDR": address,
 		"EVYDENCE_CONFIGURATION_REVISION": "", "EVYDENCE_CONFIGURATION_REVISION_FILE": "",
 		"EVYDENCE_WORKER_POLL_INTERVAL": "10ms", "EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS": "1", "EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS": "2",
@@ -191,5 +207,12 @@ func workerProbePostgresRuntime(t *testing.T, metricsEnabled bool) {
 		if _, err := workerMetricsRequest(t, metricsClient, metricsAddress); err == nil {
 			t.Fatal("worker metrics listener survived runtime shutdown")
 		}
+	}
+	var versions, checksums, principals int
+	if err := admin.QueryRow(t.Context(), "SELECT count(*), count(checksum_sha256), count(applied_by) FROM "+quoted+".schema_migrations").Scan(&versions, &checksums, &principals); err != nil {
+		t.Fatal("read worker fixture migration execution metadata")
+	}
+	if versions != applied || checksums != applied || principals != applied {
+		t.Fatal("worker startup changed prepared migration record counts")
 	}
 }

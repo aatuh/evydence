@@ -71,6 +71,58 @@ explicit `instance:admin` scope cannot use this operation. `GET /v1/admin/outbox
 returns aggregate pending, running, terminal, and oldest-pending metrics without
 tenant IDs, job payloads, or raw failure details.
 
+## Operator CLI
+
+Use the existing instance-admin API through the online CLI. Configure the
+endpoint and an operator-managed private credential file, following the
+[configuration reference](configuration.md#private-secret-files):
+
+```sh
+export EVYDENCE_API_URL=https://evydence.example.com
+export EVYDENCE_API_KEY_FILE=/run/evydence/instance-admin-key
+evydence outbox backlog
+evydence outbox dead-letters --page-size 50
+evydence outbox replay --job-id job_example --idempotency-key replay-operation-001
+```
+
+`backlog` returns pending, running and terminal counts plus the oldest pending
+creation time. `replay` requests one known terminal job and returns its job ID,
+queued status and replay time. `dead-letters` lists job IDs, kinds, attempt
+counts, safe failure classes/codes and timestamps, with continuation metadata.
+Commands print a JSON `data` envelope containing only the selected fields.
+The server requires explicit `instance:admin` authority;
+the CLI grants no additional privileges. Replay uses the existing atomic audit
+and idempotency transaction.
+
+Choose a new explicit operation key for each intended replay and reuse it when
+retrying an uncertain request. Keys contain 1–128 printable non-space ASCII
+bytes. The CLI does not retry automatically; each request has a 30-second
+budget. It rejects redirects, duplicate flags, missing replay inputs and
+ambiguous path components. HTTP failures return the status without echoing
+server diagnostic details. `--help` works without resolving credentials.
+
+Dead-letter inspection uses `GET /v1/admin/outbox/dead-letters`. Its default
+page size is 50 with a maximum of 500, ordered by ID in byte order. Pass
+`--direction desc` for reverse order and reuse `meta.next_cursor` with
+`--cursor TOKEN` and the same direction. The server binds the cursor to the
+requesting tenant, resource and order; authorization is checked on every page.
+The view changes as jobs are replayed or newly fail. Continuation does not need
+the prior job to remain in the dead-letter set and does not freeze the queue.
+Responses use `Cache-Control: no-store`. Invalid or oversized stored metadata
+rejects the whole page with 409 rather than returning raw errors or partial
+results. This includes continuation metadata that cannot fit the shared 4 KiB
+encoded cursor limit. Apply the target release's migrations before serving the new route;
+`20261104000200_outbox_dead_letter_lookup` adds its partial ID index without
+changing job rows.
+
+Drain workers through their deployment's normal `SIGTERM` stop and grace
+budget, as described above. Backlog inspection does not initiate drain.
+These commands expose no job tenant/subject identifiers, payloads, raw errors
+or new worker-control endpoint. Job replay retains its existing audit and
+idempotency behavior; listing adds no queue mutation.
+
+## Supported Job Kinds
+
 Configured job kinds:
 
 - `finalize_payload`

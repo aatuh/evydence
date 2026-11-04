@@ -11,7 +11,9 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
+	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/domain"
+	operationsquery "github.com/aatuh/evydence/internal/operations/query"
 )
 
 // Memory repositories deliberately have no terminal-job lifecycle. This
@@ -20,6 +22,7 @@ import (
 // natively; SQL queue mutation/audit atomicity remains live-gate evidence.
 type authorizationQueueIO struct {
 	diagnosticsCalls, replayCalls int
+	deadLetterCalls               int
 	jobID, actorID                string
 	at                            time.Time
 }
@@ -41,18 +44,28 @@ func (q *authorizationQueueIO) ReplayTerminalJob(ctx context.Context, job, actor
 	return app.OutboxReplay{JobID: job, Status: "queued", ReplayedAt: q.at}, nil
 }
 
+func (q *authorizationQueueIO) ReadOutboxDeadLettersPage(ctx context.Context, _ appquery.PageRequest, _ *appquery.SortKey) (appquery.Result[operationsquery.OutboxDeadLetter], error) {
+	if err := ctx.Err(); err != nil {
+		return appquery.Result[operationsquery.OutboxDeadLetter]{}, err
+	}
+	q.deadLetterCalls++
+	return appquery.Result[operationsquery.OutboxDeadLetter]{Items: []operationsquery.OutboxDeadLetter{{ID: "controlled-terminal-job", Kind: "parse_sbom", Status: "dead_letter", Attempts: 1, MaxAttempts: 5, FailureClass: "permanent", FailureCode: "invalid_document", CreatedAt: q.at, TerminalAt: q.at}}}, nil
+}
+
 func addNativeOperatorAuthorizationCases(cases map[string]func(*testing.T)) {
 	for _, tc := range []struct {
 		operation, path, method string
 		replay                  bool
+		inspect                 bool
 	}{
-		{"outboxOperatorDiagnostics", "/v1/admin/outbox", http.MethodGet, false},
-		{"replayTerminalOutboxJob", "/v1/admin/outbox/controlled-terminal-job/replay", http.MethodPost, true},
+		{"outboxOperatorDiagnostics", "/v1/admin/outbox", http.MethodGet, false, false},
+		{"replayTerminalOutboxJob", "/v1/admin/outbox/controlled-terminal-job/replay", http.MethodPost, true, false},
+		{"listOutboxDeadLetters", "/v1/admin/outbox/dead-letters", http.MethodGet, false, true},
 	} {
 		cases[tc.operation] = func(t *testing.T) {
 			f := newNativeAuthorizationFixture(t)
 			queue := &authorizationQueueIO{at: f.owner.release.CreatedAt}
-			f.server.bindOperatorFixtureResources(operatorFixtureResources{operator: queue, now: func() time.Time { return queue.at }})
+			f.server.bindOperatorFixtureResources(operatorFixtureResources{operator: queue, deadLetters: queue, now: func() time.Time { return queue.at }})
 			before, err := f.factory.Snapshot()
 			if err != nil {
 				t.Fatal(err)
@@ -68,7 +81,7 @@ func addNativeOperatorAuthorizationCases(cases map[string]func(*testing.T)) {
 					t.Fatal("tenant admin acquired global queue metadata")
 				}
 				after, err := f.factory.Snapshot()
-				if err != nil || !reflect.DeepEqual(before, after) || queue.diagnosticsCalls != 0 || queue.replayCalls != 0 {
+				if err != nil || !reflect.DeepEqual(before, after) || queue.diagnosticsCalls != 0 || queue.replayCalls != 0 || queue.deadLetterCalls != 0 {
 					t.Fatal("denied operator request accessed queue I/O or changed receipts", err)
 				}
 			}
@@ -118,6 +131,15 @@ func addNativeOperatorAuthorizationCases(cases map[string]func(*testing.T)) {
 				latest, err := f.factory.Snapshot()
 				if err != nil || !reflect.DeepEqual(saved, latest) || queue.replayCalls != 1 {
 					t.Fatal("revoked instance capability retrieved a completed replay", err)
+				}
+			} else if tc.inspect {
+				var result []operationsquery.OutboxDeadLetter
+				if err := json.Unmarshal(envelope.Data, &result); err != nil || len(result) != 1 || result[0].ID != "controlled-terminal-job" || queue.deadLetterCalls != 1 || queue.diagnosticsCalls != 0 || queue.replayCalls != 0 || !reflect.DeepEqual(before, after) {
+					t.Fatal("native dead-letter inspection bypassed policy, lost metadata or mutated state", err)
+				}
+				f.request(t, tc.operation, tc.method, tc.path, f.owner.actor, body, 403)
+				if queue.deadLetterCalls != 1 {
+					t.Fatal("revoked instance authority reached dead-letter reads")
 				}
 			} else {
 				var result app.OutboxDiagnostics

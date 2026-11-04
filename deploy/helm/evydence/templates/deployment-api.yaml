@@ -1,4 +1,4 @@
-{{- $imageTag := required "image.tag is required for Evydence release installs" .Values.image.tag -}}
+{{- $image := include "evydence.image" . -}}
 {{- $fileSource := eq .Values.api.secretSource "files" -}}
 {{- $files := include "evydence.secretFiles" (dict "root" . "process" .Values.api "name" "api") | fromYaml -}}
 {{- if $fileSource -}}
@@ -23,12 +23,22 @@ spec:
         checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
       labels:
         app.kubernetes.io/name: {{ include "evydence.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
         app.kubernetes.io/component: api
     spec:
+      serviceAccountName: {{ include "evydence.runtimeServiceAccountName" (dict "root" . "component" "api") }}
+      automountServiceAccountToken: false
+      {{- with .Values.image.pullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       terminationGracePeriodSeconds: {{ include "evydence.terminationGrace" (dict "name" "api" "process" .Values.api "cleanup" .Values.cleanupTimeoutSeconds) }}
       securityContext:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       volumes:
+        - name: scratch
+          emptyDir:
+            sizeLimit: {{ printf "%dMi" (int .Values.scratchSizeMi) | quote }}
         - name: configuration-revision
           configMap:
             name: {{ include "evydence.fullname" . }}-config
@@ -48,7 +58,7 @@ spec:
         {{- end }}
       containers:
         - name: api
-          image: "{{ .Values.image.repository }}:{{ $imageTag }}"
+          image: {{ $image | quote }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
             {{- toYaml .Values.containerSecurityContext | nindent 12 }}
@@ -68,6 +78,8 @@ spec:
             - configMapRef:
                 name: {{ include "evydence.fullname" . }}-config
           env:
+            - name: TMPDIR
+              value: /tmp
             - name: EVYDENCE_CONFIGURATION_REVISION_FILE
               value: /etc/evydence/config-revision/revision
             {{- if $fileSource }}
@@ -88,6 +100,8 @@ spec:
                   key: {{ .Values.env.apiKeyPepperSecretKey }}
             {{- end }}
           volumeMounts:
+            - name: scratch
+              mountPath: /tmp
             - name: configuration-revision
               mountPath: /etc/evydence/config-revision
               readOnly: true

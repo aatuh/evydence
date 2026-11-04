@@ -1,0 +1,22 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-migration-runner-lock",
+  "category": "fixed",
+  "summary": "Serialize migration execution across PostgreSQL sessions",
+  "details": [
+    "Hold one schema-scoped session advisory lock across the migration run, using the same pooled connection for tracking, version checks and each migration transaction.",
+    "Preserve cancellation and failed-transaction rollback while releasing owned work; discard physical connections after uncertain acquisition, transaction state or unlock results.",
+    "Return cleanup uncertainty as an error, including when a migration version already committed, and document cooperative-runner and per-file transaction limits."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Recorded versions and SQL files are unchanged. Updated runners on the same schema serialize; older programs do not participate. Earlier completed versions survive later failures. Cleanup failure may return an error after a version commits, so retain the migration outcome and retry only the same reviewed artifacts."
+  },
+  "security": "One owned database session carries the advisory lock and migration transactions. Cancellation cannot return an uncertain session-scoped lock to the pool, and rollback/unlock cleanup has independent bounded contexts.",
+  "limitations": [
+    "This does not make an entire multi-file migration run atomic or authenticate migration inputs; immutable snapshots, explicit targets, checksums and legacy-row treatment remain in EVY-1206.",
+    "Read-only startup checks, the dedicated release migration job, audited worker operations and deployment/runbook qualification remain incomplete."
+  ]
+}

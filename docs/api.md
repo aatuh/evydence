@@ -1950,9 +1950,10 @@ Source/test evidence: `internal/evidence/app/contract_diff_commands.go`,
 | Method | Path | Notes |
 |--------|------|-------|
 | `GET` | `/v1/admin/outbox` | Payload-free outbox backlog and terminal-job diagnostics; requires explicit `instance:admin`. |
+| `GET` | `/v1/admin/outbox/dead-letters` | Bounded pages of terminal-job metadata; requires explicit `instance:admin`. |
 | `POST` | `/v1/admin/outbox/{id}/replay` | Replay one terminal outbox job with `Idempotency-Key`; requires explicit `instance:admin` and appends an audit record. |
 
-Both handlers require focused Operations ports. Replay checks current explicit
+All three handlers require focused Operations ports. Replay checks current explicit
 instance authority before returning a completed receipt; ordinary tenant admin
 or wildcard authority is insufficient. Job mutation, audit and safe idempotency
 completion share one PostgreSQL transaction. A matching retry returns the
@@ -1960,6 +1961,9 @@ original result without requeuing again; changed request bytes conflict.
 PostgreSQL is required for local evaluation. Raw job payloads and failure
 details are omitted. Test-only external operator fixtures are not evidence of
 database rollback or durability.
+
+See the [worker outbox reference](reference/worker-outbox.md) for drain controls,
+CLI commands and dead-letter pagination behavior.
 
 ### CI, Source, Deployment, And Collectors
 

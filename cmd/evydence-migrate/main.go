@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -45,11 +46,28 @@ func runMigrationProcess(ctx context.Context, environment config.Environment, ou
 	})
 }
 
-func applyMigrations(parent context.Context, settings config.Configuration) error {
-	ctx, cancel := context.WithTimeout(parent, 30*time.Second)
-	defer cancel()
+func applyMigrations(parent context.Context, settings config.Configuration) (resultErr error) {
 	runtime := settings.Runtime()
+	ctx, cancel := context.WithTimeout(parent, runtime.MigrationTimeout)
+	defer cancel()
+	var plan postgres.MigrationPlan
+	var err error
+	if runtime.MigrationTarget != "" {
+		plan, err = postgres.PrepareMigrationPlan(ctx, runtime.MigrationsDir, runtime.MigrationTarget, runtime.MigrationChecksumsFile)
+		if err != nil {
+			return err
+		}
+		if runtime.MigrationAllowLegacyHistory {
+			plan = plan.WithLegacyHistory()
+		}
+		if runtime.MigrationRuntimeRole != "" {
+			plan = plan.WithRuntimeRole(runtime.MigrationRuntimeRole)
+		}
+	}
 	prepared, err := postgres.PreparePoolConfig(ctx, runtime.DatabaseURL.Reveal())
+	if err == nil {
+		err = prepared.RequirePoolCapacity(2)
+	}
 	if err != nil {
 		return err
 	}
@@ -58,8 +76,32 @@ func applyMigrations(parent context.Context, settings config.Configuration) erro
 		return err
 	}
 	defer store.Close()
-	applied, err := store.ApplyMigrations(ctx, runtime.MigrationsDir)
+	release, err := store.AcquireAPIWriterLease(ctx)
 	if err != nil {
+		return err
+	}
+	defer func() {
+		timeout := runtime.ShutdownCleanupTimeout
+		if timeout == 0 {
+			timeout = 5 * time.Second
+		}
+		cleanup, stop := context.WithTimeout(context.WithoutCancel(parent), timeout)
+		defer stop()
+		resultErr = errors.Join(resultErr, release(cleanup))
+	}()
+	var applied int
+	if plan.TargetVersion() != "" {
+		applied, err = store.ApplyMigrationPlan(ctx, plan)
+	} else {
+		applied, err = store.ApplyMigrations(ctx, runtime.MigrationsDir)
+	}
+	if err != nil {
+		switch {
+		case errors.Is(err, postgres.ErrMigrationLegacyHistory):
+			logging.Emit(ctx, logging.MigrationLegacyHistoryRequired, logging.Fields{Result: logging.Failed})
+		case errors.Is(err, postgres.ErrMigrationChecksum):
+			logging.Emit(ctx, logging.MigrationChecksumMismatch, logging.Fields{Result: logging.Failed})
+		}
 		return err
 	}
 	if _, err := fmt.Fprintf(os.Stdout, "applied %d migration(s)\n", applied); err != nil {

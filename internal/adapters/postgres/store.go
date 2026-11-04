@@ -28,6 +28,7 @@ type Store struct {
 	disableSnapshotWrites bool
 	writerLeaseMu         sync.RWMutex
 	writerLease           *pgxpool.Conn
+	runtimeMigrationLease *migrationRunnerConnection
 	migrationVersions     atomic.Pointer[migrationExpectations]
 }
 
@@ -131,7 +132,7 @@ func (s *Store) CheckMigrationState(ctx context.Context, dir string) error {
 	if s == nil || s.pool == nil {
 		return app.ErrValidation
 	}
-	if err := s.RequireNoPendingMigrations(ctx, dir); err != nil {
+	if err := s.requireNoPendingMigrations(ctx, dir, true); err != nil {
 		return fmt.Errorf("check migration readiness: %w", err)
 	}
 	return nil
@@ -144,8 +145,8 @@ func (s *Store) CheckAPIWriterLease(ctx context.Context) error {
 	if s == nil {
 		return app.ErrValidation
 	}
-	s.writerLeaseMu.RLock()
-	defer s.writerLeaseMu.RUnlock()
+	s.writerLeaseMu.Lock()
+	defer s.writerLeaseMu.Unlock()
 	lease := s.writerLease
 	if lease == nil {
 		return errors.New("api writer lease is not held")
@@ -190,7 +191,7 @@ func ValidateProductionLoadMode(mode LoadMode) error {
 }
 
 func (s *Store) AcquireAPIWriterLease(ctx context.Context) (func(context.Context) error, error) {
-	if s == nil || s.pool == nil {
+	if ctx == nil || s == nil || s.pool == nil {
 		return nil, app.ErrValidation
 	}
 	conn, err := s.pool.Acquire(ctx)
@@ -204,7 +205,9 @@ func (s *Store) AcquireAPIWriterLease(ctx context.Context) (func(context.Context
 		}
 	}()
 	var acquired bool
-	if err := conn.QueryRow(ctx, `SELECT pg_try_advisory_lock($1)`, apiWriterLeaseKey).Scan(&acquired); err != nil {
+	if err := conn.QueryRow(ctx, `SELECT pg_catalog.pg_try_advisory_lock($1)`, apiWriterLeaseKey).Scan(&acquired); err != nil {
+		releaseConn = false
+		discardMigrationConnection(ctx, conn)
 		return nil, fmt.Errorf("acquire api writer lease: %w", err)
 	}
 	if !acquired {
@@ -230,7 +233,8 @@ func (s *Store) AcquireAPIWriterLease(ctx context.Context) (func(context.Context
 				releaseErr = err
 				return
 			}
-			if _, err := conn.Exec(releaseCtx, `SELECT pg_advisory_unlock($1)`, apiWriterLeaseKey); err != nil {
+			var released bool
+			if err := conn.QueryRow(releaseCtx, `SELECT pg_catalog.pg_advisory_unlock($1)`, apiWriterLeaseKey).Scan(&released); err != nil || !released {
 				// An uncertain unlock must never put a session-scoped advisory
 				// lock back into the pool. Close that physical connection first.
 				_ = conn.Conn().Close(releaseCtx)

@@ -1,0 +1,24 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-helm-image-pod-policy",
+  "category": "changed",
+  "summary": "Pin production Helm images and restrict daemon pod identity and filesystem defaults",
+  "details": [
+    "Use one validated image selection for API, worker and migration pods. Production requires a lowercase SHA-256 digest; structured image.digest and existing tag@digest values are supported, with conflicting selections rejected.",
+    "Create separate release/component daemon ServiceAccounts, disable automatic Kubernetes API tokens on accounts and pods, add scoped provider-identity annotations and shared pre-provisioned image-pull Secret references without RBAC grants.",
+    "Default to numeric non-root UID/GID 10001 and read-only roots with existing seccomp/capability/escalation guards. Give daemons bounded disk-backed /tmp scratch and ephemeral-storage budgets; production rejects relaxed declared guards and filesystem object storage.",
+    "Scope pod labels, the API Service and the optional starter ingress policy to the Helm release while preserving immutable Deployment selectors for upgrades.",
+    "Exercise immutable image selection, private-file validation, component identities, scratch, long release names and production guard failures through rendered manifests and actual native startup input checks."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Production tag-only chart values must add a digest; existing digest-qualified tags continue to work. Tag-only development images require env.production=false. Pod identity/filesystem defaults require compatible mounted-file permissions; custom container security fields are limited to the declared chart interface. Deployment selectors remain unchanged, while the documented stop/drain upgrade replaces pods with new release labels and accounts. Existing runtime credential Secret fallback behavior is preserved."
+  },
+  "security": "The chart enforces immutable image selection, bounded scratch and declared production pod guards, with tokenless component identities and release-specific traffic selection. Digests do not establish publisher authenticity, ServiceAccounts create no provider grants, and render checks do not prove cluster admission or network enforcement.",
+  "limitations": [
+    "Runtime credential separation and the remaining network/disruption/runbook work remain in EVY-1206. The starter ingress policy is still optional; this unit does not claim complete deployment hardening.",
+    "Live container/cluster filesystem and identity rehearsals, plus required full-ticket migration/deployment/restore/production/final gates, remain pending until ticket readiness."
+  ]
+}

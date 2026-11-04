@@ -141,9 +141,9 @@
       <p>This page is generated from <code>openapi.yaml</code>. It is a human-readable companion to the committed contract and does not replace route-contract tests.</p>
       <div class="summary-grid">
         <div class="summary-card"><strong>3.1.0</strong><span>OpenAPI version</span></div>
-        <div class="summary-card"><strong>176</strong><span>registered paths</span></div>
-        <div class="summary-card"><strong>194</strong><span>operations</span></div>
-        <div class="summary-card"><strong>406</strong><span>schemas</span></div>
+        <div class="summary-card"><strong>177</strong><span>registered paths</span></div>
+        <div class="summary-card"><strong>195</strong><span>operations</span></div>
+        <div class="summary-card"><strong>408</strong><span>schemas</span></div>
       </div>
     </header>
     <main>
@@ -192,6 +192,23 @@
               <div><dt>Idempotency</dt><dd>not required</dd></div>
               <div><dt>Request</dt><dd>none</dd></div>
               <div><dt>Responses</dt><dd>200 application/json: OutboxDiagnosticsEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
+            </dl>
+          </article>
+          <article class="operation" data-operation data-search="get /v1/admin/outbox/dead-letters list outbox dead letters lists current dead-letter job metadata for an explicit instance:admin; tenant admin and wildcard tenant scopes are insufficient. returns job id, kind, status, attempts, safe failure class/code and timestamps without job tenant/subject identifiers, payloads or raw errors. id ordering uses byte order and defaults to ascending. continuation does not require the prior job to remain terminal; replay can remove it between pages. this is a current queue view, not a frozen snapshot. malformed or oversized metadata rejects the whole page with 409. cache-control is no-store. postgresql is required for local evaluation. results use bounded keyset pagination. cursor tokens are opaque and bound to the tenant, filters, sort, and direction. listoutboxdeadletters evydence instance:admin">
+            <div class="operation-heading">
+              <span class="method method-get">GET</span>
+              <code>/v1/admin/outbox/dead-letters</code>
+            </div>
+            <h3>List outbox dead letters</h3>
+            <p>Lists current dead-letter job metadata for an explicit instance:admin; tenant admin and wildcard tenant scopes are insufficient. Returns job ID, kind, status, attempts, safe failure class/code and timestamps without job tenant/subject identifiers, payloads or raw errors. ID ordering uses byte order and defaults to ascending. Continuation does not require the prior job to remain terminal; replay can remove it between pages. This is a current queue view, not a frozen snapshot. Malformed or oversized metadata rejects the whole page with 409. Cache-Control is no-store. PostgreSQL is required for local evaluation. Results use bounded keyset pagination. Cursor tokens are opaque and bound to the tenant, filters, sort, and direction.</p>
+            <dl>
+              <div><dt>Operation ID</dt><dd><code>listOutboxDeadLetters</code></dd></div>
+              <div><dt>Tags</dt><dd>evydence</dd></div>
+              <div><dt>Auth</dt><dd>BearerAuth</dd></div>
+              <div><dt>Scopes</dt><dd>instance:admin</dd></div>
+              <div><dt>Idempotency</dt><dd>not required</dd></div>
+              <div><dt>Request</dt><dd>none</dd></div>
+              <div><dt>Responses</dt><dd>200 application/json: OutboxDeadLetterListEnvelope; 400 application/problem+json: Problem; 401 application/problem+json: Problem; 403 application/problem+json: Problem; 404 application/problem+json: Problem; 409 application/problem+json: Problem; 422 application/problem+json: Problem; 429 application/problem+json: Problem; 500 application/problem+json: Problem; 503 application/problem+json: Problem</dd></div>
             </dl>
           </article>
           <article class="operation" data-operation data-search="post /v1/admin/outbox/{id}/replay replay terminal outbox job requeues one dead-letter outbox job and appends an audit record. requires the explicit instance:admin scope and an idempotency key; current instance authority is checked before completed replay. job mutation, audit, and safe replay completion share one postgresql transaction. raw payload and failure details are never returned. postgresql is required for local evaluation. replayterminaloutboxjob evydence instance:admin">
@@ -4532,6 +4549,16 @@
           </tr>
           <tr>
             <td><code>OrganizationEnvelope</code></td>
+            <td>object</td>
+            <td>data, meta</td>
+          </tr>
+          <tr>
+            <td><code>OutboxDeadLetter</code></td>
+            <td>object</td>
+            <td>id, kind, status, attempts, max_attempts, failure_class, failure_code, created_at, terminal_at</td>
+          </tr>
+          <tr>
+            <td><code>OutboxDeadLetterListEnvelope</code></td>
             <td>object</td>
             <td>data, meta</td>
           </tr>

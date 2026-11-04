@@ -1,0 +1,20 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-cursor-wire-budget",
+  "category": "fixed",
+  "summary": "Enforce the cursor wire budget before returning continuation tokens",
+  "details": [
+    "Include base64 expansion, separator and SHA-256 MAC bytes in the existing 4 KiB cursor limit, so successful encoding cannot return a token rejected by that same decoder for length.",
+    "Return the documented 409 projection conflict without partial output when dead-letter metadata cannot fit a continuation token, while preserving existing list-route error mappings and cursor format/bindings."
+  ],
+  "compatibility": {
+    "api": "changed",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Valid existing cursors keep their format, signatures and bindings. Oversized encoder state now fails before an unusable token is returned. Only the new dead-letter route maps projection-cursor failure to its already documented 409; existing list routes retain their response mapping."
+  },
+  "security": "Cursor size checks remain bounded and authenticated tenant/resource/filter/order bindings are unchanged. Projection failure returns no metadata page or raw cursor state.",
+  "limitations": [
+    "The cursor budget bounds representable continuation state; it does not promise a frozen queue view. Remaining EVY-1206 deployment/runbook work and full-ticket closure gates are pending."
+  ]
+}

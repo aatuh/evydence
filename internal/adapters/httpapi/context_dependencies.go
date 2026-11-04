@@ -302,6 +302,7 @@ type EvidenceFlowQuery interface {
 // authorized instance administrators without using Ledger state.
 type OutboxDiagnosticsQuery interface {
 	Diagnostics(context.Context, domain.Actor) (operationsquery.OutboxCounts, error)
+	DeadLettersPage(context.Context, domain.Actor, appquery.PageRequest, *appquery.SortKey) (appquery.Result[operationsquery.OutboxDeadLetter], error)
 }
 
 // BuildPointQuery authorizes a build using one tenant-verified durable parent projection.

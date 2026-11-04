@@ -24,6 +24,13 @@ func runAPIProcess(ctx context.Context, environment config.Environment, output i
 	}
 	runtime := settings.Runtime()
 	database, err := postgres.PreparePoolConfig(ctx, runtime.DatabaseURL.Reveal())
+	if err == nil {
+		minimum := int32(2)
+		if settings.Production() {
+			minimum = 3
+		}
+		err = database.RequirePoolCapacity(minimum)
+	}
 	if err != nil {
 		logging.RejectStartup(ctx, "api", runtimeinfo.Current(), output)
 		return err

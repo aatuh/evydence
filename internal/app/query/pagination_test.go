@@ -2,6 +2,7 @@ package query
 
 import (
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -9,6 +10,18 @@ import (
 type paginationRecord struct {
 	ID        string
 	CreatedAt time.Time
+}
+
+func TestCursorCodecRejectsStateWhoseEncodedTokenExceedsWireBudget(t *testing.T) {
+	codec, err := NewCursorCodec([]byte("test-cursor-signing-secret"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := strings.Repeat("i", 1024)
+	token, err := codec.Encode(Cursor{TenantID: strings.Repeat("t", 1024), Resource: "outbox-dead-letters", Filters: strings.Repeat("f", 64), Sort: SortID, Direction: Ascending, Key: SortKey{Value: id, ID: id}})
+	if !errors.Is(err, ErrInvalidCursor) || token != "" {
+		t.Fatalf("encoder returned a token its wire budget cannot support: length=%d error=%v", len(token), err)
+	}
 }
 
 func TestCursorPaginationProvidesStableContinuation(t *testing.T) {

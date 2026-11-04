@@ -2,10 +2,8 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
-	"sort"
 	"strings"
 
 	"github.com/jackc/pgx/v5"
@@ -26,54 +24,84 @@ func (s *Store) recordMigrationExpectations(names []string) {
 }
 
 func (s *Store) ApplyMigrations(ctx context.Context, dir string) (int, error) {
-	names, err := migrationNames(dir)
+	catalog, err := loadMigrationCatalog(ctx, dir)
 	if err != nil {
 		if s != nil {
 			s.migrationVersions.Store(nil)
 		}
 		return 0, err
 	}
+	return s.applyMigrationCatalog(ctx, catalog, false, true, "")
+}
+
+func (s *Store) applyMigrationCatalog(ctx context.Context, catalog []migrationScript, requirePrefix, allowLegacy bool, runtimeRole string) (applied int, resultErr error) {
+	names := make([]string, len(catalog))
+	for i, script := range catalog {
+		names[i] = script.name
+	}
 	s.recordMigrationExpectations(names)
-	if err := s.ensureSchemaMigrationsTable(ctx); err != nil {
+	runner, err := s.acquireMigrationRunner(ctx)
+	if err != nil {
 		return 0, err
 	}
-	applied := 0
-	for _, name := range names {
-		version := strings.TrimSuffix(name, ".up.sql")
-		var exists bool
-		err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`, version).Scan(&exists)
-		if err != nil {
-			return applied, fmt.Errorf("check migration %s: %w", version, err)
-		}
-		if exists {
+	execution := migrationExecution{runner: runner, runtimeRole: runtimeRole}
+	if len(catalog) > 0 {
+		execution.target = strings.TrimSuffix(catalog[len(catalog)-1].name, ".up.sql")
+	}
+	defer func() { resultErr = errors.Join(resultErr, execution.close(ctx, resultErr, applied)) }()
+	if err := execution.validate(ctx); err != nil {
+		return 0, err
+	}
+	table := pgx.Identifier{runner.schema, "schema_migrations"}.Sanitize()
+	if _, err := runner.connection.Exec(ctx, fmt.Sprintf(createSchemaMigrationsTableSQL, table)); err != nil {
+		return 0, fmt.Errorf("ensure schema migrations table: %w", err)
+	}
+	if _, err := runner.connection.Exec(ctx, fmt.Sprintf(migrationMetadataColumnsSQL, table)); err != nil {
+		return 0, fmt.Errorf("expand migration execution metadata: %w", err)
+	}
+	if err := execution.start(ctx); err != nil {
+		return 0, err
+	}
+	existing, err := runner.migrationExecutionHistory(ctx, table, catalog, requirePrefix, allowLegacy)
+	if err != nil {
+		return 0, err
+	}
+	for i, script := range catalog {
+		version := strings.TrimSuffix(script.name, ".up.sql")
+		if existing[i] {
 			continue
 		}
-		body, err := os.ReadFile(filepath.Join(dir, name)) // #nosec G304 -- name comes from ReadDir and is filtered to .up.sql files.
-		if err != nil {
-			return applied, fmt.Errorf("read migration %s: %w", name, err)
-		}
-		tx, err := s.pool.BeginTx(ctx, pgx.TxOptions{})
+		tx, err := runner.connection.BeginTx(ctx, pgx.TxOptions{})
 		if err != nil {
 			return applied, fmt.Errorf("begin migration %s: %w", version, err)
 		}
-		if _, err := tx.Exec(ctx, string(body)); err != nil {
-			_ = tx.Rollback(ctx)
+		if _, err := tx.Exec(ctx, script.body); err != nil {
+			execution.rollback(ctx, tx)
 			return applied, fmt.Errorf("apply migration %s: %w", version, err)
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO schema_migrations (version) VALUES ($1) ON CONFLICT (version) DO NOTHING`, version); err != nil {
-			_ = tx.Rollback(ctx)
+		record := fmt.Sprintf(`INSERT INTO %s (version,checksum_sha256,applied_by) VALUES ($1,$2,session_user)`, table)
+		if _, err := tx.Exec(ctx, record, version, migrationChecksum(script.body)); err != nil {
+			execution.rollback(ctx, tx)
 			return applied, fmt.Errorf("record migration %s: %w", version, err)
 		}
 		if err := tx.Commit(ctx); err != nil {
+			execution.uncertain = true
 			return applied, fmt.Errorf("commit migration %s: %w", version, err)
 		}
 		applied++
+	}
+	if err := execution.complete(ctx, applied); err != nil {
+		return applied, err
 	}
 	return applied, nil
 }
 
 func (s *Store) PendingMigrationVersions(ctx context.Context, dir string) ([]string, error) {
-	names, err := migrationNames(dir)
+	return s.pendingMigrationVersions(ctx, dir, false)
+}
+
+func (s *Store) pendingMigrationVersions(ctx context.Context, dir string, runtimeReady bool) (pending []string, resultErr error) {
+	names, err := migrationNamesContext(ctx, dir)
 	if err != nil {
 		if s != nil {
 			s.migrationVersions.Store(nil)
@@ -81,26 +109,71 @@ func (s *Store) PendingMigrationVersions(ctx context.Context, dir string) ([]str
 		return nil, err
 	}
 	s.recordMigrationExpectations(names)
-	if err := s.ensureSchemaMigrationsTable(ctx); err != nil {
+	reader, finish, err := s.migrationStateView(ctx)
+	if err != nil {
 		return nil, err
 	}
-	pending := []string{}
-	for _, name := range names {
-		version := strings.TrimSuffix(name, ".up.sql")
-		var exists bool
-		err := s.pool.QueryRow(ctx, `SELECT EXISTS (SELECT 1 FROM schema_migrations WHERE version = $1)`, version).Scan(&exists)
-		if err != nil {
-			return nil, fmt.Errorf("check migration %s: %w", version, err)
+	defer func() {
+		if err := finish(); err != nil {
+			pending = nil
+			resultErr = errors.Join(resultErr, err)
 		}
-		if !exists {
-			pending = append(pending, version)
+	}()
+	versions := make([]string, len(names))
+	for i, name := range names {
+		versions[i] = strings.TrimSuffix(name, ".up.sql")
+	}
+	table := pgx.Identifier{reader.schema, "schema_migrations"}.Sanitize()
+	var exists bool
+	if err := reader.connection.QueryRow(ctx, `SELECT pg_catalog.to_regclass($1) IS NOT NULL`, table).Scan(&exists); err != nil {
+		return nil, fmt.Errorf("check migration tracking table: %w", err)
+	}
+	if !exists {
+		if runtimeReady && len(versions) == 0 {
+			if err := reader.checkMigrationOperationReady(ctx, ""); err != nil {
+				return nil, err
+			}
+		}
+		return versions, nil
+	}
+	// Only the quoted identifier is SQL text. All versions are bound values;
+	// ordinality preserves catalog order and bounds output by the input list.
+	statement := fmt.Sprintf(`SELECT wanted.version FROM pg_catalog.unnest($1::text[]) WITH ORDINALITY AS wanted(version,position) WHERE NOT EXISTS (SELECT 1 FROM %s applied WHERE applied.version=wanted.version) ORDER BY wanted.position`, table)
+	rows, err := reader.connection.Query(ctx, statement, versions)
+	if err != nil {
+		return nil, fmt.Errorf("read pending migration versions: %w", err)
+	}
+	defer rows.Close()
+	pending = []string{}
+	for rows.Next() {
+		var version string
+		if err := rows.Scan(&version); err != nil {
+			return nil, fmt.Errorf("read pending migration version: %w", err)
+		}
+		pending = append(pending, version)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read pending migration versions: %w", err)
+	}
+	rows.Close()
+	if runtimeReady && len(pending) == 0 {
+		target := ""
+		if len(versions) > 0 {
+			target = versions[len(versions)-1]
+		}
+		if err := reader.checkMigrationOperationReady(ctx, target); err != nil {
+			return nil, err
 		}
 	}
 	return pending, nil
 }
 
 func (s *Store) RequireNoPendingMigrations(ctx context.Context, dir string) error {
-	pending, err := s.PendingMigrationVersions(ctx, dir)
+	return s.requireNoPendingMigrations(ctx, dir, false)
+}
+
+func (s *Store) requireNoPendingMigrations(ctx context.Context, dir string, runtimeReady bool) error {
+	pending, err := s.pendingMigrationVersions(ctx, dir, runtimeReady)
 	if err != nil {
 		return err
 	}
@@ -110,30 +183,18 @@ func (s *Store) RequireNoPendingMigrations(ctx context.Context, dir string) erro
 	return nil
 }
 
-func (s *Store) ensureSchemaMigrationsTable(ctx context.Context) error {
-	if _, err := s.pool.Exec(ctx, `
-		CREATE TABLE IF NOT EXISTS schema_migrations (
+const createSchemaMigrationsTableSQL = `
+		CREATE TABLE IF NOT EXISTS %s (
 			version text PRIMARY KEY,
 			applied_at timestamptz NOT NULL DEFAULT now()
 		)
-	`); err != nil {
-		return fmt.Errorf("ensure schema migrations table: %w", err)
-	}
-	return nil
-}
+	`
 
-func migrationNames(dir string) ([]string, error) {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return nil, fmt.Errorf("read migrations: %w", err)
-	}
-	names := []string{}
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".up.sql") {
-			continue
-		}
-		names = append(names, entry.Name())
-	}
-	sort.Strings(names)
-	return names, nil
-}
+// Operational tracking expands before executing application migrations, just
+// like its initial table bootstrap. The committed migration declares the same
+// additive shape for older runners. Existing rows remain null, never backfilled.
+const migrationMetadataColumnsSQL = `ALTER TABLE %s
+ ADD COLUMN IF NOT EXISTS checksum_sha256 text
+  CHECK (checksum_sha256 IS NULL OR checksum_sha256 ~ '^[0-9a-f]{64}$'),
+ ADD COLUMN IF NOT EXISTS applied_by name
+  CHECK ((checksum_sha256 IS NULL) = (applied_by IS NULL))`

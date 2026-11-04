@@ -68,6 +68,9 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 	case "outboxOperatorDiagnostics":
 		operation.Description = "Returns aggregate outbox backlog, running, and terminal-job counts without tenant IDs, payloads, or raw failure details. Requires the explicit instance:admin scope. PostgreSQL is required for local evaluation."
 		operation.Responses[http.StatusOK] = jsonResponse("Outbox operator diagnostics envelope.", "#/components/schemas/OutboxDiagnosticsEnvelope")
+	case "listOutboxDeadLetters":
+		operation.Description = "Lists current dead-letter job metadata for an explicit instance:admin; tenant admin and wildcard tenant scopes are insufficient. Returns job ID, kind, status, attempts, safe failure class/code and timestamps without job tenant/subject identifiers, payloads or raw errors. ID ordering uses byte order and defaults to ascending. Continuation does not require the prior job to remain terminal; replay can remove it between pages. This is a current queue view, not a frozen snapshot. Malformed or oversized metadata rejects the whole page with 409. Cache-Control is no-store. PostgreSQL is required for local evaluation."
+		operation.Responses[http.StatusOK] = jsonResponse("Bounded outbox dead-letter metadata page.", "#/components/schemas/OutboxDeadLetterListEnvelope")
 	case "replayTerminalOutboxJob":
 		operation.Description = "Requeues one dead-letter outbox job and appends an audit record. Requires the explicit instance:admin scope and an idempotency key; current instance authority is checked before completed replay. Job mutation, audit, and safe replay completion share one PostgreSQL transaction. Raw payload and failure details are never returned. PostgreSQL is required for local evaluation."
 		operation.Parameters = append(operation.Parameters, pathParam("id", "Terminal outbox job id."))
@@ -1059,7 +1062,7 @@ func withCriticalOperationDetails(operation specs.Operation) specs.Operation {
 
 func isPaginatedOperation(operationID string) bool {
 	switch operationID {
-	case "listAPIKeys", "listCollectors", "listControlFrameworks", "listControlEvidence", "listProducts", "listEvidence", "searchEvidence", "listSBOMComponents", "listAuditLog", "listVulnerabilityDecisions", "listExceptions", "listSigningKeys", "listReleaseCandidates", "listEvidenceLifecycleEvents", "listSourceRepositories", "listDeploymentEnvironments", "listDeployments", "listCommercialCollectors", "listMarketplaceCollectors", "listControlFrameworkTemplatePacks", "listCustomerPortalAccess", "listQuestionnaireAnswerLibrary", "listRoleBindings":
+	case "listAPIKeys", "listCollectors", "listControlFrameworks", "listControlEvidence", "listProducts", "listEvidence", "searchEvidence", "listSBOMComponents", "listAuditLog", "listVulnerabilityDecisions", "listExceptions", "listSigningKeys", "listReleaseCandidates", "listEvidenceLifecycleEvents", "listSourceRepositories", "listDeploymentEnvironments", "listDeployments", "listCommercialCollectors", "listMarketplaceCollectors", "listControlFrameworkTemplatePacks", "listCustomerPortalAccess", "listQuestionnaireAnswerLibrary", "listRoleBindings", "listOutboxDeadLetters":
 		return true
 	default:
 		return false
@@ -1079,7 +1082,7 @@ func appendPaginationParameters(operationID string, parameters []specs.Parameter
 	sortValues := []string{string(appquery.SortCreatedAt), string(appquery.SortID)}
 	defaultSort := string(appquery.SortCreatedAt)
 	defaultDirection := string(appquery.Ascending)
-	if operationID == "listControlFrameworkTemplatePacks" || operationID == "listSBOMComponents" {
+	if operationID == "listControlFrameworkTemplatePacks" || operationID == "listSBOMComponents" || operationID == "listOutboxDeadLetters" {
 		sortValues = []string{string(appquery.SortID)}
 		defaultSort = string(appquery.SortID)
 	}

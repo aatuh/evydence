@@ -1,0 +1,22 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-production-startup-fixtures",
+  "category": "changed",
+  "summary": "Align production startup rehearsal fixtures with separate migration execution",
+  "details": [
+    "Prepare the API configuration and worker probe fixtures through a separate real PostgreSQL migration operation before starting production daemons with explicit skip mode.",
+    "Preserve API provider construction/order, readiness, native bootstrap and cleanup checks, plus both worker metrics modes, tenant-token denial, object outage/recovery, lifecycle probe and shutdown checks.",
+    "Verify prepared migration record counts and checksum/authenticated-principal coverage remain present after daemon shutdown. The full production gate previously exposed both stale fixture assumptions."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Test fixtures only. Production still requires separate migration execution and rejects implicit daemon migration; no runtime guard, schema, provider authority or public wire behavior is relaxed."
+  },
+  "security": "Use isolated PostgreSQL schemas and close fixture migrators before daemon startup. Retain configuration-before-provider rejection, private metric authority and migration readiness assertions; no credentials or live deployment settings are changed.",
+  "limitations": [
+    "Fixture setup uses the trusted source catalog; dedicated migration command checksum/target and managed-role behaviors retain their separate tests.",
+    "Focused fixture validation does not close EVY-1206. Required full production and migration/deployment gates must pass after these repairs; failed gate evidence remains preserved."
+  ]
+}

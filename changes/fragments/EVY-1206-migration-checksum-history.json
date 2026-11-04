@@ -1,0 +1,23 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-migration-checksum-history",
+  "category": "added",
+  "summary": "Record migration execution checksums without inventing legacy history",
+  "details": [
+    "Store the exact executed SQL's SHA-256 and authenticated PostgreSQL session principal in the same transaction as each new version; preserve earlier rows and timestamps as unknown instead of backfilling them.",
+    "Check bounded migration history before pending SQL, reject stored fingerprint mismatches in both ordinary and verified execution, and roll back version-record conflicts on both paths.",
+    "Require explicit EVYDENCE_MIGRATION_ALLOW_LEGACY_HISTORY acknowledgement for version-only rows on the paired target/checksum path. The acknowledgement never rewrites old records or permits a stored mismatch.",
+    "Add fixed private error diagnostics, additive versioned metadata DDL, and a downgrade guard that refuses to erase recorded provenance. Keep migration bookkeeping outside frozen tenant evidence commitments."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "required",
+    "notes": "20261029000100_migration_execution_checksums adds nullable checksum_sha256 and applied_by tracking fields; updated runners bootstrap the same additive shape before application SQL. Existing and older-writer rows remain null and timestamps are unchanged. Verified plans now reject that unknown history by default; ordinary execution retains unknown-history compatibility but also rejects known mismatches. Downgrade cannot erase any known execution metadata. Frozen evidence profiles are unchanged."
+  },
+  "security": "Compare stored fingerprints against immutable executed bytes before pending SQL, bind values and record session_user rather than caller-supplied principal text. Null-pair/checksum-shape constraints reject half-known or malformed metadata. Typed diagnostic events accept no SQL, raw errors, credentials, paths or principal values. These records rely on database authorization and are not an external attestation or database-administrator tamper protection.",
+  "limitations": [
+    "Legacy acknowledgement leaves historical execution unknown; it is not checksum proof or independent review. Supplied release checksum files still require authentication through the release procedure.",
+    "Readiness remains a version-name check. Mandatory production migration-job separation, the remaining audited authorization profile, worker operations, deployment hardening and final full-ticket gates remain in EVY-1206."
+  ]
+}

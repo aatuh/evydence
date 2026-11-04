@@ -24,6 +24,7 @@ func TestHelmBoundsMatchRuntimeSchema(t *testing.T) {
 	}
 	for _, binding := range []struct{ field, option string }{
 		{"cleanupTimeoutSeconds", "EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS"},
+		{"migration.timeoutSeconds", "EVYDENCE_MIGRATION_TIMEOUT_SECONDS"},
 		{"api.readHeaderTimeoutSeconds", "EVYDENCE_HTTP_READ_HEADER_TIMEOUT_SECONDS"},
 		{"api.readTimeoutSeconds", "EVYDENCE_HTTP_READ_TIMEOUT_SECONDS"},
 		{"api.writeTimeoutSeconds", "EVYDENCE_HTTP_WRITE_TIMEOUT_SECONDS"},

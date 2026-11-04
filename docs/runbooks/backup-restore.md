@@ -46,6 +46,15 @@ restore.
    manifest/signature, database backup identifier, and object-store backup
    identifier as one recovery record.
 
+Use the [reference stop/drain commands](upgrade.md#stop-and-restart-the-reference-deployment)
+for a quiescent backup window. Capture outbox counts and shutdown outcomes;
+zero pending alone does not establish drain or a consistent database/object
+generation. Keep the API available only to the authorized checkpoint client
+while creating the checkpoint, then stop it before paired snapshots if that is
+the chosen consistency method. The exact empty-object request and idempotency
+contract live in [OpenAPI](../../openapi.yaml). The checkpoint is tenant-scoped;
+record each required tenant rather than treating one checkpoint as proof for all.
+
 ## Restore Preflight And Rehearsal
 
 Do not start Evydence against a restored database/object pair until generation
@@ -84,6 +93,20 @@ preflight succeeds.
    tool inside one generation, not a substitute for backup pairing.
 9. Record restore start/end time, selected recovery point, database/object
    backup identifiers, paired generation ID, failed checks, and limitations.
+
+Restore database roles/ownership through the protected database procedure;
+`pg_dump` archives do not provision login roles. With managed migrations active,
+retain operation history and validate the restored runtime role/target/policy
+through the [database role procedure](../how-to/database-roles.md). Do not delete
+a failed/interrupted marker to open service. If adoption needs a new managed
+operation, review the matching release plan and run it with the schema-owning
+migrator before restarting daemons.
+
+After startup, capture [bounded receipts](incident-response.md#capture-bounded-operator-evidence)
+and compare pending/running/terminal work with the recovery point. Expired leases
+may be reclaimed; preserve fencing and idempotency. Correlate
+[migration/database/worker telemetry](observability.md) with artifact checks.
+Readiness or zero backlog alone cannot prove restored evidence integrity.
 
 ## Recovery Point And Rollback Boundary
 

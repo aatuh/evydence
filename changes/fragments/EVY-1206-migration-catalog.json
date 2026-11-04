@@ -1,0 +1,22 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-migration-catalog",
+  "category": "fixed",
+  "summary": "Reject non-regular up-migration catalog entries before migration SQL",
+  "details": [
+    "Reject symlinks, directories and other non-regular entries ending in .up.sql with a fixed error and no partial catalog.",
+    "Preserve regular migration filenames, sorted application order and ignored unrelated entries.",
+    "Document the regular-file requirement and the operator-owned release-checksum and read-only-directory prerequisites."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "No SQL or recorded migration changes. Matching non-regular entries now fail closed instead of being followed or silently ignored. Keep released migration files as regular files in the configured directory."
+  },
+  "security": "Validate entry metadata before executing migration SQL and return fixed rejection errors without operator-controlled paths. Invalid catalogs never produce a partial application list; database connection setup still precedes discovery in the current command.",
+  "limitations": [
+    "Catalog discovery is not checksum authentication or protection against concurrent filesystem replacement; keep migration inputs read-only and verify their release provenance.",
+    "Runner serialization, target/checksum enforcement, worker operations and deployment/runbook qualification remain in the incomplete EVY-1206 scope."
+  ]
+}
