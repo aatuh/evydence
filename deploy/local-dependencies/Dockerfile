@@ -2,7 +2,7 @@
 # Community MinIO is archived and has unresolved upstream security advisories.
 # Source revisions are verified by Go's checksum database; base images are
 # immutable Docker Official Images indices Go index verified on 2026-10-18; runtime index on 2026-10-11.
-FROM golang:1.27.3-alpine3.23@sha256:895e5feab11a4b3774d24ee3c9579028456b82ad37f42a9eb6f82adaf776a201 AS toolchain
+FROM golang:1.27.3-alpine3.23@sha256:5d5113301ffcac84e2bfb20c42648803fecaea6789c89bb9b66884e18cbb30a7 AS toolchain
 ENV GOTOOLCHAIN=local CGO_ENABLED=0 GOSUMDB=sum.golang.org GOFLAGS=-p=1 GOMAXPROCS=2
 WORKDIR /build
 
