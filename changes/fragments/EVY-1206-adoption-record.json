@@ -1,0 +1,21 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-adoption-record",
+  "category": "changed",
+  "summary": "Clarify database-role adoption and record restored repository protections",
+  "details": [
+    "Keep existing-schema ownership transfer or restore rehearsal as an operator prerequisite; remove the stale promise of automatic adoption and retain the distinction between Secret references and deployed permissions.",
+    "Record PR #61's explicitly approved one-head dependency-check exception, actual normal merge, immediate restoration of all four strict app-bound requirements, and the sanitized clean-master report that passed all 18 provider-control observations."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Documentation, provider observation and execution-tracking changes only; runtime code and the default four-check protection profile are unchanged by this delivery."
+  },
+  "security": "Retain the failed admission result and accepted fixture/license assessment gaps rather than describing the exception as a passing check. No new policy waiver entries or provider-setting changes are made by this documentation delivery.",
+  "limitations": [
+    "The one-head exception is historical and does not authorize exceptions for future pull requests.",
+    "A dated provider observation does not prove permanent governance, independent review, legal license rights or a secure release."
+  ]
+}
