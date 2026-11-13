@@ -1,0 +1,21 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-black-box-restart",
+  "category": "fixed",
+  "summary": "Restart the black-box API against its already-migrated schema",
+  "details": [
+    "Keep the first development API startup responsible for preparing the disposable demo schema, then explicitly skip migrations when restarting the API while its worker remains live.",
+    "Check that the worker survives the API restart, retaining the existing persistence, tenant-isolation, readiness, package, audit-chain and outbox assertions."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Validation fixture only. Production still requires a separate migration job and runtimes retain their shared schema leases."
+  },
+  "security": "Preserve exclusive migration coordination and shared runtime schema leases; do not attempt migrations while the demo worker is serving the same schema.",
+  "limitations": [
+    "The disposable demo uses development startup migration for its first API; it does not prove an operator-managed production rollout.",
+    "Full production qualification remains required before EVY-1206 is complete."
+  ]
+}

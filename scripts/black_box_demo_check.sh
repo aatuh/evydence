@@ -96,12 +96,14 @@ prepare_binary EVYDENCE_BLACK_BOX_WORKER_BIN ./cmd/evydence-worker "$workdir/evy
 start_api() {
   label="$1"
   print_secret="$2"
+  skip_migrations="$3"
   stdout="$workdir/api-$label.stdout"
   stderr="$workdir/api-$label.stderr"
   EVYDENCE_ADDR="127.0.0.1:$port" \
   EVYDENCE_RUNTIME_PROFILE=postgres \
   EVYDENCE_DATABASE_URL="$database_url" \
   EVYDENCE_POSTGRES_LOAD_MODE=relational_only \
+  EVYDENCE_SKIP_MIGRATIONS="$skip_migrations" \
   EVYDENCE_API_KEY_PEPPER="black-box-demo-pepper" \
   EVYDENCE_OBJECT_STORE=filesystem \
   EVYDENCE_OBJECT_DIR="$workdir/objects" \
@@ -143,7 +145,7 @@ start_worker() {
   fi
 }
 
-start_api first true
+start_api first true false
 if [ -n "${EVYDENCE_BLACK_BOX_EXPECTED_VERSION:-}" ]; then
   curl -fsS "$api_url/v1/version" >"$workdir/version.json"
   jq -e --arg version "$EVYDENCE_BLACK_BOX_EXPECTED_VERSION" --arg commit "${EVYDENCE_BLACK_BOX_EXPECTED_COMMIT:-}" --arg manifest "${EVYDENCE_BLACK_BOX_EXPECTED_RELEASE_MANIFEST_DIGEST:-}" \
@@ -171,7 +173,13 @@ kill "$api_pid" >/dev/null 2>&1 || true
 wait "$api_pid" >/dev/null 2>&1 || true
 api_pid=""
 
-start_api restart false
+# The live worker holds a shared schema lease. Restart against the schema that
+# the first API already migrated instead of attempting an exclusive migration.
+start_api restart false true
+if ! kill -0 "$worker_pid" >/dev/null 2>&1; then
+  printf '%s\n' "black-box-demo-check: worker exited during API restart" >&2
+  exit 1
+fi
 curl -fsS "$api_url/v1/reports/release-readiness?release_id=$release_id" \
   -H "Authorization: Bearer $api_key" \
   >"$workdir/restarted-readiness.json"
