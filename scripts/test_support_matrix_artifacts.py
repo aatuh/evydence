@@ -57,6 +57,15 @@ class SupportArtifactTests(unittest.TestCase):
                 self.assertTrue((1, 26, 10) <= version < (1, 27, 0) or version >= (1, 27, 3),
                                 'declared compiler remains affected by GO-2026-6809')
 
+    def test_supported_compilers_exclude_called_http_advisory_go_2026_6859(self):
+        # https://vuln.go.dev/ID/GO-2026-6859.json includes the HTTP server
+        # reached by the API; both supported compiler lines need the repair.
+        for role, value in self.policy['go'].items():
+            version = tuple(map(int, value.split('.')))
+            with self.subTest(role=role, version=value):
+                self.assertTrue((1, 26, 11) <= version < (1, 27, 0) or version >= (1, 27, 4),
+                                'declared compiler remains affected by GO-2026-6859')
+
     def test_gitlab_legacy_builder_cannot_escape_policy_checks(self):
         name = "docs/gitlab/evydence-release-evidence.gitlab-ci.yml"
         files = dict(self.files)
@@ -120,25 +129,27 @@ class SupportArtifactTests(unittest.TestCase):
 
     def test_changed_inputs_are_rejected_independently(self):
         self.assertEqual(self.check(), [], "mutation controls require a valid baseline")
+        minimum, current = self.policy["go"]["minimum"], self.policy["go"]["current"]
+        matrix = f"go: ['{minimum}', '{current}']"
         mutations = [
-            ("go.mod", "go 1.26.10", "go 1.26.8"),
-            ("go.mod", "toolchain go1.27.3", "toolchain go1.27.1"),
-            ("Makefile", "GOTOOLCHAIN ?= go1.27.3", "GOTOOLCHAIN ?= go1.26.10"),
+            ("go.mod", f"go {minimum}", "go 1.26.8"),
+            ("go.mod", f"toolchain go{current}", "toolchain go1.27.1"),
+            ("Makefile", f"GOTOOLCHAIN ?= go{current}", "GOTOOLCHAIN ?= go1.26.10"),
             ("tools/go.mod", "github.com/securego/gosec/v2 v2.29.0", "github.com/securego/gosec/v2 latest"),
             ("tools/go.mod", "golang.org/x/tools v0.52.0", "golang.org/x/tools v0.49.0"),
-            ("tools/go.mod", "toolchain go1.27.3", "toolchain go1.27.1"),
+            ("tools/go.mod", f"toolchain go{current}", "toolchain go1.27.1"),
             ("tools/go.mod", "\nrequire (", "\nreplace golang.org/x/tools => ../PRIVATE\nrequire ("),
             ("Makefile", "export GOTOOLCHAIN\n", "export GOTOOLCHAIN\nGOTOOLCHAIN := go1.26.10\n"),
-            ("Dockerfile", "golang:1.27.3-", "golang:1.26.10-"),
+            ("Dockerfile", f"golang:{current}-", "golang:1.26.10-"),
             ("Dockerfile", "GOTOOLCHAIN=local", "GOTOOLCHAIN=auto"),
-            ("deploy/local-dependencies/Dockerfile", "golang:1.27.3-", "golang:1.26.10-"),
+            ("deploy/local-dependencies/Dockerfile", f"golang:{current}-", "golang:1.26.10-"),
             ("deploy/local-dependencies/Dockerfile", "@sha256:", "@sha256:f"),
-            (".github/workflows/ci.yml", "go: ['1.26.10', '1.27.3']", "go: ['1.27.3']"),
+            (".github/workflows/ci.yml", matrix, f"go: ['{current}']"),
             (".github/workflows/ci.yml", "GOTOOLCHAIN: local", "GOTOOLCHAIN: auto"),
             (".github/workflows/ci.yml", artifacts.SETUP_GO, "actions/setup-go@v5"),
             (".github/workflows/ci.yml", "- name: Set up selected Go\n        uses: actions/setup-go@", "- name: Set up selected Go\n        uses: actions/checkout@"),
             (".github/workflows/ci.yml", "- name: Test complete package set with selected compiler\n", "- name: Test complete package set with selected compiler\n        env:\n          GOTOOLCHAIN: auto\n"),
-            (".github/workflows/ci.yml", "go: ['1.26.10', '1.27.3']", "go: ['1.26.10', '1.27.3']\n        exclude: [{go: '1.26.10'}]"),
+            (".github/workflows/ci.yml", matrix, matrix + f"\n        exclude: [{{go: '{minimum}'}}]"),
             (".github/workflows/ci.yml", "go test ./... -timeout=30m", "go test ./... -run TestOne -timeout=30m"),
             (".github/workflows/ci.yml", "name: Production Check", "name: Production Check (new)"),
             (".github/workflows/ci.yml", "- name: Set up Go\n", "- name: Set up Go\n        env:\n          GOTOOLCHAIN: local\n"),
@@ -150,8 +161,8 @@ class SupportArtifactTests(unittest.TestCase):
             ("docs/github-actions/release-evidence-workflow.yml", artifacts.SETUP_GO, "actions/setup-go@v5"),
             ("docs/github-actions/release-evidence-workflow.yml", "on:\n", "env:\n  GOTOOLCHAIN: local\non:\n"),
             ("docs/github-actions/quickstart-release-evidence.yml", "      EVYDENCE_API_URL:", "      GOTOOLCHAIN: local\n      EVYDENCE_API_URL:"),
-            ("README.md", "go-1.26.10%20%2F%201.27.3-", "go-1.26.10+-"),
-            ("docs/reference/toolchain-platform-support.md", "| Current | `1.27.3` |", "| Current | `1.27.1` |"),
+            ("README.md", f"go-{minimum}%20%2F%20{current}-", "go-1.26.10+-"),
+            ("docs/reference/toolchain-platform-support.md", f"| Current | `{current}` |", "| Current | `1.27.1` |"),
         ]
         for name, before, after in mutations:
             with self.subTest(path=name, before=before):

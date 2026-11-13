@@ -218,7 +218,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "7cdf1c99d06cdf7f8537da20d837f76a83ad8a2e15a27756e82e4f7f4bd3a326",
+        "scanner_output_sha256": "fa19fce2c9a91d7b2708b4b06a40f1893b9a3db53c1f7898624099637628b666",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "docker.io/library/alpine:3.23@sha256:85fe1e81d6758c208f3e1eed4338a1997e19d4be002d4dd32d3100c9a8c010a0",
@@ -261,8 +261,8 @@
         "deploy/local-dependencies/Dockerfile#base/0"
       ],
       "observation": {
-        "image_id": "sha256:97aa14d0371890205fa5bd872a54e6d0082ee7fe5379c7695a2788b3efc676e3",
-        "manifest_digest": "sha256:0208a74017e3ce41f779876f3c6e9ad5d4030904e8ac6e91b9c5d7711c48362a",
+        "image_id": "sha256:5ec16b6616362e9cbde812d24a7ac1e8a0b9bdcec5743f21ac0a99555b019a56",
+        "manifest_digest": "sha256:db442faa61ef505949b9c8fe5827a63c8f695c675655319676ff1b0b5c1f2890",
         "packages": [
           {
             "license": "GPL-2.0-only",
@@ -271,7 +271,7 @@
             ],
             "license_status": "scanner-declared",
             "name": "alpine-baselayout-data",
-            "purl": "pkg:apk/alpine/alpine-baselayout-data@3.7.2-r0?arch=x86_64&distro=alpine-3.23.6&upstream=alpine-baselayout",
+            "purl": "pkg:apk/alpine/alpine-baselayout-data@3.7.2-r0?arch=x86_64&distro=alpine-3.23.8&upstream=alpine-baselayout",
             "type": "apk",
             "version": "3.7.2-r0"
           },
@@ -282,7 +282,7 @@
             ],
             "license_status": "scanner-declared",
             "name": "alpine-baselayout",
-            "purl": "pkg:apk/alpine/alpine-baselayout@3.7.2-r0?arch=x86_64&distro=alpine-3.23.6",
+            "purl": "pkg:apk/alpine/alpine-baselayout@3.7.2-r0?arch=x86_64&distro=alpine-3.23.8",
             "type": "apk",
             "version": "3.7.2-r0"
           },
@@ -293,7 +293,7 @@
             ],
             "license_status": "scanner-declared",
             "name": "alpine-keys",
-            "purl": "pkg:apk/alpine/alpine-keys@2.6-r0?arch=x86_64&distro=alpine-3.23.6",
+            "purl": "pkg:apk/alpine/alpine-keys@2.6-r0?arch=x86_64&distro=alpine-3.23.8",
             "type": "apk",
             "version": "2.6-r0"
           },
@@ -304,9 +304,9 @@
             ],
             "license_status": "scanner-declared",
             "name": "alpine-release",
-            "purl": "pkg:apk/alpine/alpine-release@3.23.6-r0?arch=x86_64&distro=alpine-3.23.6&upstream=alpine-base",
+            "purl": "pkg:apk/alpine/alpine-release@3.23.8-r0?arch=x86_64&distro=alpine-3.23.8&upstream=alpine-base",
             "type": "apk",
-            "version": "3.23.6-r0"
+            "version": "3.23.8-r0"
           },
           {
             "license": "GPL-2.0-only",
@@ -315,9 +315,9 @@
             ],
             "license_status": "scanner-declared",
             "name": "apk-tools",
-            "purl": "pkg:apk/alpine/apk-tools@3.0.8-r0?arch=x86_64&distro=alpine-3.23.6",
+            "purl": "pkg:apk/alpine/apk-tools@3.0.9-r0?arch=x86_64&distro=alpine-3.23.8",
             "type": "apk",
-            "version": "3.0.8-r0"
+            "version": "3.0.9-r0"
           },
           {
             "license": "GPL-2.0-only",
@@ -326,7 +326,7 @@
             ],
             "license_status": "scanner-declared",
             "name": "busybox-binsh",
-            "purl": "pkg:apk/alpine/busybox-binsh@1.37.0-r30?arch=x86_64&distro=alpine-3.23.6&upstream=busybox",
+            "purl": "pkg:apk/alpine/busybox-binsh@1.37.0-r30?arch=x86_64&distro=alpine-3.23.8&upstream=busybox",
             "type": "apk",
             "version": "1.37.0-r30"
           },
@@ -337,7 +337,7 @@
             ],
             "license_status": "scanner-declared",
             "name": "busybox",
-            "purl": "pkg:apk/alpine/busybox@1.37.0-r30?arch=x86_64&distro=alpine-3.23.6",
+            "purl": "pkg:apk/alpine/busybox@1.37.0-r30?arch=x86_64&distro=alpine-3.23.8",
             "type": "apk",
             "version": "1.37.0-r30"
           },
@@ -348,9 +348,9 @@
             ],
             "license_status": "scanner-declared",
             "name": "ca-certificates-bundle",
-            "purl": "pkg:apk/alpine/ca-certificates-bundle@20260909-r0?arch=x86_64&distro=alpine-3.23.6&upstream=ca-certificates",
+            "purl": "pkg:apk/alpine/ca-certificates-bundle@20261020-r0?arch=x86_64&distro=alpine-3.23.8&upstream=ca-certificates",
             "type": "apk",
-            "version": "20260909-r0"
+            "version": "20261020-r0"
           },
           {
             "license": "MPL-2.0 AND MIT",
@@ -359,9 +359,9 @@
             ],
             "license_status": "scanner-declared",
             "name": "ca-certificates",
-            "purl": "pkg:apk/alpine/ca-certificates@20260909-r0?arch=x86_64&distro=alpine-3.23.6",
+            "purl": "pkg:apk/alpine/ca-certificates@20261020-r0?arch=x86_64&distro=alpine-3.23.8",
             "type": "apk",
-            "version": "20260909-r0"
+            "version": "20261020-r0"
           },
           {
             "license": "GPL-2.0-only",
@@ -370,9 +370,9 @@
             ],
             "license_status": "scanner-declared",
             "name": "libapk",
-            "purl": "pkg:apk/alpine/libapk@3.0.8-r0?arch=x86_64&distro=alpine-3.23.6&upstream=apk-tools",
+            "purl": "pkg:apk/alpine/libapk@3.0.9-r0?arch=x86_64&distro=alpine-3.23.8&upstream=apk-tools",
             "type": "apk",
-            "version": "3.0.8-r0"
+            "version": "3.0.9-r0"
           },
           {
             "license": "Apache-2.0",
@@ -381,9 +381,9 @@
             ],
             "license_status": "scanner-declared",
             "name": "libcrypto3",
-            "purl": "pkg:apk/alpine/libcrypto3@3.5.8-r0?arch=x86_64&distro=alpine-3.23.6&upstream=openssl",
+            "purl": "pkg:apk/alpine/libcrypto3@3.5.9-r0?arch=x86_64&distro=alpine-3.23.8&upstream=openssl",
             "type": "apk",
-            "version": "3.5.8-r0"
+            "version": "3.5.9-r0"
           },
           {
             "license": "Apache-2.0",
@@ -392,9 +392,9 @@
             ],
             "license_status": "scanner-declared",
             "name": "libssl3",
-            "purl": "pkg:apk/alpine/libssl3@3.5.8-r0?arch=x86_64&distro=alpine-3.23.6&upstream=openssl",
+            "purl": "pkg:apk/alpine/libssl3@3.5.9-r0?arch=x86_64&distro=alpine-3.23.8&upstream=openssl",
             "type": "apk",
-            "version": "3.5.8-r0"
+            "version": "3.5.9-r0"
           },
           {
             "license": "MIT AND BSD-2-Clause AND GPL-2.0-or-later",
@@ -403,9 +403,9 @@
             ],
             "license_status": "scanner-declared",
             "name": "musl-utils",
-            "purl": "pkg:apk/alpine/musl-utils@1.2.5-r23?arch=x86_64&distro=alpine-3.23.6&upstream=musl",
+            "purl": "pkg:apk/alpine/musl-utils@1.2.5-r24?arch=x86_64&distro=alpine-3.23.8&upstream=musl",
             "type": "apk",
-            "version": "1.2.5-r23"
+            "version": "1.2.5-r24"
           },
           {
             "license": "MIT",
@@ -414,9 +414,9 @@
             ],
             "license_status": "scanner-declared",
             "name": "musl",
-            "purl": "pkg:apk/alpine/musl@1.2.5-r23?arch=x86_64&distro=alpine-3.23.6",
+            "purl": "pkg:apk/alpine/musl@1.2.5-r24?arch=x86_64&distro=alpine-3.23.8",
             "type": "apk",
-            "version": "1.2.5-r23"
+            "version": "1.2.5-r24"
           },
           {
             "license": "GPL-2.0-only",
@@ -425,7 +425,7 @@
             ],
             "license_status": "scanner-declared",
             "name": "scanelf",
-            "purl": "pkg:apk/alpine/scanelf@1.3.8-r2?arch=x86_64&distro=alpine-3.23.6&upstream=pax-utils",
+            "purl": "pkg:apk/alpine/scanelf@1.3.8-r2?arch=x86_64&distro=alpine-3.23.8&upstream=pax-utils",
             "type": "apk",
             "version": "1.3.8-r2"
           },
@@ -436,7 +436,7 @@
             ],
             "license_status": "scanner-declared",
             "name": "ssl_client",
-            "purl": "pkg:apk/alpine/ssl_client@1.37.0-r30?arch=x86_64&distro=alpine-3.23.6&upstream=busybox",
+            "purl": "pkg:apk/alpine/ssl_client@1.37.0-r30?arch=x86_64&distro=alpine-3.23.8&upstream=busybox",
             "type": "apk",
             "version": "1.37.0-r30"
           },
@@ -447,9 +447,9 @@
             ],
             "license_status": "scanner-declared",
             "name": "zlib",
-            "purl": "pkg:apk/alpine/zlib@1.3.2-r0?arch=x86_64&distro=alpine-3.23.6",
+            "purl": "pkg:apk/alpine/zlib@1.3.2-r1?arch=x86_64&distro=alpine-3.23.8",
             "type": "apk",
-            "version": "1.3.2-r0"
+            "version": "1.3.2-r1"
           },
           {
             "license": null,
@@ -548,42 +548,42 @@
             ],
             "license_status": "scanner-declared",
             "name": "stdlib",
-            "purl": "pkg:golang/stdlib@1.27.3",
+            "purl": "pkg:golang/stdlib@1.27.4",
             "type": "go-module",
-            "version": "go1.27.3"
+            "version": "go1.27.4"
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "64fc8adcf4ec6e80f4587fec0077e627a5e9e7965fc277c0e0b3f5bb00890f9e",
+        "scanner_output_sha256": "99ef7d45507c638a8d6df348b5f8169f0ccac8c9944e9ba29ac699a9c510a293",
         "verification": "manifest-config-and-scanner-observations"
       },
-      "reference": "docker.io/library/golang:1.27.3-alpine3.23@sha256:895e5feab11a4b3774d24ee3c9579028456b82ad37f42a9eb6f82adaf776a201",
+      "reference": "docker.io/library/golang:1.27.4-alpine3.23@sha256:146e3b9c7c1e2ec3d3f5348c8a686151a75e1976e50efac9fc022ebe446a9a82",
       "resolution": {
         "config": {
-          "digest": "sha256:97aa14d0371890205fa5bd872a54e6d0082ee7fe5379c7695a2788b3efc676e3",
+          "digest": "sha256:5ec16b6616362e9cbde812d24a7ac1e8a0b9bdcec5743f21ac0a99555b019a56",
           "mediaType": "application/vnd.oci.image.config.v1+json",
-          "size": 2193
+          "size": 2191
         },
         "layers": [
           {
-            "digest": "sha256:d0c1d894c237d8192cbcd37e435031ad4eddec173299568a5a05869c2e40dfa3",
+            "digest": "sha256:74c614fb2c68574f50c582dcc9c18c46618bd6ff2019768190aacfb861ce51d2",
             "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
-            "size": 3848507
+            "size": 3852589
           },
           {
-            "digest": "sha256:7bf235870820d2e6cd5098e41b5cf7f5d04eff0db1ecf2a4b49fff8082085714",
+            "digest": "sha256:58f3aae35aa8219e57a1f05602031b86e7049c3ed426d99252f5021642d3bb33",
             "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
-            "size": 247524
+            "size": 244450
           },
           {
-            "digest": "sha256:82e0bb27ae78502103ed383ed33346f88a83943fb7bd93977850d5890ee8fb3b",
+            "digest": "sha256:83d129a974dd319fef9f5f496bf3a04194c14ba0fbf95635c2d5577185dd0b2f",
             "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
-            "size": 71150395
+            "size": 71223837
           },
           {
-            "digest": "sha256:ec1e6ef01269cf774045fcc8d2aeda055dff243424131fa18107ad744f70cbc2",
+            "digest": "sha256:358dc0dd22f7f6fae84f0d874b9f41e51efe4b132fac53d7b2b631daebbb5d8a",
             "mediaType": "application/vnd.oci.image.layer.v1.tar+gzip",
-            "size": 127
+            "size": 126
           },
           {
             "digest": "sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1",
@@ -592,20 +592,20 @@
           }
         ],
         "manifest": {
-          "digest": "sha256:0208a74017e3ce41f779876f3c6e9ad5d4030904e8ac6e91b9c5d7711c48362a",
+          "digest": "sha256:db442faa61ef505949b9c8fe5827a63c8f695c675655319676ff1b0b5c1f2890",
           "mediaType": "application/vnd.oci.image.manifest.v1+json",
           "size": 1921
         },
-        "manifest_digest": "sha256:0208a74017e3ce41f779876f3c6e9ad5d4030904e8ac6e91b9c5d7711c48362a",
+        "manifest_digest": "sha256:db442faa61ef505949b9c8fe5827a63c8f695c675655319676ff1b0b5c1f2890",
         "mutable_reference": false,
         "platform_evidence": "index-assertion",
         "requested_platform": "linux/amd64",
         "root": {
-          "digest": "sha256:895e5feab11a4b3774d24ee3c9579028456b82ad37f42a9eb6f82adaf776a201",
+          "digest": "sha256:146e3b9c7c1e2ec3d3f5348c8a686151a75e1976e50efac9fc022ebe446a9a82",
           "mediaType": "application/vnd.oci.image.index.v1+json",
-          "size": 10293
+          "size": 9019
         },
-        "root_digest": "sha256:895e5feab11a4b3774d24ee3c9579028456b82ad37f42a9eb6f82adaf776a201",
+        "root_digest": "sha256:146e3b9c7c1e2ec3d3f5348c8a686151a75e1976e50efac9fc022ebe446a9a82",
         "verification": "manifest-digests"
       },
       "status": "scanned"
@@ -1156,7 +1156,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "ced8ebc05ea71d0bc16893cd0cca628f59c014c5b29fddc5994ae7bab740eece",
+        "scanner_output_sha256": "41d3a48f946938cbc9227f7b55e87e9e01abdfd055b08b4af9937bbb7735db9b",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "docker.io/library/postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229",
@@ -1917,7 +1917,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "74449e9199cc34c536c2951cc71976c375f28b02451e1d21bc5cb970db6923f1",
+        "scanner_output_sha256": "6973a67930e753a0b03af6b75d33bbe1c7e8b5a8e9977807cca0ff32a5863946",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "ghcr.io/aatuh/evydence:v0.1.0-rc.5@sha256:38188044a3e5ded3c6094564ab39ce989185f65e22cf4296985ec19ba0eb1888",
@@ -4734,7 +4734,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "a9955d6f809c2691b662996ab3993363bde3fef82052a2806432e152c0fef048",
+        "scanner_output_sha256": "8a9e7ddb09375626d337e829cbb6c7d4a031cba466e6cd94bed29c1c73b365f1",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "ghcr.io/ossf/scorecard-action:v2.4.3",
@@ -4846,14 +4846,14 @@
       "status": "scanned"
     },
     {
-      "image_id": "sha256:b65f89d9186fd66316bc3e8c3555ac5eed406e7a86f62bbcdad4b12295c617f2",
+      "image_id": "sha256:9fca2398f2e305dba32e7c1f46afc971ad302e8657e5aa9e9a42a78f2b3aedc3",
       "kind": "source-build",
       "locations": [
         "compose.production-like.yml#services/minio-init"
       ],
       "observation": {
-        "image_id": "sha256:b65f89d9186fd66316bc3e8c3555ac5eed406e7a86f62bbcdad4b12295c617f2",
-        "manifest_digest": "sha256:407f06c6e9fe010816c8ed768ef1ca08cb8082bee1930ffdcd0d4f0a2045138e",
+        "image_id": "sha256:9fca2398f2e305dba32e7c1f46afc971ad302e8657e5aa9e9a42a78f2b3aedc3",
+        "manifest_digest": "sha256:1dd5cc1a63a909af15c4a27e48fdd407c5ef5e1b4867d2351aa0fb74a674cdca",
         "packages": [
           {
             "license": "GPL-2.0-only",
@@ -5929,28 +5929,28 @@
             ],
             "license_status": "scanner-declared",
             "name": "stdlib",
-            "purl": "pkg:golang/stdlib@1.27.3",
+            "purl": "pkg:golang/stdlib@1.27.4",
             "type": "go-module",
-            "version": "go1.27.3"
+            "version": "go1.27.4"
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "1792010d30b8b4b56235f85ee212d31400b7066091e9caaed6f0bf5b73d71835",
+        "scanner_output_sha256": "b5066899a21f679158a91467d7431d1d6dbb1fe4e3e14135ae787b55a6a52d75",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "evydence-local-mc:20250813-7394ce0dd2a8",
       "status": "scanned"
     },
     {
-      "image_id": "sha256:fc3983f91edd2e69583f42e72600ea1115c939d159708bfd91668e328b9c8769",
+      "image_id": "sha256:77750964441cfbac8600e0719908f7c538951887c9cccf32282b345f2a6b4b25",
       "kind": "source-build",
       "locations": [
         "compose.production-like.yml#services/minio",
         "docker-compose.yml#services/minio"
       ],
       "observation": {
-        "image_id": "sha256:fc3983f91edd2e69583f42e72600ea1115c939d159708bfd91668e328b9c8769",
-        "manifest_digest": "sha256:2ebfa34febf1566789eea623a9b9b5be04bea0f630ef00d95760bccbbf45402f",
+        "image_id": "sha256:77750964441cfbac8600e0719908f7c538951887c9cccf32282b345f2a6b4b25",
+        "manifest_digest": "sha256:c0a849bdce9b065b05d341db3d2d7a7dba32c67b2a00b400a6e06d51b775b832",
         "packages": [
           {
             "license": "GPL-2.0-only",
@@ -8313,13 +8313,13 @@
             ],
             "license_status": "scanner-declared",
             "name": "stdlib",
-            "purl": "pkg:golang/stdlib@1.26.9",
+            "purl": "pkg:golang/stdlib@1.27.4",
             "type": "go-module",
-            "version": "go1.26.9"
+            "version": "go1.27.4"
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "6c7793c60e60e124ebd290482f349e55f77d226b96e85d79fc36bdc313633b81",
+        "scanner_output_sha256": "8f6466abe14881c93d364aa62390ef2aec44cf2d0e81f26ff6ae69f79e9b8ab4",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "evydence-local-minio:20251015-9e49d5e7a648",
@@ -8327,7 +8327,7 @@
     }
   ],
   "inputs": {
-    ".github/workflows/ci.yml": "8a82d046c43db8a260aaefa6ac8dd31f932177f73a42dc73e9bd7bc64f13dfa8",
+    ".github/workflows/ci.yml": "f2e92dfbcc8b2b1478af4349a26b32518fc9f1eb0ba9b4f3f185f52125408341",
     ".github/workflows/codeql.yml": "1ee2f3c7f31223fa2ac8f575dfbd6ca902eef6c1a80960cb363239b5c1321392",
     ".github/workflows/container-image.yml": "6936fbbd31f902ec64a79753538352beea68e5420988ad52c2e0b002d627f2be",
     ".github/workflows/dependency-review.yml": "c779553cc767889ebbda048e6e98dda99cbce72638d63f80205f2711c769c60a",
@@ -8337,16 +8337,16 @@
     ".github/workflows/reproducible-builds.yml": "a5431fa13b87bf3e6d2330d71c8267367195f83a24151a1a371a7707b9cbba1b",
     ".github/workflows/scorecard-sarif.yml": "c7809d244592a2ab2daffffd3a776e1912512ab8aee13bbb9264322d6652b4e0",
     ".github/workflows/scorecard.yml": "352f4a1bc5fd5d206b404d785d93e89f4552ea10fadcc03a1d533b057fc5afd3",
-    "Dockerfile": "2443ac8bc1c5ad6b3970f79e8c6019512cf2fae440c0734ccbf6e5ed753557de",
+    "Dockerfile": "7e825c8d537d365e0c8381dec38be2cae07e472de29f77cb45b975a5767e0498",
     "compose.production-like.yml": "85bc0c2530d1f3123ddbc55c0782324e8369ef0e1611a79a1fc3882c0fa0df5b",
     "deploy/airgap/manifest.yaml": "ebb7f7695cd171bf000dc0df65f06d3a87dc864c81cd41038fa19f99f647eefe",
     "deploy/helm/evydence/values.yaml": "7c26bee4669cfd8fbe0905ccddacbe3c94ffbdfca1836d1e2383b51c66ddb7c0",
-    "deploy/local-dependencies/Dockerfile": "8b576ed1c58a015da28d2651b26f8b812ffe57d2f4a95ff2965cec324d0b5dfd",
+    "deploy/local-dependencies/Dockerfile": "53afcc002e459d2fbb91808874d64cbfe2c0da596841c544a3028923af08d111",
     "docker-compose.yml": "10ccf4df8a1793fe883adaaaa73fe2fe5195c9a177fa67b24d95250998c196e6",
     "docs/github-actions/quickstart-release-evidence.yml": "eb8fd676581894080f16654539e1e18ef097961db0ea189cc7fc339836668b6b",
     "docs/github-actions/release-evidence-workflow.yml": "9d4d5178702e4089cfb4e01fc44877f5f692d5775a8b923eb6d04bf17f5b624b",
-    "docs/reference/dependency-inventory.json": "211c08671db05ed1f3b548e9d3b0c7b58bcd0d85d12c844636e53cb54f934032",
-    "release/support-matrix.json": "c266cf6d3f1b9b42cf120eb34663eb6d670678460b9c53b0b03381029e73e41e",
+    "docs/reference/dependency-inventory.json": "b4912cd6d0c863d344cb9b0101d9229348b63159c3197d84e60c53422a02ccf1",
+    "release/support-matrix.json": "124e1880bac44fa1ec9a11e5e5a8b6d627705a53f145ac9159285fb32b041fc4",
     "release/tools/syft.go.mod": "779a628967e4006a15bb531cbc0a0977be34ad05bd22b95e9d6bf6bd0f768bbc",
     "release/tools/syft.go.sum": "c778b5ee7af2e3b7d2cac7896e9a48df4b50b3e431f0de77cdea60b2e2783868",
     "scripts/dependency_actions.py": "064a548c9bd2603d218c5aace8a1d892805df1e71e25372a656b936aa1e50a76",
@@ -8369,11 +8369,11 @@
     "scripts/support_matrix_artifacts.py": "d330ed4492199e1ae5f45fc93e5bb4ce412564ebd04a73dcea86822614a07ead",
     "tools/cmd/license-inventory/main.go": "637f1782cc4363869497303bfcae5374cb109009cd28a93e02e44fb7a89be1bd"
   },
-  "observed_at": "2026-11-04T14:38:23.282346+00:00",
+  "observed_at": "2026-11-13T08:25:32.005334+00:00",
   "scanner": {
-    "binary_sha256": "bdbdbb2a4dd898867f2d7e2f55111e3249dfc9fc851dd6e0221844075946e511",
+    "binary_sha256": "1c372cf56df11f0cb63775c71bfe5840df26ae1629a09d2972877e1c546f5d6c",
     "name": "syft",
-    "recipe_sha256": "5542add684a71f5c232db43ee080ce946d2c9cd638886b06a54380345d0847fa",
+    "recipe_sha256": "d1c481c67f689a6d518b649b467f1d70cff5758bc1237f62f697d601f5bfc76d",
     "version": "1.54.1"
   },
   "schema": "evydence-dependency-images.v1",

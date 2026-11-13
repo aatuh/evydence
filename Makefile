@@ -1,5 +1,5 @@
 GO ?= go
-GOTOOLCHAIN ?= go1.27.3
+GOTOOLCHAIN ?= go1.27.4
 export GOTOOLCHAIN
 
 TOOLS := golangci-lint gosec govulncheck

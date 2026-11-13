@@ -18,6 +18,8 @@ results, no secure-release guarantee, and no regulator or auditor acceptance.
 
 ### Security
 
+- Patch the supported compilers and OpenAPI parser dependencies (`EVY-1206-compiler-parser-security`).
+  Advance source builds to minimum Go 1.26.11 and current Go 1.27.4 for GO-2026-6859, with matching immutable compiler images, CI selections and an independent security-floor regression for both supported lines. Upgrade kin-openapi to 0.149.0 and its required YAML and JSON Schema dependencies for called advisories GO-2026-6795, GO-2026-6789 and GO-2026-6785. Retain existing OpenAPI projection, JSON/YAML, duplicate-key, external-reference and payload-binding checks across ingestion and replay. Refresh native Go source references after comparing all sixteen reviewed files against the verified compiler archives. Keep build-input drift mutations tied to the declared compiler selections while retaining all rejection cases and the earlier certificate-verification security floor.
 - Require patched Go certificate verification for supported builds (`EVY-1408-x509-toolchain`).
   Update minimum Go to 1.26.10 and current Go to 1.27.3 for GO-2026-6809, reached through the Sigstore certificate verifier. Pin matching compiler images and refresh current build selections and native-source reviews; retain earlier toolchains and dated evidence as historical observations.
 

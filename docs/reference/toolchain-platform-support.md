@@ -12,8 +12,8 @@ installed package version before the documentation gate.
 <!-- BEGIN GENERATED SUPPORT MATRIX -->
 | Go role | Exact version |
 | --- | --- |
-| Minimum | `1.26.10` |
-| Current | `1.27.3` |
+| Minimum | `1.26.11` |
+| Current | `1.27.4` |
 
 | Platform | CLI target | Server target | Runtime target |
 | --- | --- | --- | --- |
