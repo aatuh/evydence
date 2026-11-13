@@ -20,7 +20,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     GOBIN=/out go install -p=1 -trimpath github.com/minio/mc@v0.0.0-20250813083541-7394ce0dd2a8 && \
     cp /go/pkg/mod/github.com/minio/mc@v0.0.0-20250813083541-7394ce0dd2a8/LICENSE /out/LICENSE
 
-FROM alpine:3.23@sha256:85fe1e81d6758c208f3e1eed4338a1997e19d4be002d4dd32d3100c9a8c010a0 AS minio
+FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf AS minio
 COPY --from=toolchain /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=minio-build /out/minio /usr/local/bin/minio
 COPY --from=minio-build /out/LICENSE /usr/share/licenses/minio/LICENSE
@@ -29,7 +29,7 @@ EXPOSE 9000 9001
 ENTRYPOINT ["minio"]
 CMD ["server", "/data"]
 
-FROM alpine:3.23@sha256:85fe1e81d6758c208f3e1eed4338a1997e19d4be002d4dd32d3100c9a8c010a0 AS mc
+FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf AS mc
 COPY --from=toolchain /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=mc-build /out/mc /usr/local/bin/mc
 COPY --from=mc-build /out/LICENSE /usr/share/licenses/mc/LICENSE
