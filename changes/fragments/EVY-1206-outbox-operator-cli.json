@@ -1,0 +1,22 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-outbox-operator-cli",
+  "category": "added",
+  "summary": "Add payload-free outbox backlog and explicit replay commands to the operator CLI",
+  "details": [
+    "Use evydence outbox backlog and evydence outbox replay over the existing instance-admin endpoints, retaining server-side authorization and the atomic replay audit/idempotency transaction.",
+    "Require an explicit job and reusable operation key for replay; reject duplicate flags and malformed inputs before network access, and resolve captured configuration/private credentials through the existing typed pipeline.",
+    "Print only validated count/replay fields, hide server diagnostic bodies, reject redirects and bound requests to 30 seconds while preserving cancellation identity.",
+    "Keep help independent of credential resolution and update the canonical worker-outbox reference and generated CLI configuration bindings."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "New opt-in online CLI commands; existing routes, SQL, SDK and evidence formats are unchanged. Explicit instance:admin authority remains required. Replay keys are not generated or retried automatically. Existing signal-based worker drain remains the lifecycle interface."
+  },
+  "security": "The CLI remains an authenticated client of existing focused operator services. Closed response projections exclude payloads and raw errors; redirects cannot forward operator credentials. Private-file conflicts, input validation and context cancellation retain the existing configuration boundary.",
+  "limitations": [
+    "Remaining deployment/runbook work and required full-ticket closure gates remain pending in incomplete EVY-1206. Local command tests do not verify a deployed operator credential or live provider."
+  ]
+}

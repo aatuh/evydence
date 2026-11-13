@@ -12,7 +12,7 @@ import (
 func TestOperatorHandlersHaveNoAggregateOrOptionalPortPath(t *testing.T) {
 	for source, handlers := range map[string]map[string]string{
 		"system_handlers.go":   {"ready": "readinessQuery", "readinessDiagnostics": "readinessQuery", "metrics": "metricsQuery"},
-		"identity_handlers.go": {"instanceAdminSnapshot": "instanceAdminQuery", "outboxOperatorDiagnostics": "outboxDiagnosticsQuery", "replayTerminalOutboxJob": "outboxReplayCommand"},
+		"identity_handlers.go": {"instanceAdminSnapshot": "instanceAdminQuery", "outboxOperatorDiagnostics": "outboxDiagnosticsQuery", "listOutboxDeadLetters": "outboxDiagnosticsQuery", "replayTerminalOutboxJob": "outboxReplayCommand"},
 	} {
 		file, err := parser.ParseFile(token.NewFileSet(), source, nil, parser.SkipObjectResolution)
 		if err != nil {
@@ -67,7 +67,7 @@ func TestOperatorOpenAPIDescriptionsRequirePostgresEvaluation(t *testing.T) {
 	}
 	for path, method := range map[string]string{
 		"/v1/ready": "get", "/v1/admin/readiness": "get", "/v1/metrics": "get",
-		"/v1/admin/instance": "get", "/v1/admin/outbox": "get", "/v1/admin/outbox/{id}/replay": "post",
+		"/v1/admin/instance": "get", "/v1/admin/outbox": "get", "/v1/admin/outbox/dead-letters": "get", "/v1/admin/outbox/{id}/replay": "post",
 	} {
 		if !strings.Contains(doc.Paths[path][method].Description, "PostgreSQL is required for local evaluation.") {
 			t.Errorf("%s omits the required evaluation backend", path)

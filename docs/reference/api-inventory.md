@@ -4,14 +4,14 @@ This generated reference is the complete operation-level inventory for the commi
 
 ## Review Summary
 
-- Operations: `194`; every public operation is represented once.
+- Operations: `195`; every public operation is represented once.
 - Candidate stable core: `43` operations; review this count before any stable API promise.
 - Owners, auth modes, scopes, idempotency requirements, schemas, success statuses, and error status contracts are derived from OpenAPI route metadata.
 
 | Stability | Operations |
 | --- | ---: |
 | `core` | 43 |
-| `experimental` | 137 |
+| `experimental` | 138 |
 | `supported` | 14 |
 
 ## Complete Operation Inventory
@@ -20,6 +20,7 @@ This generated reference is the complete operation-level inventory for the commi
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | instanceAdminSnapshot | GET | `/v1/admin/instance` | `experimental` | `platform-operations` | `bearer` | instance:admin | not required | - | 200:InstanceAdminSnapshotEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | outboxOperatorDiagnostics | GET | `/v1/admin/outbox` | `experimental` | `platform-operations` | `bearer` | instance:admin | not required | - | 200:OutboxDiagnosticsEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
+| listOutboxDeadLetters | GET | `/v1/admin/outbox/dead-letters` | `experimental` | `platform-operations` | `bearer` | instance:admin | not required | - | 200:OutboxDeadLetterListEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | replayTerminalOutboxJob | POST | `/v1/admin/outbox/{id}/replay` | `experimental` | `platform-operations` | `bearer` | instance:admin | required | EmptyObject | 200:OutboxReplayEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | readinessDiagnostics | GET | `/v1/admin/readiness` | `experimental` | `platform-operations` | `bearer` | instance:admin | not required | - | 200:ReadinessDiagnosticsEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
 | listAPIKeys | GET | `/v1/api-keys` | `supported` | `identity-access` | `bearer` | admin | not required | - | 200:APIKeyListEnvelope | 400, 401, 403, 404, 409, 422, 429, 500, 503 |
@@ -221,6 +222,7 @@ Every `experimental` operation is an explicit candidate for a maintainer decisio
 | --- | --- | --- |
 | instanceAdminSnapshot | `platform-operations` | review internal/admin exposure |
 | outboxOperatorDiagnostics | `platform-operations` | review internal/admin exposure |
+| listOutboxDeadLetters | `platform-operations` | review internal/admin exposure |
 | replayTerminalOutboxJob | `platform-operations` | review internal/admin exposure |
 | readinessDiagnostics | `platform-operations` | review internal/admin exposure |
 | uploadAPISecurityScan | `evidence-ingestion` | review experimental scope |

@@ -77,6 +77,9 @@ func TestRuntimeCleanupTimeoutKeepsWriterLeaseUntilProcessExit(t *testing.T) {
 		<-runtime.cleanup.done
 		// A real forced daemon exits. The fixture must instead release its own
 		// connection explicitly after all assertions, so it cannot leak to tests.
+		if err := runtime.migrationLease(cleanup); err != nil {
+			t.Error(err)
+		}
 		if err := runtime.lease(cleanup); err != nil {
 			t.Error(err)
 		}
@@ -93,6 +96,12 @@ func TestRuntimeCleanupTimeoutKeepsWriterLeaseUntilProcessExit(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer next.Close()
+	migrationCtx, cancelMigration := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	_, migrationErr := next.ApplyMigrations(migrationCtx, "../../../migrations")
+	cancelMigration()
+	if !errors.Is(migrationErr, context.DeadlineExceeded) {
+		t.Fatal("forced cleanup released migration fence while work remained", migrationErr)
+	}
 	if release, err := next.AcquireAPIWriterLease(t.Context()); err == nil {
 		_ = release(t.Context())
 		t.Fatal("forced cleanup admitted another writer")
@@ -139,6 +148,11 @@ func TestRuntimeCleanupPartialStartupReleasesWriter(t *testing.T) {
 	}
 	if err = release(t.Context()); err != nil {
 		t.Fatal(err)
+	}
+	migrationCtx, cancelMigration := context.WithTimeout(t.Context(), time.Second)
+	defer cancelMigration()
+	if count, err := next.ApplyMigrations(migrationCtx, "../../../migrations"); count != 0 || err != nil {
+		t.Fatal("partial startup leaked migration fence", count, err)
 	}
 }
 

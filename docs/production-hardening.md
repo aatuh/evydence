@@ -67,12 +67,15 @@ Expected result: live PostgreSQL migration and integration checks pass, or the t
 Helm:
 
 ```sh
-helm upgrade --install evydence ./deploy/helm/evydence --dry-run
-kubectl rollout status deploy/evydence-api
-kubectl rollout status deploy/evydence-worker
+helm upgrade --install evydence ./deploy/helm/evydence \
+  --values /secure/evydence/operator-values.yaml --dry-run
 ```
 
-Expected result: rendered manifests reference the configured secret and object store, and both deployments roll out.
+Supply the verified image, explicit migration target and scoped Secret references
+in that operator values file. Expected result: rendering succeeds with a
+separate migration Job and the configured object store. A dry run does not
+execute migrations or roll out pods. For a real upgrade, follow the stop/drain
+and migration procedure in [Kubernetes deployment](kubernetes.md#install-or-upgrade).
 
 Air-gapped packages:
 

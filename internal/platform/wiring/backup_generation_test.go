@@ -216,7 +216,7 @@ func TestPostgresBackupCommitmentProfileClassifiesEveryMigrationTableAndColumn(t
 	}
 	// The head table and response view contain only relationships already
 	// committed by decision records and supersessions, not independent history.
-	excludedTables := map[string]bool{"ledger_state": true, "resource_index": true, "schema_migrations": true, "idempotency_records": true, "vulnerability_decision_heads": true, "vulnerability_decision_projection": true}
+	excludedTables := map[string]bool{"ledger_state": true, "resource_index": true, "schema_migrations": true, "schema_migration_operations": true, "idempotency_records": true, "vulnerability_decision_heads": true, "vulnerability_decision_projection": true}
 	// Diagnostic correlation is operational metadata, not evidence state. Keep
 	// exact exclusions; the mutation regression below still requires job-state
 	// changes to affect the tenant commitment.
@@ -250,6 +250,47 @@ func TestPostgresBackupCommitmentProfileClassifiesEveryMigrationTableAndColumn(t
 	}
 	if len(seen) != len(fields) {
 		t.Fatal("missing declared resource", len(seen), len(fields))
+	}
+}
+
+func TestPostgresBackupCommitmentIgnoresMigrationExecutionMetadata(t *testing.T) {
+	store, pool := openHTMLReportWiringStore(t)
+	ctx, cancel := context.WithTimeout(t.Context(), 10*time.Second)
+	defer cancel()
+	if _, err := pool.Exec(ctx, `INSERT INTO tenants(id,name)VALUES('tenant','Backup migration metadata')`); err != nil {
+		t.Fatal(err)
+	}
+	read := func() string {
+		t.Helper()
+		var commitment verificationapp.BackupStateCommitment
+		err := app.ExecuteUnitOfWork(ctx, store, func(txCtx context.Context, repos app.Repositories) error {
+			var err error
+			commitment, err = repos.Integrity.(verificationapp.BackupStateCommitmentReader).ReadBackupStateCommitment(txCtx, "tenant")
+			return err
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return commitment.StateHash
+	}
+	baseline := read()
+	if _, err := pool.Exec(ctx, `INSERT INTO schema_migrations(version,checksum_sha256,applied_by)VALUES('operator_metadata_probe',repeat('a',64),session_user)`); err != nil {
+		t.Fatal(err)
+	}
+	if read() != baseline {
+		t.Fatal("operational migration provenance entered the tenant evidence commitment")
+	}
+	if _, err := pool.Exec(ctx, `INSERT INTO schema_migration_operations(sequence,operation_id,phase,target_version,runtime_role,committed_migrations,policy_sha256)VALUES(1,'operator_metadata_probe','started','probe',session_user,0,repeat('a',64))`); err != nil {
+		t.Fatal(err)
+	}
+	if read() != baseline {
+		t.Fatal("operational migration audit entered the tenant evidence commitment")
+	}
+	if _, err := pool.Exec(ctx, `UPDATE tenants SET name='Business state changed' WHERE id='tenant'`); err != nil {
+		t.Fatal(err)
+	}
+	if read() == baseline {
+		t.Fatal("excluding migration metadata also omitted tenant business state")
 	}
 }
 

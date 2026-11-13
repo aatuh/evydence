@@ -37,8 +37,8 @@ func (s *apiStartupSigner) CheckReadiness(ctx context.Context) error {
 }
 func (s *apiStartupSigner) Close() error { s.closes.Add(1); return nil }
 
-// Native provider ports are fakes; real PostgreSQL, migrations, bootstrap,
-// listeners, readiness and cleanup use the production startup path.
+// Native provider ports are fakes. Prepare real PostgreSQL migrations separately;
+// bootstrap, listeners, readiness and cleanup use the production startup path.
 func TestAPIProductionStartupUsesTypedConfigurationWithLivePostgres(t *testing.T) {
 	base := os.Getenv("EVYDENCE_TEST_DATABASE_URL")
 	if base == "" {
@@ -80,6 +80,19 @@ func TestAPIProductionStartupUsesTypedConfigurationWithLivePostgres(t *testing.T
 	query := u.Query()
 	query.Set("search_path", schema)
 	u.RawQuery = query.Encode()
+	// Production daemons only check migrations. Model the separate migration
+	// prerequisite rather than relaxing production skip mode in this fixture.
+	migrator, err := postgres.OpenWithOptions(t.Context(), u.String(), postgres.StoreOptions{
+		LoadMode: postgres.LoadModeRelationalOnly, DisableSnapshotWrites: true,
+	})
+	if err != nil {
+		t.Fatal("open separate fixture migrator")
+	}
+	applied, migrationErr := migrator.ApplyMigrations(t.Context(), "../../migrations")
+	migrator.Close()
+	if migrationErr != nil || applied == 0 {
+		t.Fatal("prepare separate migration prerequisite", migrationErr)
+	}
 	reserved, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -91,7 +104,8 @@ func TestAPIProductionStartupUsesTypedConfigurationWithLivePostgres(t *testing.T
 	objects := filepath.Join(t.TempDir(), "PRIVATE_OBJECTS")
 	for name, value := range map[string]string{
 		"ENV": "production", "EVYDENCE_RUNTIME_PROFILE": "postgres", "EVYDENCE_DATABASE_URL": u.String(), "EVYDENCE_API_KEY_PEPPER": "PRIVATE_API_PEPPER_0123456789_ABCDEFGHIJKLMNOPQRSTUVWXYZ",
-		"EVYDENCE_ADDR": address, "EVYDENCE_MIGRATIONS_DIR": "../../migrations", "EVYDENCE_OBJECT_STORE": "filesystem", "EVYDENCE_OBJECT_DIR": objects,
+		"EVYDENCE_SKIP_MIGRATIONS": "true",
+		"EVYDENCE_ADDR":            address, "EVYDENCE_MIGRATIONS_DIR": "../../migrations", "EVYDENCE_OBJECT_STORE": "filesystem", "EVYDENCE_OBJECT_DIR": objects,
 		"EVYDENCE_SIGNING_KEY_MODE": "external", "EVYDENCE_SIGNING_EXECUTOR_URL": "https://signer.example.test/sign", "EVYDENCE_SIGNING_EXECUTOR_READINESS_URL": "https://signer.example.test/ready",
 		"EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64": base64.StdEncoding.EncodeToString(make([]byte, 32)), "EVYDENCE_SIGNING_EXECUTOR_TOKEN": "PRIVATE_TOKEN",
 		"EVYDENCE_WORKER_HEALTH_ADDR": "PRIVATE_INVALID_UNUSED", "EVYDENCE_WORKER_METRICS_TOKEN_FILE": "/PRIVATE_UNUSED_METRICS", "EVYDENCE_WORKER_BATCH_SIZE": "0",
@@ -199,5 +213,12 @@ func TestAPIProductionStartupUsesTypedConfigurationWithLivePostgres(t *testing.T
 	}
 	if tenants != 1 || keys != 1 {
 		t.Fatal("durable native bootstrap was lost")
+	}
+	var versions, checksums, principals int
+	if err := admin.QueryRow(t.Context(), "SELECT count(*), count(checksum_sha256), count(applied_by) FROM "+quoted+".schema_migrations").Scan(&versions, &checksums, &principals); err != nil {
+		t.Fatal("read fixture migration execution metadata")
+	}
+	if versions != applied || checksums != applied || principals != applied {
+		t.Fatal("production startup changed prepared migration record counts")
 	}
 }

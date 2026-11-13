@@ -2,10 +2,43 @@
 {{- .Chart.Name -}}
 {{- end -}}
 
+{{/* One image selection for the hook and both daemons; no independent fallback. */}}
+{{- define "evydence.image" -}}
+{{- $repository := required "image.repository is required" .Values.image.repository -}}
+{{- if contains ":" (last (splitList "/" $repository)) -}}
+{{- fail "image.repository must not include an image tag" -}}
+{{- end -}}
+{{- $tag := .Values.image.tag -}}
+{{- $digest := .Values.image.digest -}}
+{{- if contains "@" $tag -}}
+{{- $parts := splitList "@" $tag -}}
+{{- if ne (len $parts) 2 -}}{{- fail "image.tag must use tag@sha256:digest format" -}}{{- end -}}
+{{- if and $digest (ne $digest (last $parts)) -}}
+{{- fail "image.tag and image.digest select conflicting digests" -}}
+{{- end -}}
+{{- $digest = last $parts -}}
+{{- $tag = first $parts -}}
+{{- end -}}
+{{- if and .Values.env.production (not $digest) -}}
+{{- fail "production image.tag/image.digest must select a sha256 digest" -}}
+{{- end -}}
+{{- if $digest -}}
+{{- if $tag -}}{{ printf "%s:%s@%s" $repository $tag $digest }}{{- else -}}{{ printf "%s@%s" $repository $digest }}{{- end -}}
+{{- else -}}
+{{- $tag = required "image.tag is required without image.digest" $tag -}}
+{{- printf "%s:%s" $repository $tag -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "evydence.runtimeServiceAccountName" -}}
+{{- printf "%s-%s" (include "evydence.fullname" .root | trunc 55 | trimSuffix "-") .component -}}
+{{- end -}}
+
 {{/* Non-secret process configuration; one input to both revision and data. */}}
 {{- define "evydence.configData" -}}
 ENV: {{ ternary "production" "development" .Values.env.production | quote }}
 EVYDENCE_RUNTIME_PROFILE: "postgres"
+EVYDENCE_SKIP_MIGRATIONS: "true"
 EVYDENCE_ADDR: {{ .Values.api.addr | quote }}
 EVYDENCE_API_WRITER_MODE: {{ .Values.api.writerMode | quote }}
 EVYDENCE_API_WRITER_REPLICAS: {{ .Values.api.replicas | quote }}
@@ -37,6 +70,21 @@ EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS: {{ .Values.worker.shutdownTimeoutSecon
 
 {{- define "evydence.runtimeSecret" -}}
 {{- default .fallback .process.existingSecret -}}
+{{- end -}}
+
+{{/* Compare references only; chart templates never inspect credential bytes. */}}
+{{- define "evydence.validateSecretSeparation" -}}
+{{- if .Values.env.production -}}
+{{- $api := include "evydence.runtimeSecret" (dict "process" .Values.api "fallback" .Values.existingSecret) -}}
+{{- $worker := include "evydence.runtimeSecret" (dict "process" .Values.worker "fallback" .Values.existingSecret) -}}
+{{- $migrate := .Values.migration.existingSecret -}}
+{{- if or (eq $api $worker) (eq $api $migrate) (eq $worker $migrate) -}}
+{{- fail "production requires distinct API, worker and migration Secret references" -}}
+{{- end -}}
+{{- if or (and .Values.api.environmentSecret (or (eq .Values.api.environmentSecret $worker) (eq .Values.api.environmentSecret $migrate))) (and .Values.worker.environmentSecret (or (eq .Values.worker.environmentSecret $api) (eq .Values.worker.environmentSecret $migrate))) (and .Values.api.environmentSecret (eq .Values.api.environmentSecret .Values.worker.environmentSecret)) -}}
+{{- fail "production environmentSecret must not import another process's Secret authority" -}}
+{{- end -}}
+{{- end -}}
 {{- end -}}
 
 {{/* Schema-supported file options only; no secret values enter templates. */}}
@@ -73,4 +121,9 @@ EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS: {{ .Values.worker.shutdownTimeoutSecon
 
 {{- define "evydence.fullname" -}}
 {{- printf "%s-%s" .Release.Name (include "evydence.name" .) | trunc 63 | trimSuffix "-" -}}
+{{- end -}}
+
+{{/* Jobs must leave room for the controller's generated pod-name suffix. */}}
+{{- define "evydence.migrationName" -}}
+{{- printf "%s-migrate" (include "evydence.fullname" . | trunc 55 | trimSuffix "-") -}}
 {{- end -}}

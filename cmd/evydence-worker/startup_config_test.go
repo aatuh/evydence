@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/platform/config"
 	"github.com/aatuh/evydence/internal/platform/logging"
 )
@@ -84,5 +85,17 @@ func TestWorkerProcessRejectsCancellationBeforeStartup(t *testing.T) {
 	err := runWorkerProcess(ctx, workerCapturedEnvironment(t), &output, func(context.Context, config.Configuration) error { called = true; return nil })
 	if !errors.Is(err, context.Canceled) || called || strings.Contains(output.String(), `"result_code":"started"`) {
 		t.Fatal("cancelled worker entered startup", err)
+	}
+}
+
+func TestWorkerRuntimeRejectsMigrationLeasePoolStarvation(t *testing.T) {
+	settings, err := config.Parse(workerCapturedEnvironment(t,
+		"EVYDENCE_DATABASE_URL=postgres://operator:PRIVATE_PASSWORD@127.0.0.1:1/evydence?pool_max_conns=1"), config.Worker)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = prepareWorkerRuntime(t.Context(), settings)
+	if !errors.Is(err, postgres.ErrInvalidConfiguration) || strings.Contains(err.Error(), "PRIVATE") {
+		t.Fatal("undersized worker pool reached resource opening or exposed credentials", err)
 	}
 }

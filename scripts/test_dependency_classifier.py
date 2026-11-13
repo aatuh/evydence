@@ -68,7 +68,10 @@ class BuildTests(unittest.TestCase):
         self.calls.append((args,Path(cwd),dict(environment)))
         if args==['go','telemetry','off']: return b''
         if args==['go','env','GOTELEMETRY']: return b'off\n'
-        if args==['go','version']: return b'go version go1.27.3 linux/amd64\n'
+        if args==['go','version']:
+            raw=(Path(cwd).parent/'release/support-matrix.json').read_bytes()
+            selected=classifier.support_matrix.parse_policy(raw)['go']['current']
+            return ('go version go'+selected+' linux/amd64\n').encode()
         if args==['go','mod','edit','-json']:
             return json.dumps({'Module':{'Path':'github.com/aatuh/evydence/tools'},'Replace':self.replacements,
                                'Exclude':None}).encode()
@@ -122,6 +125,15 @@ class BuildTests(unittest.TestCase):
                 classifier.build(Reader(),BASE,Path(folder),{})
             self.assertNotIn('CANARY',str(error.exception))
             self.assertFalse(any(args[:2]==['go','build'] for args,_,_ in self.calls))
+
+    def test_valid_but_unselected_compiler_prevents_build_execution(self):
+        def run(args,*pos,**kwargs):
+            if args==['go','version']: return b'go version go1.0.0 linux/amd64\n'
+            return self.fake_run(args,*pos,**kwargs)
+        with tempfile.TemporaryDirectory() as folder, \
+             patch.object(inventory,'_run',side_effect=run),self.assertRaises(classifier.ClassifierError):
+            classifier.build(Reader(),BASE,Path(folder),{})
+        self.assertFalse(any(args[:2]==['go','build'] for args,_,_ in self.calls))
 
     def test_overrides_changed_locks_and_failed_verification_cannot_produce_an_artifact(self):
         for mutation in ['replace','changed-lock','verify']:

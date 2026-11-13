@@ -113,7 +113,7 @@ func (s *Server) parsePageRequestWithLegacyLimit(r *http.Request, actor domain.A
 
 func paginationOptions(resource string) (appquery.Sort, appquery.Direction, map[appquery.Sort]bool) {
 	switch resource {
-	case "control-framework-template-packs", "sbom-components":
+	case "control-framework-template-packs", "sbom-components", "outbox-dead-letters":
 		return appquery.SortID, appquery.Ascending, map[appquery.Sort]bool{appquery.SortID: true}
 	case "evidence-search", "audit-log":
 		return appquery.SortCreatedAt, appquery.Descending, map[appquery.Sort]bool{
@@ -163,7 +163,7 @@ func writePaginatedWithLegacyLimit[T any](s *Server, w http.ResponseWriter, r *h
 	writePage(s, w, r, actor, resource, request, page)
 }
 
-func writePage[T any](s *Server, w http.ResponseWriter, r *http.Request, actor domain.Actor, resource string, request pageRequest, page appquery.Result[T]) {
+func writePage[T any](s *Server, w http.ResponseWriter, r *http.Request, actor domain.Actor, resource string, request pageRequest, page appquery.Result[T], cursorErrors ...error) {
 	meta := map[string]any{
 		"api_version": "v1",
 		"page_size":   request.pageSize,
@@ -180,7 +180,11 @@ func writePage[T any](s *Server, w http.ResponseWriter, r *http.Request, actor d
 			Key:       *page.Next,
 		})
 		if err != nil {
-			writeProblem(w, r, app.ErrValidation)
+			failure := app.ErrValidation
+			if len(cursorErrors) > 0 && cursorErrors[0] != nil {
+				failure = cursorErrors[0]
+			}
+			writeProblem(w, r, failure)
 			return
 		}
 		meta["next_cursor"] = next

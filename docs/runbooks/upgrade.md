@@ -22,7 +22,175 @@ before changing binaries, images, Helm values, or migrations.
 7. Check that production secrets are externalized and that local plaintext
    signing-key mode is not used in production.
 
+Migration entries ending in `.up.sql` must be regular files. A matching symlink,
+directory or other non-regular entry rejects catalog discovery before migration
+SQL runs; the error does not return a partial migration list. Other entries,
+including `.down.sql` files, are not applied. Catalog discovery accepts at most
+1,024 up files and 8,192 total directory entries. Applying migrations reads every
+up file into an owned snapshot before acquiring the database lock or running
+SQL, with limits of 4 MiB per file and 32 MiB combined SQL. An unreadable,
+non-regular or oversized input, or a detected change during loading, rejects
+that snapshot without applying any file.
+Files edited, removed or added after snapshot loading do not change that run.
+
+Keep the migration directory read-only during loading and verify the release
+checksums as above. The loader pins its directory, checks opened file identity
+and type, and bounds reads. It does not create an atomic filesystem snapshot or
+authenticate release files. Local filesystem calls can still wait on the kernel;
+cancellation is checked between bounded operations. Catalog discovery and
+snapshot loading do not verify recorded database history or enforce a target.
+
+Updated migration runners targeting the same database schema serialize their
+work. Each file still commits in its own transaction: a later failure preserves
+earlier completed versions and rolls back the current file. Lock waits respect
+the command context. Uncertain lock cleanup returns an error and discards the
+database session, even when a version has already committed. Keep using the
+writer/worker stop procedure below; older runners do not participate in this
+coordination protocol. Production API and worker startup requires
+`EVYDENCE_SKIP_MIGRATIONS=true` (the production default); an explicit false
+value fails before opening providers or storage. Production migration commands
+require the paired target and checksum settings below. Non-production isolated
+startup can still apply the full catalog automatically; use a separate job and
+skip mode when running multiple development processes against one schema.
+
+Every updated API/worker runtime holds a shared schema migration lease from
+startup validation through processing and drain. Startup waits for an active
+updated runner; an active runtime prevents new migration SQL. Multiple workers
+can hold shared leases concurrently. Readiness reuses its exact pinned session,
+so a waiting migrator cannot block the runtime behind a second lock acquisition
+and a healthy replacement pool connection cannot hide a lost lease. Standalone
+version checks use temporary shared leases and remain read-only.
+Missing tracking metadata reports the local catalog as pending; checking does
+not create the table or apply SQL. Startup/readiness also check the managed
+operation marker when present, as described below. Version results cover
+the configured schema and preserve local catalog order without returning
+unrelated recorded versions. These are version-name checks, not schema-content
+or checksum verification. Cleanup waits for database work and closes owned
+provider/object resources before releasing the migration and API writer leases.
+A cleanup timeout retains ownership until process exit; do not reuse that
+runtime. Production API pools need at least three connections (two pinned
+leases plus work), and worker and migration pools need at least two. Smaller
+resolved pools fail before dialing. This is minimum capacity, not sizing advice.
+
+## Explicit Target And Verified Inputs
+
+After verifying the release artifacts, the migration command can consume the
+release's `migrations.sha256` with an explicit version. Both settings are
+required together and mandatory for `ENV=production`. For the current source catalog, an example is:
+
+```sh
+EVYDENCE_MIGRATION_TARGET=20261104000200_outbox_dead_letter_lookup \
+EVYDENCE_MIGRATION_CHECKSUMS_FILE=/srv/evydence/release/migrations.sha256 \
+EVYDENCE_MIGRATION_TIMEOUT_SECONDS=120 \
+evydence-migrate
+```
+
+Choose the reviewed target for your intended release; omit `.up.sql`. Configure
+the database and migration directory through the
+[configuration reference](../reference/configuration.md). The timeout covers
+input preparation, database opening, coordinator waits and SQL. Its default
+remains 30 seconds, with a supported range of 1 through 900 whole seconds.
+
+The command prepares the verified plan before opening its database pool. The
+checksum file must be regular, at most 64 KiB, and contain at most 256 unique
+records in the existing release checksum format (`sha256sum` text or binary
+markers, with logical `migrations/<filename>.sql` names). Every local up file,
+including files beyond the target, must match a record. Every other listed SQL
+file is also checked but is not applied. SQL inputs retain the 4 MiB per-file
+limit; this path bounds all checked SQL together to 32 MiB. File changes after
+preparation cannot change the owned SQL executed by that plan.
+
+Under the runner lock, existing versions must form a prefix of the selected
+target catalog. Newer, unknown or gapped history rejects the run before
+application migration SQL. Only the missing suffix through the target is
+applied, with each SQL file, version record, execution checksum and database
+principal in one transaction. A version recording conflict fails that
+transaction for both ordinary and verified execution. Repeating a completed plan is
+a no-op. Earlier committed versions survive a later SQL failure as described
+above.
+
+This compares input bytes with an operator-trusted checksum file; the file does
+not authenticate itself. Without the paired target/checksum settings, the
+command retains its full-catalog behavior. Both paths reject a mismatch with
+any recorded checksum before applying pending SQL. Ordinary execution continues
+to accept unknown legacy history for compatibility; the verified path requires
+the acknowledgement below.
+
+## Recorded Checksums And Legacy History
+
+Updated runners record `checksum_sha256` over the exact owned SQL bytes and
+`applied_by` from PostgreSQL's authenticated `session_user`, alongside the
+existing version and application timestamp. Existing version rows keep their
+timestamps and receive null checksum/principal fields. These fields expand the
+operational tracking table before application SQL, like its initial table
+bootstrap, independently of the selected application target. Expansion can
+remain after a rejected or canceled run. The additive migration
+`20261029000100_migration_execution_checksums` declares the same nullable shape
+for older runners; older writers still insert version-only rows.
+
+A verified plan encountering a version-only row stops with the fixed log event
+`migration_legacy_history_required`. Review the deployment's prior release
+artifacts, backups and migration records through your protected database
+connection. This bounded query distinguishes recorded execution metadata from
+unknown history:
+
+```sql
+SELECT version, applied_at, checksum_sha256, applied_by
+FROM schema_migrations
+ORDER BY version
+LIMIT 1024;
+```
+
+To proceed with unknown history after that operator review, repeat the paired
+target/checksum command with `EVYDENCE_MIGRATION_ALLOW_LEGACY_HISTORY=true`.
+This acknowledgement leaves old checksums and principals null; it does not
+backfill or verify historical SQL. The setting defaults to false and requires
+the paired plan settings. Never fill old fields merely to silence the check.
+
+A stored mismatch stops with `migration_checksum_mismatch`, including when
+legacy acknowledgement is enabled. Check the intended release, artifact
+checksums and database history; use a forward fix or the paired restore
+procedure. The metadata downgrade refuses to erase any recorded execution
+checksum/principal. These database records rely on database access controls;
+they are not an external attestation or protection against a privileged database
+administrator changing records. Migration metadata stays outside the frozen
+tenant evidence commitments.
+
+For a schema with managed operation history, startup/readiness additionally
+require its latest operation to have succeeded for the authenticated runtime
+role, local catalog target and embedded role-policy digest. They reject
+effective schema-create or migration-metadata write permissions. Missing or
+empty operation history preserves the legacy version-check behavior; this does
+not prove role separation. Configure the migration/runtime identities using
+the [database role procedure](../how-to/database-roles.md).
+
+`EVYDENCE_MIGRATION_RUNTIME_ROLE` selects managed validation, append-only
+operation audit and runtime grants under the existing coordinator. This path
+requires the paired target/checksum inputs. Once activated, ordinary migration
+execution cannot bypass it by omitting the role option. Failed, interrupted or
+uncertain operations block runtime even when no SQL remains pending. Review and
+repair the cause, then rerun the managed plan; never clear or rewrite audit rows.
+The runner bootstraps `schema_migration_operations` before application SQL; the
+additive `20261104000100_migration_operation_audit` declares the same shape for
+other runners. Its downgrade refuses to erase recorded operation events.
+
+The production-like Compose stack runs its migration service before either
+daemon. The Helm chart runs a pre-install/pre-upgrade migration Job with the
+selected image's `/app/migrations.sha256` and an operator-selected target. Stop
+existing API and worker pods before upgrading: Helm runs pre-upgrade hooks
+before updating Deployments, and an active runtime intentionally prevents the
+job from migrating. See [Kubernetes deployment](../kubernetes.md#install-or-upgrade).
+Role provisioning, existing-schema adoption and worker operations are described
+in the linked procedures. Validate them against the target deployment. The lock protocol does not
+protect against older binaries or a database administrator bypassing it.
+
 ## Upgrade
+
+For the separate database-identity rehearsal, use the
+[database role procedure](../how-to/database-roles.md). With the optional role
+selected, the Helm/Compose migration command commits grants and operation audit
+before daemons restart. The policy never transfers ownership or changes
+legacy execution metadata.
 
 1. Stop API writers.
 2. Let workers finish or stop them after recording pending outbox counts.
@@ -32,6 +200,74 @@ before changing binaries, images, Helm values, or migrations.
 5. Start worker replicas.
 6. Verify `/v1/ready`, a release-readiness report, an audit-chain verification,
    a release bundle verification, and a representative package/export.
+
+## Stop And Restart The Reference Deployment
+
+First capture [bounded operator receipts](incident-response.md#capture-bounded-operator-evidence)
+and a paired backup. Record intended replica counts, authenticated old/target
+images, migration target and private configuration references. Before Helm
+upgrades, provision distinct API/worker/migration Secrets and reviewed network
+allowlists using the [chart procedure](../kubernetes.md#network-and-disruption-policy).
+Existing shared references and tag-only production values no longer render.
+
+For production-like Compose, run from the checkout with the configured private
+deployment environment. Select the reviewed image and migration settings;
+build or pull that image through the normal deployment process first. Keep
+PostgreSQL, bucket initialization and object storage available. Do not use
+`down -v`:
+
+```sh
+docker compose -f compose.production-like.yml stop api worker
+docker compose -f compose.production-like.yml ps --all api worker
+```
+
+`stop` sends SIGTERM and waits through the configured grace period. Inspect
+container exit status and shutdown records; a timeout/forced kill is an uncertain
+job outcome. Confirm every daemon has stopped before migrating:
+
+```sh
+docker compose -f compose.production-like.yml run --rm --no-deps migrate
+```
+
+The one-shot command uses the migration service's separate configuration;
+nonzero exit is a stop condition. After a successful run, start the selected image:
+
+```sh
+docker compose -f compose.production-like.yml up -d --no-deps api worker
+docker compose -f compose.production-like.yml exec -T worker evydence-worker healthcheck
+```
+
+Check API readiness and authorized outbox diagnostics, then the business
+artifacts listed above. `--no-deps` avoids restarting dependencies or rerunning
+an old migration container; it assumes the one-shot migration and dependencies
+have succeeded.
+
+For Helm's default release `evydence` in a reviewed namespace, list current
+pods and owners, then scale both Deployments to zero:
+
+```sh
+namespace=evydence
+kubectl -n "$namespace" get pods -o 'custom-columns=NAME:.metadata.name,OWNER:.metadata.ownerReferences[0].name,PHASE:.status.phase'
+kubectl -n "$namespace" scale deployment evydence-evydence-api evydence-evydence-worker --replicas=0
+```
+
+Wait for **every** pod belonging to those Deployments to disappear. Use exact
+reviewed names from the listing, for example:
+
+```sh
+kubectl -n "$namespace" wait --for=delete pod reviewed-api-pod reviewed-worker-pod --timeout=120s
+```
+
+Replace the example names and include all worker replicas and terminating old
+pods. Older chart pods may lack release labels; the new release selector alone
+cannot prove they stopped. Review shutdown results and allow the configured
+drain/cleanup budgets. Scale-to-zero is a planned outage; PDBs do not prevent it.
+Use the [canonical Helm upgrade command](../kubernetes.md#install-or-upgrade)
+with `--namespace "$namespace"` and values restoring intended replicas. An active
+runtime intentionally makes the hook wait/fail rather than migrate under
+traffic. Inspect the retained Job result and managed operation history from the
+[database role procedure](../how-to/database-roles.md#run-a-managed-migration).
+Never erase audit rows or relax checksum/history checks to restart.
 
 ## Current Prerelease API Contract Correction
 

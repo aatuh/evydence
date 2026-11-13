@@ -146,3 +146,23 @@ func TestConfiguredAPIProvidersIgnoreChangedProjectEnvironment(t *testing.T) {
 		t.Fatal("fixture provider cleanup failed")
 	}
 }
+
+func TestAPIProcessRejectsMigrationLeasePoolStarvationBeforeProviders(t *testing.T) {
+	for _, production := range []bool{false, true} {
+		extra := []string{"EVYDENCE_DATABASE_URL=postgres://operator:PRIVATE_PASSWORD@127.0.0.1:1/evydence?pool_max_conns=1"}
+		if production {
+			extra = []string{"ENV=production", "EVYDENCE_DATABASE_URL=postgres://operator:PRIVATE_PASSWORD@127.0.0.1:1/evydence?pool_max_conns=2",
+				"EVYDENCE_SIGNING_KEY_MODE=aws-kms", "EVYDENCE_AWS_REGION=eu-test-1", "EVYDENCE_AWS_KMS_KEY_ID=PRIVATE_KEY"}
+		}
+		called := false
+		var output bytes.Buffer
+		err := runAPIProcess(t.Context(), apiCapturedEnvironment(t, extra...), &output,
+			func(context.Context, config.Configuration, postgres.PreparedPoolConfig) error {
+				called = true
+				return nil
+			})
+		if called || !errors.Is(err, postgres.ErrInvalidConfiguration) || strings.Contains(output.String()+err.Error(), "PRIVATE") {
+			t.Fatal("undersized native pool reached provider startup or exposed credentials", production, err)
+		}
+	}
+}

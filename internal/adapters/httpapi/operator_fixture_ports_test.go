@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/aatuh/evydence/internal/app"
+	appquery "github.com/aatuh/evydence/internal/app/query"
 	"github.com/aatuh/evydence/internal/authz"
 	"github.com/aatuh/evydence/internal/domain"
 	operationsapp "github.com/aatuh/evydence/internal/operations/app"
@@ -23,6 +24,7 @@ type operatorFixtureResources struct {
 	checks         []operationsquery.ReadinessCheck
 	now            func() time.Time
 	operator       app.OutboxAdmin
+	deadLetters    operationsquery.OutboxDeadLetterReader
 	reconciliation app.ObjectReconciliationMetricsStore
 }
 type operatorFixtureQueries struct {
@@ -162,6 +164,21 @@ func (f outboxDiagnosticsFixture) ReadOutboxCounts(ctx context.Context) (operati
 		return operationsquery.OutboxCounts{}, err
 	}
 	return operationsquery.OutboxCounts(v), nil
+}
+
+func (f outboxDiagnosticsFixture) DeadLettersPage(ctx context.Context, actor domain.Actor, page appquery.PageRequest, after *appquery.SortKey) (appquery.Result[operationsquery.OutboxDeadLetter], error) {
+	query, err := operationsquery.NewOutboxDiagnostics(f)
+	if err != nil {
+		return appquery.Result[operationsquery.OutboxDeadLetter]{}, err
+	}
+	return query.DeadLettersPage(ctx, actor, page, after)
+}
+
+func (f outboxDiagnosticsFixture) ReadOutboxDeadLettersPage(ctx context.Context, page appquery.PageRequest, after *appquery.SortKey) (appquery.Result[operationsquery.OutboxDeadLetter], error) {
+	if f.resources.deadLetters == nil {
+		return appquery.Result[operationsquery.OutboxDeadLetter]{}, app.ErrConflict
+	}
+	return f.resources.deadLetters.ReadOutboxDeadLettersPage(ctx, page, after)
 }
 
 func (f outboxReplayFixture) ReplayIdempotent(ctx context.Context, actor domain.Actor, method, path, key string, body []byte, jobID string) (int, any, error) {

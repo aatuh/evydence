@@ -11,4 +11,5 @@ spec:
       name: http
   selector:
     app.kubernetes.io/name: {{ include "evydence.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
     app.kubernetes.io/component: api

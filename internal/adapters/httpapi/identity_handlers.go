@@ -43,6 +43,26 @@ func (s *Server) outboxOperatorDiagnostics(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+func (s *Server) listOutboxDeadLetters(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Cache-Control", "no-store")
+	actor, ok := s.authenticate(w, r)
+	if !ok {
+		return
+	}
+	const resource = "outbox-dead-letters"
+	request, err := s.parsePageRequest(r, actor, resource)
+	if err != nil {
+		writeProblem(w, r, err)
+		return
+	}
+	page, err := s.outboxDiagnosticsQuery.DeadLettersPage(r.Context(), actor, appquery.PageRequest{PageSize: request.pageSize, Sort: request.sort, Direction: request.direction}, request.after)
+	if err != nil {
+		writeProblem(w, r, mapInstanceAdminQueryError(err))
+		return
+	}
+	writePage(s, w, r, actor, resource, request, page, app.ErrConflict)
+}
+
 func (s *Server) replayTerminalOutboxJob(w http.ResponseWriter, r *http.Request) {
 	actor, ok := s.authenticate(w, r)
 	if !ok {

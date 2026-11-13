@@ -6,7 +6,9 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/aatuh/evydence/internal/adapters/postgres"
 	"github.com/aatuh/evydence/internal/platform/config"
 	"github.com/aatuh/evydence/internal/platform/logging"
 )
@@ -66,7 +68,7 @@ func TestMigrationProcessUsesSchemaDefaultDirectory(t *testing.T) {
 	called := false
 	err := runMigrationProcess(t.Context(), migrationEnvironment(t, "EVYDENCE_DATABASE_URL=host=db"), &output, func(_ context.Context, settings config.Configuration) error {
 		called = true
-		if settings.Runtime().MigrationsDir != "migrations" {
+		if settings.Runtime().MigrationsDir != "migrations" || settings.Runtime().MigrationTimeout != 30*time.Second {
 			t.Fatal("migration command did not use its schema-owned default")
 		}
 		return nil
@@ -84,5 +86,74 @@ func TestMigrationProcessRejectsCancellationBeforeOperation(t *testing.T) {
 	err := runMigrationProcess(ctx, migrationEnvironment(t, "EVYDENCE_DATABASE_URL=host=db"), &output, func(context.Context, config.Configuration) error { called = true; return nil })
 	if !errors.Is(err, context.Canceled) || called || strings.Contains(output.String(), `"result_code":"started"`) || !strings.Contains(output.String(), `"result_code":"rejected"`) {
 		t.Fatal("cancelled migration started an operation", err)
+	}
+}
+
+func TestMigrationProcessRejectsInvalidPlanSettingsBeforeOperation(t *testing.T) {
+	for _, entries := range [][]string{
+		{"EVYDENCE_MIGRATION_TARGET=PRIVATE_TARGET"},
+		{"EVYDENCE_MIGRATION_CHECKSUMS_FILE=PRIVATE_CHECKSUMS"},
+		{"EVYDENCE_MIGRATION_TIMEOUT_SECONDS=0"},
+		{"EVYDENCE_MIGRATION_TIMEOUT_SECONDS=901"},
+		{"EVYDENCE_MIGRATION_TIMEOUT_SECONDS=PRIVATE_TIMEOUT"},
+		{"EVYDENCE_MIGRATION_ALLOW_LEGACY_HISTORY=true"},
+		{"EVYDENCE_MIGRATION_TARGET=a", "EVYDENCE_MIGRATION_CHECKSUMS_FILE=PRIVATE\nPATH"},
+		{"EVYDENCE_MIGRATION_TARGET=PRIVATE\nTARGET", "EVYDENCE_MIGRATION_CHECKSUMS_FILE=checksums"},
+		{"EVYDENCE_MIGRATION_TARGET=../PRIVATE_TARGET", "EVYDENCE_MIGRATION_CHECKSUMS_FILE=checksums"},
+	} {
+		entries = append(entries, "EVYDENCE_DATABASE_URL=host=db")
+		var output bytes.Buffer
+		called := false
+		err := runMigrationProcess(t.Context(), migrationEnvironment(t, entries...), &output, func(context.Context, config.Configuration) error { called = true; return nil })
+		if !errors.Is(err, config.ErrInvalidValue) || called || strings.Contains(output.String(), "PRIVATE") || strings.Contains(output.String(), `"result_code":"started"`) {
+			t.Fatal("invalid migration plan settings reached the operation or exposed input", err)
+		}
+	}
+}
+
+func TestMigrationProcessCapturesTypedPlanSettings(t *testing.T) {
+	for _, production := range []bool{false, true} {
+		entries := []string{"EVYDENCE_DATABASE_URL=host=db", "EVYDENCE_MIGRATION_TARGET= b ", "EVYDENCE_MIGRATION_CHECKSUMS_FILE= checksums ", "EVYDENCE_MIGRATION_TIMEOUT_SECONDS=900", "EVYDENCE_MIGRATION_ALLOW_LEGACY_HISTORY=true"}
+		if production {
+			entries = append(entries, "ENV=production")
+		}
+		called := false
+		err := runMigrationProcess(t.Context(), migrationEnvironment(t, entries...), &bytes.Buffer{}, func(_ context.Context, settings config.Configuration) error {
+			called = true
+			runtime := settings.Runtime()
+			if runtime.MigrationTarget != "b" || runtime.MigrationChecksumsFile != "checksums" || runtime.MigrationTimeout != 900*time.Second || !runtime.MigrationAllowLegacyHistory {
+				t.Fatal("migration operation lost normalized captured plan settings")
+			}
+			return nil
+		})
+		if err != nil || !called {
+			t.Fatal("migration plan settings were rejected or not projected", err)
+		}
+	}
+}
+
+func TestMigrationProcessProductionRequiresVerifiedTarget(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		extra []string
+	}{{"neither", nil}, {"target_only", []string{"EVYDENCE_MIGRATION_TARGET=a"}}, {"checksums_only", []string{"EVYDENCE_MIGRATION_CHECKSUMS_FILE=PRIVATE_CHECKSUMS"}}} {
+		t.Run(tc.name, func(t *testing.T) {
+			entries := append([]string{"ENV=production", "EVYDENCE_DATABASE_URL=host=db"}, tc.extra...)
+			var output bytes.Buffer
+			called := false
+			err := runMigrationProcess(t.Context(), migrationEnvironment(t, entries...), &output, func(context.Context, config.Configuration) error { called = true; return nil })
+			if !errors.Is(err, config.ErrMissingValue) || called || strings.Contains(output.String(), "PRIVATE") || strings.Contains(output.String(), `"result_code":"started"`) {
+				t.Fatal("production migration command did not require paired verified inputs before starting", err)
+			}
+		})
+	}
+}
+
+func TestMigrationCommandRejectsWriterLeasePoolStarvationBeforeDial(t *testing.T) {
+	var output bytes.Buffer
+	err := runMigrationProcess(t.Context(), migrationEnvironment(t,
+		"EVYDENCE_DATABASE_URL=postgres://operator:PRIVATE_PASSWORD@127.0.0.1:1/evydence?pool_max_conns=1"), &output, applyMigrations)
+	if !errors.Is(err, postgres.ErrInvalidConfiguration) || strings.Contains(output.String()+err.Error(), "PRIVATE") {
+		t.Fatal("undersized migration pool reached dialing or exposed credentials", err)
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/aatuh/evydence/internal/adapters/httpapi"
+	identityapp "github.com/aatuh/evydence/internal/identity/app"
 )
 
 func TestPostgresNativeAPIRoutesNeverLoadAggregateState(t *testing.T) {
@@ -50,6 +51,7 @@ func TestPostgresNativeAPIRoutesNeverLoadAggregateState(t *testing.T) {
 	var operations []operation
 	var hasOIDCAuthenticationRequest bool
 	var hasStartup bool
+	var hasOutboxDeadLetters bool
 	samlOperations := map[string]string{"beginSAMLAuthentication": "POST /v1/sso/saml-authentication-requests", "configureSAMLProviderBinding": "POST /v1/sso/providers/{id}/saml-binding", "getSAMLProviderBinding": "GET /v1/sso/providers/{id}/saml-binding"}
 	for path, methods := range doc.Paths {
 		for method, op := range methods {
@@ -70,15 +72,24 @@ func TestPostgresNativeAPIRoutesNeverLoadAggregateState(t *testing.T) {
 					}
 					hasStartup = true
 				}
+				if op.OperationID == "listOutboxDeadLetters" {
+					if method != "get" || path != "/v1/admin/outbox/dead-letters" {
+						t.Fatal("native dead-letter operation changed its reviewed contract")
+					}
+					hasOutboxDeadLetters = true
+				}
 			}
 		}
 	}
 	sort.Slice(operations, func(i, j int) bool { return operations[i].id < operations[j].id })
-	if len(operations) != 194 {
-		t.Fatalf("native route sweep covers %d operations, expected current contract's 194", len(operations))
+	if len(operations) != 195 {
+		t.Fatalf("native route sweep covers %d operations, expected current contract's 195", len(operations))
 	}
 	if !hasStartup {
 		t.Fatal("native route sweep omits the startup lifecycle operation")
+	}
+	if !hasOutboxDeadLetters {
+		t.Fatal("native route sweep omits dead-letter operator inspection")
 	}
 	if len(samlOperations) != 0 {
 		t.Fatal("native route sweep omits SAML binding/login operations", samlOperations)
@@ -106,6 +117,9 @@ func TestPostgresNativeAPIRoutesNeverLoadAggregateState(t *testing.T) {
 			r.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 			s.Handler().ServeHTTP(w, r)
+			if op.id == "listOutboxDeadLetters" && w.Code != http.StatusForbidden {
+				t.Fatal("tenant SSO authority reached instance-wide dead-letter metadata", w.Code)
+			}
 			if op.id == "startup" {
 				var result struct{ Data struct{ Status string } }
 				if w.Code != http.StatusOK || json.Unmarshal(w.Body.Bytes(), &result) != nil || result.Data.Status != "ok" || w.Header().Get("Cache-Control") != "no-store" {
@@ -148,6 +162,43 @@ func TestPostgresNativeAPIRoutesNeverLoadAggregateState(t *testing.T) {
 		t.Fatal(err)
 	}
 	request(restarted, body, "valid-native", 403)
+	// The explicit instance operator must read through the real focused query
+	// while the aggregate canary remains corrupt. Tenant wildcard authority
+	// must still fail, including after a previously authorized key is downgraded.
+	credentials, err := identityapp.NewHMACAuthenticationCredentials("receipt-test-pepper")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const operatorSecret = "evy_native_outbox_operator_fixture"
+	if _, err := p.Exec(t.Context(), `INSERT INTO api_keys(id,tenant_id,name,prefix,hash,scopes,created_at)VALUES('native-outbox-operator','tenant','Operator',$1,$2,'["instance:admin"]',now())`, credentials.Prefix(operatorSecret), credentials.Hash(operatorSecret)); err != nil {
+		t.Fatal("seed explicit native instance operator", err)
+	}
+	inspectDeadLetters := func(want int) {
+		t.Helper()
+		r := httptest.NewRequest(http.MethodGet, "/v1/admin/outbox/dead-letters?page_size=1", nil).WithContext(t.Context())
+		r.Header.Set("Authorization", "Bearer "+operatorSecret)
+		w := httptest.NewRecorder()
+		restarted.Handler().ServeHTTP(w, r)
+		if w.Code != want || strings.Contains(w.Body.String(), "aggregate-load-forbidden") {
+			t.Fatal("native dead-letter query authority or focused composition failed", w.Code)
+		}
+		if want == http.StatusOK {
+			var page struct {
+				Data []json.RawMessage
+				Meta struct {
+					PageSize int `json:"page_size"`
+				}
+			}
+			if json.Unmarshal(w.Body.Bytes(), &page) != nil || page.Data == nil || len(page.Data) != 0 || page.Meta.PageSize != 1 || w.Header().Get("Cache-Control") != "no-store" {
+				t.Fatal("native dead-letter query lost its bounded empty-page contract")
+			}
+		}
+	}
+	inspectDeadLetters(http.StatusOK)
+	if _, err := p.Exec(t.Context(), `UPDATE api_keys SET scopes='["*"]' WHERE id='native-outbox-operator'`); err != nil {
+		t.Fatal("downgrade native instance credential", err)
+	}
+	inspectDeadLetters(http.StatusForbidden)
 	if _, _, err := store.LoadState(t.Context()); err == nil {
 		t.Fatal("native writes replaced or disabled the aggregate-load canary")
 	}

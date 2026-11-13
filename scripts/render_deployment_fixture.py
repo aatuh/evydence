@@ -2,8 +2,12 @@
 """Render fake operator inputs for tagged startup tests; never start services."""
 import argparse
 import base64
+import hashlib
 import json
 import os
+from pathlib import Path
+
+import yaml
 
 from test_deployment_lifecycle import DeploymentLifecycleTests
 
@@ -28,6 +32,8 @@ PROVIDER_OPTIONS = {
 
 
 def helm_fixture(case, process, mode):
+    if process == "migrate":
+        return helm_migration_fixture(case, mode)
     if process not in ("api", "worker"):
         raise ValueError("unsupported Helm process")
     values = {
@@ -63,9 +69,16 @@ def helm_fixture(case, process, mode):
             environment[entry["name"]] = secrets[reference["name"]][reference["key"]]
     mounts = []
     for mount in container["volumeMounts"]:
+        volume = next(entry for entry in pod["volumes"] if entry["name"] == mount["name"])
+        if "emptyDir" in volume:
+            if (mount["name"] != "scratch" or mount["mountPath"] != "/tmp" or mount.get("readOnly")
+                    or "subPath" in mount or volume["emptyDir"] != {"sizeLimit": "128Mi"}):
+                raise ValueError("fixture expects one bounded disk-backed scratch mount")
+            # Native startup fixtures model only credential/config projections.
+            # Scratch semantics belong to render checks and container rehearsals.
+            continue
         if not mount.get("readOnly") or "subPath" in mount:
             raise ValueError("fixture expects read-only directory projections")
-        volume = next(entry for entry in pod["volumes"] if entry["name"] == mount["name"])
         kind = "secret" if "secret" in volume else "configMap"
         reference = volume[kind]
         data = secrets[reference["secretName"]] if kind == "secret" else config_maps[reference["name"]]
@@ -73,6 +86,48 @@ def helm_fixture(case, process, mode):
                        "files": {item["path"]: data[item["key"]] for item in reference["items"]}})
     return {"environment": environment, "mounts": mounts,
             "expected": SECRET_VALUES if process == "api" else worker_secret}
+
+
+def helm_migration_fixture(case, mode):
+    values = {"migration": {"existingSecret": "migration-credentials", "secretSource": mode,
+                            "runtimeRole": "fixture runtime-'quoted"},
+              "podSecurityContext": {"fsGroup": 2000}}
+    rendered = case.render(values)
+    if rendered.returncode:
+        raise ValueError("migration hook rendering failed")
+    documents = [doc for doc in yaml.safe_load_all(rendered.stdout) if doc]
+    job = next(doc for doc in documents if doc["kind"] == "Job")
+    pod = job["spec"]["template"]["spec"]
+    container = pod["containers"][0]
+    if container.get("envFrom"):
+        raise ValueError("migration fixture must project only its database credential")
+    expected = {"EVYDENCE_DATABASE_URL": SECRET_VALUES["EVYDENCE_DATABASE_URL"]}
+    environment = {}
+    for entry in container["env"]:
+        if "value" in entry:
+            environment[entry["name"]] = entry["value"]
+        else:
+            reference = entry["valueFrom"]["secretKeyRef"]
+            if reference["name"] != "migration-credentials":
+                raise ValueError("unexpected migration credential")
+            environment[entry["name"]] = expected[reference["key"]]
+    mounts = [image_migration_checksum()]
+    for mount in container.get("volumeMounts", []):
+        volume = next(item for item in pod["volumes"] if item["name"] == mount["name"])["secret"]
+        if not mount.get("readOnly") or volume["secretName"] != "migration-credentials":
+            raise ValueError("unsafe migration credential projection")
+        mounts.append({"guest": mount["mountPath"], "mode": volume["defaultMode"],
+                       "files": {item["path"]: expected[item["key"]] for item in volume["items"]}})
+    return {"environment": environment, "mounts": mounts, "expected": expected}
+
+
+def image_migration_checksum():
+    # Model the image-owned checksum file as an owned local fixture projection.
+    # This does not claim that a container was built or run by these checks.
+    root = Path(__file__).resolve().parents[1]
+    records = [hashlib.sha256(path.read_bytes()).hexdigest() + "  " + path.relative_to(root).as_posix()
+               for path in sorted((root / "migrations").glob("*.sql"))]
+    return {"guest": "/app", "mode": 0o644, "files": {"migrations.sha256": "\n".join(records) + "\n"}}
 
 
 def compose_fixture(case, process, mode):
@@ -83,9 +138,10 @@ def compose_fixture(case, process, mode):
                   MINIO_ROOT_PASSWORD=SECRET_VALUES["EVYDENCE_S3_SECRET_ACCESS_KEY"],
                   EVYDENCE_API_KEY_PEPPER=SECRET_VALUES["EVYDENCE_API_KEY_PEPPER"],
                   EVYDENCE_SIGNING_EXECUTOR_TOKEN=SECRET_VALUES["EVYDENCE_SIGNING_EXECUTOR_TOKEN"])
+    values["EVYDENCE_MIGRATION_RUNTIME_ROLE"] = "fixture runtime-'quoted"
     service = case.compose_services(values)[process]
     expected = {name: value for name, value in service["environment"].items() if name in SECRET_VALUES}
-    mounts = []
+    mounts = [image_migration_checksum()] if process == "migrate" else []
     if mode == "files":
         target = "/run/evydence/private/EVYDENCE_DATABASE_URL_FILE"
         # This is an operator override, not a profile shipped by the base stack.

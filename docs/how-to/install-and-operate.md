@@ -119,6 +119,8 @@ remain forbidden in production mode.
 export POSTGRES_PASSWORD='replace-with-long-random-password'
 export MINIO_ROOT_PASSWORD='replace-with-long-random-password'
 export EVYDENCE_API_KEY_PEPPER='replace-with-long-random-pepper'
+# Choose the target from the verified release; this is the current source target:
+export EVYDENCE_MIGRATION_TARGET=20261104000200_outbox_dead_letter_lookup
 export EVYDENCE_SIGNING_EXECUTOR_URL='https://signer.example.com/sign'
 export EVYDENCE_SIGNING_EXECUTOR_PUBLIC_KEY_BASE64='<trusted-Ed25519-public-key-in-base64>'
 # Set this too when your gateway requires a bearer credential:
@@ -132,8 +134,12 @@ receives its database and object-store credentials. An optional
 the timeout defaults to the runtime schema's value. Native KMS profiles need a
 deployment override supplying their provider-specific configuration and
 credentials; selecting a signing mode alone does not supply them. The migration
-command also runs with `ENV=production`, so its applicable production checks
-remain enabled before migration work starts.
+command runs with `ENV=production`, an explicit target, and the selected
+image's baked `/app/migrations.sha256`. Both daemons require skip mode and wait
+for the migration service to succeed. For an existing stack, stop API and worker
+containers and let them drain before starting a new migration job. A version-only
+legacy database needs the reviewed acknowledgement described in the
+[upgrade runbook](../runbooks/upgrade.md); it is never enabled automatically.
 
 API and worker containers receive `SIGTERM` on a Compose stop. The committed
 365-second stop grace covers every supported drain budget (up to 300 seconds),

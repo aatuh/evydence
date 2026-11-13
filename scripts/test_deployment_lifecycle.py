@@ -14,6 +14,7 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 CHART = ROOT / "deploy/helm/evydence"
+MIGRATION_TARGET = "20261104000200_outbox_dead_letter_lookup"
 
 
 class DeploymentLifecycleTests(unittest.TestCase):
@@ -24,13 +25,16 @@ class DeploymentLifecycleTests(unittest.TestCase):
             raise RuntimeError("Helm is required for deployment lifecycle checks; set HELM_BIN if needed")
         subprocess.run(["docker", "compose", "version"], check=True, capture_output=True, text=True)
 
-    def render(self, overrides=None, image=True):
+    def render(self, overrides=None, image=True, release="lifecycle"):
         with tempfile.TemporaryDirectory(prefix="evydence-helm-lifecycle-") as directory:
             values = Path(directory) / "values.json"
-            values.write_text(json.dumps(overrides or {}))
-            command = [self.helm, "template", "lifecycle", str(CHART), "--values", str(values)]
-            if image:
-                command += ["--set", "image.tag=lifecycle-fixture"]
+            selected = json.loads(json.dumps(overrides or {}))
+            if isinstance(selected.setdefault("migration", {}), dict):
+                selected["migration"].setdefault("target", MIGRATION_TARGET)
+            if image and isinstance(selected.setdefault("image", {}), dict):
+                selected["image"].setdefault("digest", "sha256:" + "a" * 64)
+            values.write_text(json.dumps(selected))
+            command = [self.helm, "template", release, str(CHART), "--values", str(values)]
             return subprocess.run(command, check=False, capture_output=True, text=True, timeout=20)
 
     def manifests(self, overrides=None):
@@ -99,9 +103,12 @@ class DeploymentLifecycleTests(unittest.TestCase):
             self.assertNotEqual(self.render({"worker": {"healthPort": invalid}}).returncode, 0)
 
     def test_runtime_credentials_use_selected_secret_without_overriding_chart_safety(self):
-        for overrides, selected in [({}, {"api": "evydence-secrets", "worker": "evydence-secrets"}),
+        for overrides, selected in [({}, {"api": "evydence-api", "worker": "evydence-worker"}),
                                     ({"api": {"existingSecret": "api-runtime"}, "worker": {"existingSecret": "worker-runtime"}},
-                                     {"api": "api-runtime", "worker": "worker-runtime"})]:
+                                     {"api": "api-runtime", "worker": "worker-runtime"}),
+                                    ({"env": {"production": False}, "api": {"existingSecret": ""},
+                                      "worker": {"existingSecret": ""}, "existingSecret": "legacy-runtime"},
+                                     {"api": "legacy-runtime", "worker": "legacy-runtime"})]:
             _, deployments = self.manifests(overrides)
             for component in ("api", "worker"):
                 container = deployments[component]["spec"]["template"]["spec"]["containers"][0]
@@ -173,10 +180,12 @@ class DeploymentLifecycleTests(unittest.TestCase):
                     self.assertIn("fsGroup", result.stderr)
             result = self.render({component: {"secretSource": "files"}, "podSecurityContext": None})
             self.assertNotEqual(result.returncode, 0)
-            self.assertIn("fsGroup", result.stderr)
-            for selected in ("evydence-secrets", "custom-files"):
+            # Removing the whole context now fails the stronger required-map
+            # guard; individual absent/invalid groups still fail fsGroup above.
+            self.assertIn("podSecurityContext", result.stderr)
+            for selected in ("evydence-" + component, "custom-files"):
                 overrides = {"secretSource": "files", "environmentSecret": selected}
-                if selected != "evydence-secrets":
+                if selected == "custom-files":
                     overrides["existingSecret"] = selected
                 result = self.render({"podSecurityContext": {"fsGroup": 2000}, component: overrides})
                 self.assertNotEqual(result.returncode, 0)
@@ -282,6 +291,113 @@ class DeploymentLifecycleTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("image.tag", result.stderr)
 
+    def test_production_images_require_valid_immutable_digest(self):
+        for tag in ("latest", "v0.1.0", "development", "v1@sha256:short", "v1@sha256:" + "A" * 64):
+            with self.subTest(tag=tag):
+                result = self.render({"env": {"production": True}, "image": {"tag": tag}}, image=False)
+                self.assertNotEqual(result.returncode, 0, "production accepted an unpinned or malformed image")
+        digest = "sha256:" + "a" * 64
+        for image, expected in (({"digest": digest}, "ghcr.io/aatuh/evydence@" + digest),
+                                ({"tag": "v1", "digest": digest}, "ghcr.io/aatuh/evydence:v1@" + digest),
+                                ({"tag": "v1@" + digest}, "ghcr.io/aatuh/evydence:v1@" + digest)):
+            result = self.render({"image": image}, image=False)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            documents = [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+            images = [doc["spec"]["template"]["spec"]["containers"][0]["image"]
+                      for doc in documents if doc["kind"] in ("Deployment", "Job")]
+            self.assertEqual(images, [expected] * 3, "job and daemons must use the same reviewed image")
+
+    def test_development_can_use_local_tag_and_conflicting_digests_fail(self):
+        result = self.render({"env": {"production": False}, "image": {"tag": "local-test"}}, image=False)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = self.render({"image": {"tag": "v1@sha256:" + "b" * 64,
+                                        "digest": "sha256:" + "a" * 64}}, image=False)
+        self.assertNotEqual(result.returncode, 0, "conflicting image selections were accepted")
+
+    def test_production_rejects_relaxed_pod_guards_and_invalid_image_inputs(self):
+        for overrides in (
+            {"containerSecurityContext": {"privileged": True}},
+            {"containerSecurityContext": {"allowPrivilegeEscalation": True}},
+            {"containerSecurityContext": {"readOnlyRootFilesystem": False}},
+            {"containerSecurityContext": {"capabilities": {"add": ["SYS_ADMIN"]}}},
+            {"containerSecurityContext": {"capabilities": {"drop": ["NET_RAW"]}}},
+            {"podSecurityContext": {"runAsNonRoot": False}},
+            {"podSecurityContext": {"runAsUser": 0}},
+            {"podSecurityContext": {"runAsGroup": 0}},
+            {"podSecurityContext": {"seccompProfile": {"type": "Unconfined"}}},
+            {"env": {"objectStore": "filesystem"}},
+            {"image": {"repository": "ghcr.io/aatuh/evydence:latest"}},
+            {"image": {"repository": "ghcr.io/PRIVATE_USER@evydence"}},
+            {"image": {"digest": "sha256:" + "a" * 63}},
+            {"image": {"digest": "sha1:" + "a" * 64}},
+            {"scratchSizeMi": 0}, {"scratchSizeMi": 1025}, {"scratchSizeMi": "128"},
+        ):
+            with self.subTest(overrides=overrides):
+                self.assertNotEqual(self.render(overrides).returncode, 0)
+
+    def test_pull_secret_refs_and_service_account_annotations_are_component_scoped(self):
+        selected = [{"name": "image-credentials"}]
+        result = self.render({"image": {"pullSecrets": selected},
+                              "api": {"serviceAccountAnnotations": {"example.test/identity": "api-identity"}},
+                              "worker": {"serviceAccountAnnotations": {"example.test/identity": "worker-identity"}}})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        docs = [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+        accounts = {doc["metadata"]["name"]: doc for doc in docs if doc["kind"] == "ServiceAccount"}
+        for doc in docs:
+            if doc["kind"] not in ("Deployment", "Job"):
+                continue
+            pod = doc["spec"]["template"]["spec"]
+            component = doc["spec"]["template"]["metadata"]["labels"]["app.kubernetes.io/component"]
+            self.assertEqual(pod["imagePullSecrets"], selected)
+            if component in ("api", "worker"):
+                self.assertEqual(accounts[pod["serviceAccountName"]]["metadata"]["annotations"],
+                                 {"example.test/identity": component + "-identity"})
+            else:
+                self.assertNotIn("example.test/identity", accounts[pod["serviceAccountName"]]["metadata"].get("annotations", {}))
+
+    def test_daemons_have_tokenless_accounts_and_bounded_scratch(self):
+        result = self.render()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        docs = [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+        accounts = {doc["metadata"]["name"]: doc for doc in docs if doc["kind"] == "ServiceAccount"}
+        selected = []
+        for deployment in (doc for doc in docs if doc["kind"] == "Deployment"):
+            pod = deployment["spec"]["template"]["spec"]
+            self.assertFalse(pod.get("automountServiceAccountToken", True))
+            self.assertGreater(pod["securityContext"]["runAsUser"], 0)
+            self.assertGreater(pod["securityContext"]["runAsGroup"], 0)
+            account = pod["serviceAccountName"]
+            self.assertNotEqual(account, "default")
+            self.assertFalse(accounts[account].get("automountServiceAccountToken", True))
+            selected.append(account)
+            container = pod["containers"][0]
+            self.assertTrue(container["securityContext"]["readOnlyRootFilesystem"])
+            scratch = next(volume for volume in pod["volumes"] if volume["name"] == "scratch")
+            self.assertEqual(scratch["emptyDir"], {"sizeLimit": "128Mi"})
+            mount = next(mount for mount in container["volumeMounts"] if mount["name"] == "scratch")
+            self.assertEqual(mount["mountPath"], "/tmp")
+            self.assertFalse(mount.get("readOnly", False))
+            self.assertEqual(next(item["value"] for item in container["env"] if item["name"] == "TMPDIR"), "/tmp")
+        self.assertEqual(len(set(selected)), 2)
+        self.assertFalse({"Role", "RoleBinding", "ClusterRole", "ClusterRoleBinding"} & {doc["kind"] for doc in docs})
+
+    def test_service_selects_only_its_release_and_accounts_keep_component_suffix(self):
+        result = self.render(release="r" * 53)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        docs = [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+        service = next(doc for doc in docs if doc["kind"] == "Service")
+        self.assertEqual(service["spec"]["selector"]["app.kubernetes.io/instance"], "r" * 53)
+        names = []
+        for doc in docs:
+            if doc["kind"] in ("Deployment", "Job"):
+                component = doc["spec"]["template"]["metadata"]["labels"]["app.kubernetes.io/component"]
+                self.assertEqual(doc["spec"]["template"]["metadata"]["labels"]["app.kubernetes.io/instance"], "r" * 53)
+                name = doc["spec"]["template"]["spec"]["serviceAccountName"]
+                self.assertLessEqual(len(name), 63)
+                self.assertTrue(name.endswith("-" + component))
+                names.append(name)
+        self.assertEqual(len(set(names)), 3)
+
     def test_grace_types_and_bounds_are_not_coerced(self):
         for component in ("api", "worker"):
             for invalid in ("40", 40.5, True, 0, -1, 3601):
@@ -290,11 +406,136 @@ class DeploymentLifecycleTests(unittest.TestCase):
                     self.assertNotEqual(result.returncode, 0)
                     self.assertIn("terminationGracePeriodSeconds", result.stderr)
 
+    def test_production_secret_references_cannot_share_migration_or_other_daemon_authority(self):
+        cases = [
+            {"api": {"existingSecret": "same"}, "worker": {"existingSecret": "same"}},
+            {"api": {"existingSecret": "evydence-migrations"}},
+            {"worker": {"existingSecret": "evydence-migrations"}},
+            {"api": {"existingSecret": ""}, "worker": {"existingSecret": ""}},
+            {"api": {"environmentSecret": "evydence-worker"}},
+            {"worker": {"environmentSecret": "evydence-api"}},
+            {"api": {"environmentSecret": "evydence-migrations"}},
+            {"worker": {"environmentSecret": "evydence-migrations"}},
+            {"api": {"environmentSecret": "shared-options"}, "worker": {"environmentSecret": "shared-options"}},
+        ]
+        for overrides in cases:
+            with self.subTest(overrides=overrides):
+                result = self.render(overrides)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("Secret", result.stderr)
+
+    def test_disruption_budgets_are_component_and_release_scoped(self):
+        result = self.render(release="r" * 53)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        docs = [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+        budgets = {doc["spec"]["selector"]["matchLabels"]["app.kubernetes.io/component"]: doc
+                   for doc in docs if doc["kind"] == "PodDisruptionBudget"}
+        self.assertEqual(set(budgets), {"api", "worker"})
+        self.assertEqual(budgets["api"]["spec"]["minAvailable"], 1)
+        self.assertNotIn("maxUnavailable", budgets["api"]["spec"])
+        self.assertEqual(budgets["worker"]["spec"]["maxUnavailable"], 1)
+        for component, budget in budgets.items():
+            deployment = next(doc for doc in docs if doc["kind"] == "Deployment"
+                              and doc["spec"]["template"]["metadata"]["labels"]["app.kubernetes.io/component"] == component)
+            self.assertEqual(budget["spec"]["selector"]["matchLabels"], deployment["spec"]["template"]["metadata"]["labels"])
+            self.assertLessEqual(len(budget["metadata"]["name"]), 63)
+
+    def test_network_defaults_isolate_all_processes_and_hook_precedes_migration(self):
+        result = self.render(release="r" * 53)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        docs = [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+        policies = {doc["spec"]["podSelector"]["matchLabels"]["app.kubernetes.io/component"]: doc
+                    for doc in docs if doc["kind"] == "NetworkPolicy"}
+        self.assertEqual(set(policies), {"api", "worker", "migrate"})
+        self.assertEqual(len({doc["metadata"]["name"] for doc in policies.values()}), 3)
+        for component, policy in policies.items():
+            spec = policy["spec"]
+            self.assertEqual(set(spec["policyTypes"]), {"Ingress", "Egress"})
+            self.assertEqual(spec["ingress"], [])
+            self.assertEqual(spec["egress"], [{"to": [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "kube-system"}},
+                                                     "podSelector": {"matchLabels": {"k8s-app": "kube-dns"}}}],
+                                               "ports": [{"protocol": "UDP", "port": 53}, {"protocol": "TCP", "port": 53}]}])
+            self.assertEqual(spec["podSelector"]["matchLabels"], {"app.kubernetes.io/name": "evydence",
+                             "app.kubernetes.io/instance": "r" * 53, "app.kubernetes.io/component": component})
+            self.assertLessEqual(len(policy["metadata"]["name"]), 63)
+        annotations = policies["migrate"]["metadata"]["annotations"]
+        self.assertEqual(annotations["helm.sh/hook"], "pre-install,pre-upgrade")
+        self.assertEqual(annotations["helm.sh/hook-delete-policy"], "before-hook-creation")
+        hook_weight = int(annotations["helm.sh/hook-weight"])
+        for doc in docs:
+            if doc["kind"] in ("Job", "ServiceAccount") and "helm.sh/hook" in doc["metadata"].get("annotations", {}):
+                self.assertLess(hook_weight, int(doc["metadata"]["annotations"]["helm.sh/hook-weight"]))
+
+    def test_network_allowlists_are_explicit_and_do_not_cross_process_roles(self):
+        ingress = [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "ingress"}},
+                    "podSelector": {"matchLabels": {"app": "gateway"}}}]
+        database = {"to": [{"ipBlock": {"cidr": "192.0.2.10/32"}}], "ports": [{"protocol": "TCP", "port": 5432}]}
+        storage = {"to": [{"ipBlock": {"cidr": "198.51.100.20/32"}}], "ports": [{"protocol": "TCP", "port": 443}]}
+        signer = {"to": [{"namespaceSelector": {"matchLabels": {"kubernetes.io/metadata.name": "signing"}},
+                          "podSelector": {"matchLabels": {"app": "signer"}}}], "ports": [{"protocol": "TCP", "port": 8443}]}
+        result = self.render({"networkPolicy": {"dnsPeers": [], "apiIngressFrom": ingress,
+                             "apiEgress": [database, storage, signer], "workerEgress": [database, storage], "migrationEgress": [database]}})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        policies = {doc["spec"]["podSelector"]["matchLabels"]["app.kubernetes.io/component"]: doc["spec"]
+                    for doc in yaml.safe_load_all(result.stdout) if doc and doc["kind"] == "NetworkPolicy"}
+        self.assertEqual(set(policies), {"api", "worker", "migrate"})
+        self.assertEqual(policies["api"]["ingress"], [{"from": ingress, "ports": [{"protocol": "TCP", "port": 8080}]}])
+        self.assertEqual(policies["api"]["egress"], [database, storage, signer])
+        self.assertEqual(policies["worker"]["egress"], [database, storage])
+        self.assertEqual(policies["migrate"]["egress"], [database])
+        for component in ("worker", "migrate"):
+            self.assertEqual(policies[component]["ingress"], [])
+
+    def test_network_and_disruption_controls_can_be_explicitly_disabled(self):
+        result = self.render({"networkPolicy": {"enabled": False}, "api": {"disruptionBudget": {"enabled": False}},
+                              "worker": {"disruptionBudget": {"enabled": False}}})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertFalse({"NetworkPolicy", "PodDisruptionBudget"} & {doc["kind"] for doc in yaml.safe_load_all(result.stdout) if doc})
+        result = self.render({"networkPolicy": {"dnsPeers": []}})
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for doc in yaml.safe_load_all(result.stdout):
+            if doc and doc["kind"] == "NetworkPolicy":
+                self.assertEqual(doc["spec"]["egress"], [])
+
+    def test_reference_network_values_render_separate_database_storage_and_signing_access(self):
+        values = yaml.safe_load((ROOT / "deploy/helm/reference-network-values.yaml").read_text())
+        result = self.render(values)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        policies = {doc["spec"]["podSelector"]["matchLabels"]["app.kubernetes.io/component"]: doc["spec"]
+                    for doc in yaml.safe_load_all(result.stdout) if doc and doc["kind"] == "NetworkPolicy"}
+        for component, key in (("api", "apiEgress"), ("worker", "workerEgress"), ("migrate", "migrationEgress")):
+            self.assertEqual(policies[component]["egress"][1:], values["networkPolicy"][key])
+        self.assertEqual(len(policies["migrate"]["egress"]), 2, "migration needs only DNS and database access")
+        self.assertEqual(len(policies["worker"]["egress"]), 3, "worker must not acquire the signing gateway rule")
+        self.assertEqual(len(policies["api"]["egress"]), 4)
+
+    def test_network_values_reject_accidental_unrestricted_rules(self):
+        invalid = [
+            {"enabled": "true"}, {"apiIngressFrom": [{}]}, {"dnsPeers": [{}]},
+            {"apiEgress": [{}]}, {"workerEgress": [{"to": [], "ports": [{"port": 443}]}]},
+            {"migrationEgress": [{"to": [{"ipBlock": {"cidr": "192.0.2.10/32"}}]}]},
+            {"apiEgress": [{"to": [{"podSelector": {}}], "ports": []}]},
+            {"apiEgress": [{"to": [{"podSelector": {}}], "ports": [{"port": 0}]}]},
+            {"apiEgress": [{"to": [{"podSelector": {}}], "ports": [{"port": True}]}]},
+            {"apiEgress": [{"to": [{"podSelector": {}}], "ports": [{"port": "443"}]}]},
+            {"apiEgress": [{"to": [{"podSelector": {}}], "ports": [{"port": 443, "protocol": "ALL"}]}]},
+            {"apiIngressFrom": [{"namespaceSelector": {}, "ipBlock": {"cidr": "192.0.2.10/32"}}]},
+            {"migrationEgress": [{"to": [{"ipBlocks": {"cidr": "192.0.2.10/32"}}], "ports": [{"port": 5432}]}]},
+            {"apiEgess": []},
+            {"apiIngressFrom": [{"podSelector": {"matchExpressions": [{"key": "app", "operator": "In", "values": []}]}}]},
+            {"dnsPeers": [{"namespaceSelector": {"matchExpressions": [{"key": "namespace", "operator": "Exists", "values": ["extra"]}]}}]},
+        ]
+        for override in invalid:
+            with self.subTest(override=override):
+                self.assertNotEqual(self.render({"networkPolicy": override}).returncode, 0)
+        for component in ("api", "worker"):
+            self.assertNotEqual(self.render({component: {"disruptionBudget": {"enabled": "true"}}}).returncode, 0)
+
     def compose_services(self, overrides=None, compose_override=None):
         env = {key: value for key, value in os.environ.items()
                if not key.startswith(("EVYDENCE_", "MINIO_", "POSTGRES_"))}
         env.update({"POSTGRES_PASSWORD": "fixture-only", "MINIO_ROOT_PASSWORD": "fixture-only",
-                    "EVYDENCE_API_KEY_PEPPER": "fixture-only"})
+                    "EVYDENCE_API_KEY_PEPPER": "fixture-only", "EVYDENCE_MIGRATION_TARGET": MIGRATION_TARGET})
         env.update(overrides or {})
         with tempfile.TemporaryDirectory(prefix="evydence-compose-config-") as directory:
             command = ["docker", "compose", "--env-file", os.devnull, "-f", str(ROOT / "compose.production-like.yml")]
@@ -335,6 +576,102 @@ class DeploymentLifecycleTests(unittest.TestCase):
         for component in ("api", "worker", "migrate"):
             self.assertEqual(services[component]["environment"].get("ENV"), "production", component)
 
+    def test_migration_hook_precedes_daemons_and_projects_only_database_credentials(self):
+        for mode in ("env", "files"):
+            result = self.render({"migration": {"existingSecret": "migration-credentials", "secretSource": mode},
+                                  "podSecurityContext": {"fsGroup": 2000}})
+            self.assertEqual(result.returncode, 0, result.stderr)
+            docs = [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+            jobs = [doc for doc in docs if doc["kind"] == "Job"]
+            self.assertEqual(len(jobs), 1, "dedicated release migration hook is missing")
+            job = jobs[0]
+            annotations = job["metadata"]["annotations"]
+            self.assertEqual(annotations["helm.sh/hook"], "pre-install,pre-upgrade")
+            self.assertEqual(annotations["helm.sh/hook-delete-policy"], "before-hook-creation")
+            self.assertEqual(job["spec"]["backoffLimit"], 0)
+            self.assertGreater(job["spec"]["activeDeadlineSeconds"], 120)
+            pod = job["spec"]["template"]["spec"]
+            self.assertFalse(pod["automountServiceAccountToken"])
+            account = next(doc for doc in docs if doc["kind"] == "ServiceAccount"
+                           and doc["metadata"]["name"] == pod["serviceAccountName"])
+            self.assertLess(int(account["metadata"]["annotations"]["helm.sh/hook-weight"]),
+                            int(annotations["helm.sh/hook-weight"]))
+            self.assertNotIn("hook-succeeded", account["metadata"]["annotations"]["helm.sh/hook-delete-policy"])
+            container = pod["containers"][0]
+            self.assertEqual(container["command"], ["evydence-migrate"])
+            self.assertTrue(container["securityContext"]["readOnlyRootFilesystem"])
+            self.assertNotIn("envFrom", container, "migrator must not inherit API/provider credentials")
+            env = {item["name"]: item for item in container["env"]}
+            self.assertEqual(env["ENV"]["value"], "production")
+            self.assertEqual(env["EVYDENCE_MIGRATION_TARGET"]["value"], MIGRATION_TARGET)
+            self.assertEqual(env["EVYDENCE_MIGRATION_CHECKSUMS_FILE"]["value"], "/app/migrations.sha256")
+            self.assertEqual(env["EVYDENCE_MIGRATIONS_DIR"]["value"], "/app/migrations")
+            credential = "EVYDENCE_DATABASE_URL" + ("_FILE" if mode == "files" else "")
+            self.assertEqual(set(env), {"ENV", "EVYDENCE_MIGRATION_TARGET", "EVYDENCE_MIGRATION_CHECKSUMS_FILE",
+                "EVYDENCE_MIGRATIONS_DIR", "EVYDENCE_MIGRATION_TIMEOUT_SECONDS", "EVYDENCE_MIGRATION_ALLOW_LEGACY_HISTORY",
+                "EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS", credential})
+            if mode == "env":
+                self.assertEqual(env[credential]["valueFrom"]["secretKeyRef"]["name"], "migration-credentials")
+            else:
+                projection = pod["volumes"][0]["secret"]
+                self.assertEqual(projection["secretName"], "migration-credentials")
+                self.assertEqual(projection["defaultMode"], 0o440)
+                self.assertEqual(projection["items"], [{"key": "EVYDENCE_DATABASE_URL", "path": credential}])
+
+    def test_migration_hook_rejects_missing_target_or_unsafe_settings(self):
+        for overrides in ({"target": ""}, {"target": "../escape"}, {"timeoutSeconds": 0},
+                          {"timeoutSeconds": 901}, {"timeoutSeconds": "120"}, {"allowLegacyHistory": "true"}):
+            self.assertNotEqual(self.render({"migration": overrides}).returncode, 0, overrides)
+
+    def test_managed_runtime_role_reaches_only_the_migration_job(self):
+        role = "runtime role-'quoted"
+        for mode in ("env", "files"):
+            result = self.render({"migration": {"runtimeRole": role, "secretSource": mode},
+                                  "podSecurityContext": {"fsGroup": 2000}})
+            self.assertEqual(result.returncode, 0, result.stderr)
+            docs = [doc for doc in yaml.safe_load_all(result.stdout) if doc]
+            job = next(doc for doc in docs if doc["kind"] == "Job")
+            env = {item["name"]: item for item in job["spec"]["template"]["spec"]["containers"][0]["env"]}
+            self.assertEqual(env["EVYDENCE_MIGRATION_RUNTIME_ROLE"]["value"], role)
+            config = next(doc["data"] for doc in docs if doc["kind"] == "ConfigMap")
+            self.assertNotIn("EVYDENCE_MIGRATION_RUNTIME_ROLE", config)
+            for doc in docs:
+                if doc["kind"] == "Deployment":
+                    for container in doc["spec"]["template"]["spec"]["containers"]:
+                        self.assertNotIn("EVYDENCE_MIGRATION_RUNTIME_ROLE",
+                                         {item["name"] for item in container.get("env", [])})
+        services = self.compose_services({"EVYDENCE_MIGRATION_RUNTIME_ROLE": role})
+        self.assertEqual(services["migrate"]["environment"]["EVYDENCE_MIGRATION_RUNTIME_ROLE"], role)
+        for component in ("api", "worker"):
+            self.assertNotIn("EVYDENCE_MIGRATION_RUNTIME_ROLE", services[component]["environment"])
+
+    def test_migration_hook_rejects_invalid_managed_runtime_role(self):
+        for role in (" ", "role\n", "role\x7f", "role\u0085", "a" * 64, "é" * 32, 123, True):
+            with self.subTest(role=repr(role)):
+                self.assertNotEqual(self.render({"migration": {"runtimeRole": role}}).returncode, 0)
+        self.assertEqual(self.render({"migration": {"runtimeRole": "é" * 31}}).returncode, 0)
+        self.assertNotEqual(self.render({"migration": {"secretSource": "files"}}).returncode, 0)
+
+    def test_migration_job_names_fit_kubernetes_for_long_release_names(self):
+        result = self.render(release="r" * 53)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        job = next(doc for doc in yaml.safe_load_all(result.stdout) if doc and doc["kind"] == "Job")
+        self.assertLessEqual(len(job["metadata"]["name"]), 63)
+        self.assertEqual(job["metadata"]["name"], job["spec"]["template"]["spec"]["serviceAccountName"])
+
+    def test_production_daemons_skip_migrations_and_compose_uses_explicit_target(self):
+        config, _ = self.manifests()
+        self.assertEqual(config.get("EVYDENCE_SKIP_MIGRATIONS"), "true")
+        services = self.compose_services({"EVYDENCE_MIGRATION_TARGET": MIGRATION_TARGET})
+        for component in ("api", "worker"):
+            self.assertEqual(services[component]["environment"].get("EVYDENCE_SKIP_MIGRATIONS"), "true")
+            self.assertEqual(services[component]["depends_on"]["migrate"]["condition"], "service_completed_successfully")
+        migration = services["migrate"]["environment"]
+        self.assertEqual(migration.get("EVYDENCE_MIGRATION_TARGET"), MIGRATION_TARGET)
+        self.assertEqual(migration.get("EVYDENCE_MIGRATION_CHECKSUMS_FILE"), "/app/migrations.sha256")
+        with self.assertRaises(subprocess.CalledProcessError):
+            self.compose_services({"EVYDENCE_MIGRATION_TARGET": ""})
+
     def test_compose_grace_covers_default_and_maximum_supported_budgets(self):
         for maximum in (False, True):
             with self.subTest(maximum=maximum):
@@ -342,6 +679,7 @@ class DeploymentLifecycleTests(unittest.TestCase):
                        if not key.startswith(("EVYDENCE_", "MINIO_", "POSTGRES_"))}
                 env.update({"POSTGRES_PASSWORD": "fixture-only", "MINIO_ROOT_PASSWORD": "fixture-only",
                             "EVYDENCE_API_KEY_PEPPER": "fixture-only",
+                            "EVYDENCE_MIGRATION_TARGET": MIGRATION_TARGET,
                             "EVYDENCE_HTTP_SHUTDOWN_TIMEOUT_SECONDS": "300" if maximum else "30",
                             "EVYDENCE_WORKER_SHUTDOWN_TIMEOUT_SECONDS": "300" if maximum else "30",
                             "EVYDENCE_SHUTDOWN_CLEANUP_TIMEOUT_SECONDS": "60" if maximum else "5"})

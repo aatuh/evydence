@@ -31,7 +31,7 @@ func cleanCLIEnvironment(t *testing.T) {
 }
 
 func TestOnlineCLIRejectsConfigurationBeforeEffects(t *testing.T) {
-	for _, route := range [][]string{{"github-actions", "upload-build"}, {"ci", "preflight"}, {"import-bundle", "upload"}, {"upload", "manifest"}, {"release", "upload-evidence"}} {
+	for _, route := range [][]string{{"github-actions", "upload-build"}, {"ci", "preflight"}, {"import-bundle", "upload"}, {"upload", "manifest"}, {"release", "upload-evidence"}, {"outbox", "backlog"}} {
 		t.Run(strings.Join(route, "-"), func(t *testing.T) {
 			cleanCLIEnvironment(t)
 			t.Setenv("ENV", "production")

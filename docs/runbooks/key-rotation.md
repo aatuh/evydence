@@ -32,7 +32,7 @@ GitHub/GitLab secrets, branch protection, and incident notifications.
 | SSO/session trust | Revoke sessions and update configured trust material. | Rotate provider certificates, client credentials, group mappings, and session policy. |
 | Customer portal token | Expire old package access, issue a new scoped token, and verify package access records. | Notify the recipient through an approved private channel. |
 | Tenant signing key | Rotate the tenant signing key, record the key version, provider, fingerprint, validity window, and reason, then verify valid-at-signing behavior. | Review custody policy and provider access for private signing material. |
-| Release signing key | Generate a new release signing key, publish the new public key, and sign the next release manifest. | Protect the private key in the release workflow secret store. |
+| Release signing authority | Follow the protected-workflow trust and compromise procedure in [Release signing](../release-signing.md#compromise-and-rotation). New public workflows use per-run manifest keys and keyless GitHub identity. | Rotate protected-environment publisher credentials and review workflow/source revocation. Do not restore the retired long-lived repository signing key. |
 | KMS/HSM provider credential | Disable the old provider credential and record signing-provider verification receipts. | Rotate provider IAM, HSM partitions, network access, and audit logs. |
 
 ## SSO Session Replacement
@@ -81,6 +81,28 @@ For release artifacts, verify the manifest and signature with
 [Release signing](../release-signing.md). For customer packages, use
 [Review a customer package](../how-to/review-customer-package.md). For
 production readiness gates, use [Release validation](../reference/release-validation.md).
+
+## Restart-Based Infrastructure Credential Rotation
+
+For routine database, object-store or signing-gateway replacement, stage the
+replacement in the corresponding daemon's operator-managed Secret. Retain
+old/new identity references privately and use separate API, worker and migration
+credentials. For suspected compromise, revoke exposed authority first and use
+[incident containment](incident-response.md).
+
+Use the [stop/drain procedure](upgrade.md#stop-and-restart-the-reference-deployment)
+to restart affected daemons after changing private inputs. Projected-file and
+Secret updates do not reload captured credentials or automatically roll the
+chart. Replace every affected replica and wait for older pods to stop; retain
+actual shutdown/startup outcomes. Workers must not acquire API signing access.
+
+Verify API readiness, worker health and the relevant authorized storage/provider
+operation with its durable receipt. Compare [provider/database/worker
+telemetry](observability.md) before and after the change, and verify the retired
+credential is rejected through provider-approved checks without printing it.
+Liveness cannot prove replacement signing permission or revocation. Pepper
+changes invalidate the credential classes hashed with that pepper and require
+an all-caller replacement plan, separate from ordinary one-key rollover.
 
 ## Tenant Signing-Key Lifecycle
 

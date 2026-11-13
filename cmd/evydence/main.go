@@ -47,6 +47,8 @@ func run(args []string) error {
 		return usage()
 	}
 	switch args[0] {
+	case "outbox":
+		return runOutboxCLI(context.Background(), input, args[1:], os.Stdout, os.Stderr)
 	case "hash":
 		if len(args) != 2 {
 			return usage()
@@ -128,7 +130,7 @@ func run(args []string) error {
 }
 
 func usage() error {
-	return errors.New("usage: evydence hash <file> | evydence verify-manifest <manifest.json> --hash sha256:<hex> | evydence verify-evidence-bundle <bundle.json> | evydence verify-audit-chain <chain.json> | evydence package verify ... | evydence github-actions upload-build ... | evydence ci preflight ... | evydence import-bundle upload ... | evydence upload manifest|validate-manifest ... | evydence release upload-evidence|manifest|sign|verify|keygen")
+	return errors.New("usage: evydence hash <file> | evydence verify-manifest <manifest.json> --hash sha256:<hex> | evydence verify-evidence-bundle <bundle.json> | evydence verify-audit-chain <chain.json> | evydence package verify ... | evydence github-actions upload-build ... | evydence ci preflight ... | evydence outbox backlog|dead-letters|replay ... | evydence import-bundle upload ... | evydence upload manifest|validate-manifest ... | evydence release upload-evidence|manifest|sign|verify|keygen")
 }
 
 func hashFile(path string) (string, error) {

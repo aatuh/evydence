@@ -580,7 +580,9 @@ class CollectorTests(unittest.TestCase):
         def run(args, cwd, environment, **kwargs):
             calls.append((list(args), str(cwd), dict(environment)))
             if args == ['go', 'version']:
-                return b'go version go1.27.3 linux/amd64\n'
+                raw = (root / 'release/support-matrix.json').read_bytes()
+                selected = dependency_classifier.support_matrix.parse_policy(raw)['go']['current']
+                return ('go version go' + selected + ' linux/amd64\n').encode()
             if args == ['go', 'env', 'GOMODCACHE']:
                 return str(cache).encode() + b'\n'
             if args[:2] == ['go', 'build']:
@@ -624,7 +626,8 @@ class CollectorTests(unittest.TestCase):
         root=Path(__file__).parents[1]
         sources={name:{'sha256':hashlib.sha256((root/name).read_bytes()).hexdigest()}
                  for name in ['tools/go.mod','tools/go.sum','tools/cmd/license-inventory/main.go']}
-        receipt={'schema':dependency_classifier.SCHEMA,'trusted_base':'a'*40,'go_version':'go1.27.3',
+        selected=dependency_classifier.support_matrix.parse_policy((root/'release/support-matrix.json').read_bytes())['go']['current']
+        receipt={'schema':dependency_classifier.SCHEMA,'trusted_base':'a'*40,'go_version':'go'+selected,
                  'sources':sources,'binary_sha256':hashlib.sha256(executable.read_bytes()).hexdigest()}
         env=dependency_classifier.environment({'PATH':'/trusted/bin','GH_TOKEN':'SECRET_CANARY'},workspace)
         return dependency_classifier.BuiltClassifier(workspace,receipt,env)

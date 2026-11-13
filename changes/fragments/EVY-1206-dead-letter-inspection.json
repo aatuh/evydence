@@ -1,0 +1,24 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-dead-letter-inspection",
+  "category": "added",
+  "summary": "Add bounded instance-admin dead-letter inspection through the API and CLI",
+  "details": [
+    "List current dead-letter job metadata through GET /v1/admin/outbox/dead-letters and evydence outbox dead-letters, using existing opaque cursor pagination with ID byte ordering and a 50-record default/500-record ceiling.",
+    "Require explicit current instance-admin authority before database access and publication, retaining the existing focused operator service with no production aggregate or optional fallback.",
+    "Use a partial binary-collated ID index and bounded keyset SQL that selects no job tenant/subject identifiers, payloads or raw error columns; continuation remains usable after the prior job is replayed.",
+    "Validate failure-code grammar, timestamps, attempts, order and response budgets; reject malformed or oversized projections without partial results. Protect HTTP responses with no-store and preserve safe CLI errors, credential handling and explicit pagination inputs.",
+    "Update precise OpenAPI, generated contract/SDK catalogs, deployment target fixtures and the canonical worker-outbox operator reference."
+  ],
+  "compatibility": {
+    "api": "changed",
+    "sdk": "changed",
+    "migrations": "required",
+    "notes": "Additive read-only API/CLI operation and 20261104000200_outbox_dead_letter_lookup index migration. Existing routes and replay audit/idempotency behavior are preserved; the index changes no job rows or evidence formats. Cursor continuation is a current queue view, not a frozen historical snapshot. Apply the selected release migration before deploying the new image."
+  },
+  "security": "Explicit instance:admin authority protects global operational metadata; tenant admin and wildcard tenant keys remain insufficient. Closed validated projections omit job tenant/subject labels, payloads, credentials, trace data and raw failures. IDs are bound SQL values and cursor tokens retain resource, actor-tenant and ordering bindings. Runtime database roles retain their existing permission profile.",
+  "limitations": [
+    "Malformed persisted metadata fails the page and needs operator reconciliation; the reader does not rewrite historical rows. Changes between pages can add or remove jobs.",
+    "Remaining Helm/runbook hardening and required full-ticket migration, deployment, restore and production gates remain pending in incomplete EVY-1206. Local role/index/replay fixtures do not verify a deployed provider or cluster or imply universal performance."
+  ]
+}

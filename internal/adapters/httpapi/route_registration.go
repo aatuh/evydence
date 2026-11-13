@@ -77,6 +77,7 @@ func (s *Server) systemRoutes() []routeDef {
 		{http.MethodGet, "/v1/openapi.json", op("openapi", http.MethodGet, "/v1/openapi.json", "OpenAPI", nil), http.HandlerFunc(s.openapi)},
 		{http.MethodGet, "/v1/admin/instance", op("instanceAdminSnapshot", http.MethodGet, "/v1/admin/instance", "Instance admin snapshot", []string{app.ScopeInstanceAdmin}), http.HandlerFunc(s.instanceAdminSnapshot)},
 		{http.MethodGet, "/v1/admin/outbox", op("outboxOperatorDiagnostics", http.MethodGet, "/v1/admin/outbox", "Outbox operator diagnostics", []string{app.ScopeInstanceAdmin}), http.HandlerFunc(s.outboxOperatorDiagnostics)},
+		{http.MethodGet, "/v1/admin/outbox/dead-letters", op("listOutboxDeadLetters", http.MethodGet, "/v1/admin/outbox/dead-letters", "List outbox dead letters", []string{app.ScopeInstanceAdmin}), http.HandlerFunc(s.listOutboxDeadLetters)},
 		{http.MethodPost, "/v1/admin/outbox/{id}/replay", op("replayTerminalOutboxJob", http.MethodPost, "/v1/admin/outbox/{id}/replay", "Replay terminal outbox job", []string{app.ScopeInstanceAdmin}), http.HandlerFunc(s.replayTerminalOutboxJob)},
 	}
 }

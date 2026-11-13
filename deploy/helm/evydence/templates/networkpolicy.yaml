@@ -1,17 +1,46 @@
 {{- if .Values.networkPolicy.enabled }}
+{{- range $component := list "api" "worker" "migrate" }}
+{{- $key := printf "%sEgress" (ternary "migration" $component (eq $component "migrate")) -}}
+{{- $egress := index $.Values.networkPolicy $key -}}
+{{- if $.Values.networkPolicy.dnsPeers -}}
+{{- $dns := dict "to" $.Values.networkPolicy.dnsPeers "ports" (list (dict "protocol" "UDP" "port" 53) (dict "protocol" "TCP" "port" 53)) -}}
+{{- $egress = prepend $egress $dns -}}
+{{- end }}
+---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
-  name: {{ include "evydence.fullname" . }}
+  {{- if eq $component "api" }}
+  # Preserve the prior optional API policy's name during upgrades.
+  name: {{ include "evydence.fullname" $ }}
+  {{- else if eq $component "migrate" }}
+  name: {{ include "evydence.migrationName" $ }}
+  annotations:
+    # A normal manifest would arrive after the first migration hook.
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-20"
+    helm.sh/hook-delete-policy: before-hook-creation
+  {{- else }}
+  name: {{ include "evydence.runtimeServiceAccountName" (dict "root" $ "component" $component) }}
+  {{- end }}
 spec:
   podSelector:
     matchLabels:
-      app.kubernetes.io/name: {{ include "evydence.name" . }}
-      app.kubernetes.io/component: api
-  policyTypes:
-    - Ingress
+      app.kubernetes.io/name: {{ include "evydence.name" $ }}
+      app.kubernetes.io/instance: {{ $.Release.Name }}
+      app.kubernetes.io/component: {{ $component }}
+  policyTypes: [Ingress, Egress]
+  {{- if and (eq $component "api") $.Values.networkPolicy.apiIngressFrom }}
   ingress:
-    - ports:
+    - from:
+        {{- toYaml $.Values.networkPolicy.apiIngressFrom | nindent 8 }}
+      ports:
         - protocol: TCP
           port: 8080
+  {{- else }}
+  ingress: []
+  {{- end }}
+  egress:
+    {{- toYaml $egress | nindent 4 }}
+{{- end }}
 {{- end }}

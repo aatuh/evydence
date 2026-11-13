@@ -55,6 +55,18 @@ func TestRoleInputRejectsInvalidLocalCombinations(t *testing.T) {
 	}
 }
 
+func TestProductionRuntimeRequiresSeparateMigrationExecution(t *testing.T) {
+	for _, role := range []Role{API, Worker} {
+		input, err := parseRoleInput(roleEnvironment(t, role, true), role)
+		if err != nil || !input.values["EVYDENCE_SKIP_MIGRATIONS"].boolean {
+			t.Fatal("production runtime did not default to checking separately applied migrations", err)
+		}
+		if _, err := parseRoleInput(roleEnvironment(t, role, true, "EVYDENCE_SKIP_MIGRATIONS=false"), role); !errors.Is(err, ErrUnsafeProduction) {
+			t.Fatal("production runtime accepted automatic startup migrations", err)
+		}
+	}
+}
+
 func TestProductionRejectsCurrentIdentityDevelopmentPepper(t *testing.T) {
 	// Keep the transitional validator tied to the existing identity-owned
 	// compatibility value without importing application code into configuration.

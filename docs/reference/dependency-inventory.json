@@ -1185,7 +1185,7 @@
         "files": [
           {
             "path": "internal/platform/config/testdata/native-boundary-review.json",
-            "sha256": "fee57143d0d5538da5f55db30af926b7b779b91765e02ed750342c519d19441b"
+            "sha256": "457434f44f12003a6241912c8b15e5fae6c9b9cd56720dbf9e495bf646790ac0"
           }
         ],
         "introduced_commit": "e561c569bf78ed456ed50af2b8862e45be516436",
@@ -1195,7 +1195,7 @@
         ],
         "verification": "local-digests-checked"
       },
-      "version": "fee57143d0d5538da5f55db30af926b7b779b91765e02ed750342c519d19441b"
+      "version": "457434f44f12003a6241912c8b15e5fae6c9b9cd56720dbf9e495bf646790ac0"
     },
     {
       "ecosystem": "fixture",
@@ -32502,12 +32502,12 @@
         "application"
       ],
       "source": {
-        "go_mod_sum": "h1:NGxPfE4PwS/TRXEbyx2RrxDFPZvxcWw31Tw8XXjPZLs=",
-        "sum": "h1:pBFXcZJFwz9J1X64jzxlOoNgFm+TF7kNrs9+HJVN6Ic=",
+        "go_mod_sum": "h1:1+BHDzstro+P5CKtPy1X4PfofnFgmRe6uvMy9+r9fKY=",
+        "sum": "h1:ZbhmVJ4yq5RZDUsyP8lcBcGMsjsaTqXEFt6isdtMDfA=",
         "verification": "go-mod-verify"
       },
-      "version": "v0.139.0",
-      "version_published_at": "2026-05-21T14:53:30Z"
+      "version": "v0.149.0",
+      "version_published_at": "2026-08-28T09:14:33Z"
     },
     {
       "ecosystem": "gomod",
@@ -47560,6 +47560,7 @@
       "license_status": "candidate",
       "name": "github.com/mailru/easyjson",
       "origins": [
+        "application",
         "fixture-mc",
         "scanner"
       ],
@@ -47590,7 +47591,6 @@
       "license_status": "candidate",
       "name": "github.com/mailru/easyjson",
       "origins": [
-        "application",
         "fixture-minio",
         "tool-cosign"
       ],
@@ -52637,12 +52637,12 @@
         "application"
       ],
       "source": {
-        "go_mod_sum": "h1:kOlRmMdL2X3vucLCEQO5u61SU22RysnfXvcttrZA1O0=",
-        "sum": "h1:0bqZjfKc/8S9urj4JuwepX41WX9EoA6ifhU3SV06cXg=",
+        "go_mod_sum": "h1:EYJNoyktvWMJ0Hmhx+6qTaqMOsalUaRGT8Sj1hNcegU=",
+        "sum": "h1:6nHx+pn9gBRM6YpBlFZFQGCCd1nuvqOBtTD3KKTgGxY=",
         "verification": "go-mod-verify"
       },
-      "version": "v0.1.0",
-      "version_published_at": "2026-05-12T19:14:54Z"
+      "version": "v0.1.1",
+      "version_published_at": "2026-06-25T18:21:46Z"
     },
     {
       "ecosystem": "gomod",
@@ -52678,12 +52678,12 @@
         "application"
       ],
       "source": {
-        "go_mod_sum": "h1:y5+oSEHCPT/DGrS++Wc/479ERge0zTFxaF8PbGKcg2o=",
-        "sum": "h1:06svmvOHOVBqF81+sY2EUScvUI/iS/vl2VIeUUxZQwg=",
+        "go_mod_sum": "h1:csto2xfDjYccdUn/yw/bPjj/cYTdp6HtFA0J4TWG+gg=",
+        "sum": "h1:aLJee3hxBK2H5wdXd9iPcIXb93Nty1Ge0pT171eHtkw=",
         "verification": "go-mod-verify"
       },
-      "version": "v0.0.13",
-      "version_published_at": "2026-05-12T18:16:49Z"
+      "version": "v0.0.14",
+      "version_published_at": "2026-06-25T16:26:05Z"
     },
     {
       "ecosystem": "gomod",
@@ -58191,7 +58191,6 @@
       "license_status": "candidate",
       "name": "github.com/santhosh-tekuri/jsonschema/v6",
       "origins": [
-        "application",
         "scanner"
       ],
       "source": {
@@ -58221,6 +58220,7 @@
       "license_status": "candidate",
       "name": "github.com/santhosh-tekuri/jsonschema/v6",
       "origins": [
+        "application",
         "qa"
       ],
       "source": {
@@ -63774,35 +63774,6 @@
       },
       "version": "v0.0.0-20181204163529-d75b2dcb6bc8",
       "version_published_at": "2018-12-04T16:35:29Z"
-    },
-    {
-      "ecosystem": "gomod",
-      "license": "MIT",
-      "license_evidence": [
-        {
-          "coverage_percent": 97.71428571428571,
-          "file": "LICENSE",
-          "ids": [
-            "MIT"
-          ],
-          "kind": "license",
-          "license": "MIT",
-          "sha256": "c8a84b926246b4ac76e3810722858b0f83bdea8378de49911dccbefd70b0692e",
-          "status": "candidate"
-        }
-      ],
-      "license_status": "candidate",
-      "name": "github.com/ugorji/go/codec",
-      "origins": [
-        "application"
-      ],
-      "source": {
-        "go_mod_sum": "h1:WGN1fab3R1fzQlVQTkfxVtIBhWDRqOviHU95kRgeqEY=",
-        "sum": "h1:YPXUKf7fYbp/y8xloBqZOw2qaVggbfwMlI8WM3wZUJ0=",
-        "verification": "go-mod-verify"
-      },
-      "version": "v1.2.7",
-      "version_published_at": "2022-02-26T19:38:31Z"
     },
     {
       "ecosystem": "gomod",
@@ -92308,11 +92279,11 @@
       "scripts/support_matrix_artifacts.py": "d330ed4492199e1ae5f45fc93e5bb4ce412564ebd04a73dcea86822614a07ead",
       "tools/cmd/license-inventory/main.go": "637f1782cc4363869497303bfcae5374cb109009cd28a93e02e44fb7a89be1bd"
     },
-    "go_version": "go1.27.3",
+    "go_version": "go1.27.4",
     "python_version": "3.14.7"
   },
   "inputs": {
-    ".github/workflows/ci.yml": "8a82d046c43db8a260aaefa6ac8dd31f932177f73a42dc73e9bd7bc64f13dfa8",
+    ".github/workflows/ci.yml": "f2e92dfbcc8b2b1478af4349a26b32518fc9f1eb0ba9b4f3f185f52125408341",
     ".github/workflows/codeql.yml": "1ee2f3c7f31223fa2ac8f575dfbd6ca902eef6c1a80960cb363239b5c1321392",
     ".github/workflows/container-image.yml": "6936fbbd31f902ec64a79753538352beea68e5420988ad52c2e0b002d627f2be",
     ".github/workflows/dependency-review.yml": "c779553cc767889ebbda048e6e98dda99cbce72638d63f80205f2711c769c60a",
@@ -92323,11 +92294,11 @@
     ".github/workflows/scorecard-sarif.yml": "c7809d244592a2ab2daffffd3a776e1912512ab8aee13bbb9264322d6652b4e0",
     ".github/workflows/scorecard.yml": "352f4a1bc5fd5d206b404d785d93e89f4552ea10fadcc03a1d533b057fc5afd3",
     "LICENSE": "0d96a4ff68ad6d4b6f1f30f713b18d5184912ba8dd389f86aa7710db079abcb0",
-    "deploy/local-dependencies/Dockerfile": "8b576ed1c58a015da28d2651b26f8b812ffe57d2f4a95ff2965cec324d0b5dfd",
+    "deploy/local-dependencies/Dockerfile": "53afcc002e459d2fbb91808874d64cbfe2c0da596841c544a3028923af08d111",
     "docs/github-actions/quickstart-release-evidence.yml": "eb8fd676581894080f16654539e1e18ef097961db0ea189cc7fc339836668b6b",
     "docs/github-actions/release-evidence-workflow.yml": "9d4d5178702e4089cfb4e01fc44877f5f692d5775a8b923eb6d04bf17f5b624b",
-    "go.mod": "54c8db07f733cc703f20517cae157121e1efc26958383f5bbd6559be545e0389",
-    "go.sum": "d23ca644081a307542a4c77ed2803272b942309e30e4356c056d7060692e222e",
+    "go.mod": "5d94a3d86d3b0c2e39c5827b2c3bd46742938aafd3de98f4d37f62160da2fc5d",
+    "go.sum": "8491ea8e05ae7821b8a756ff25fcf219a2cab63b17580e25d8252338168342c3",
     "internal/adapters/verification/sigstore/testdata/official-othername.bundle.json": "e4d4db1b4cbd232fe2a021a7290345d24e6f07f447629cbff51c8cfc52492ed8",
     "internal/adapters/verification/sigstore/testdata/official-scaffolding.trusted-root.json": "503c669ede6b4416c39de5d48d5964141970d9881fc941370faac0f75789fecf",
     "internal/app/parsers/cyclonedx/schema/bom-1.6.part-001.fragment": "abb7cfae1b00138b2923b24e3d2d2ca472f3f4595366bb1dd3cf3489c6347584",
@@ -92380,8 +92351,8 @@
     "internal/app/parsers/vex/testdata/SOURCE.md": "3c5dd2649e475558d8b50b6ba31c97cb2a813cb38ddcae7d3b1f148a03560c3a",
     "internal/app/parsers/vex/testdata/cyclonedx-vex/official-vex-1.4.json": "d99e4aba51a231e5c3428d00be05dd05be05e7287bc4998a7eb67daa2bf55a25",
     "internal/app/parsers/vex/testdata/openvex/openvex-spec-minimal.json": "8ff8b3d12ec9c8eefa191e62c3f97c788e720f684a299ca81035e131ccb862a7",
-    "internal/platform/config/testdata/native-boundary-review.json": "fee57143d0d5538da5f55db30af926b7b779b91765e02ed750342c519d19441b",
-    "release/support-matrix.json": "c266cf6d3f1b9b42cf120eb34663eb6d670678460b9c53b0b03381029e73e41e",
+    "internal/platform/config/testdata/native-boundary-review.json": "457434f44f12003a6241912c8b15e5fae6c9b9cd56720dbf9e495bf646790ac0",
+    "release/support-matrix.json": "124e1880bac44fa1ec9a11e5e5a8b6d627705a53f145ac9159285fb32b041fc4",
     "release/tools/standalone-go.json": "aa3a3da6196a53433d9df794036cb392ad618ed75035d4c9572a6fbc36e11a18",
     "release/tools/syft.go.mod": "779a628967e4006a15bb531cbc0a0977be34ad05bd22b95e9d6bf6bd0f768bbc",
     "release/tools/syft.go.sum": "c778b5ee7af2e3b7d2cac7896e9a48df4b50b3e431f0de77cdea60b2e2783868",
@@ -92392,7 +92363,7 @@
     "site/marketing/package-lock.json": "ba5846c44a4eb48a36e12751980bac6eb52822f3d4d45d97042ef17ae72cc197",
     "site/marketing/package.json": "593a3f76c4006d28098fe9bb5e69e835155e3f0f3a1c45622c2ae6e5b66a0c18",
     "testdata/dsse/unsupported-payload-type.json": "39ee2b8579b989286ff3445dc8591eb92334c7e111fc58343615812ebd46b2ac",
-    "testdata/fixture-provenance.v1.json": "f8d0c121b27bb9ceb1782b0327d19433eee7ae8b92c2a4c16d642ed96c708e0a",
+    "testdata/fixture-provenance.v1.json": "11d192f0345e982ecb466cab7d97806c132147aa984c2a98fbcd58dd637f5480",
     "testdata/intoto/slsa-provenance-v1.json": "e9f4be8eb74bafa70b31b50b7019f129dc952a06c42bf7acd40f15c302eb6e22",
     "testdata/licenses/bom-examples.LICENSE": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
     "testdata/licenses/cyclonedx-spec.LICENSE": "6c29f22a4a7385285c6f579ec9f33c5e989f00739d6b257243a0b082ec9447ae",
@@ -92405,7 +92376,7 @@
     "testdata/licenses/trivy.NOTICE": "aed9bc6dab87c6f6567d20bf0f5c0433a8ccd3ad7873322cf79b9244eb720a1f",
     "testdata/parser-corpus.v1.json": "b16c3f69431daeb7dfb9280f320f2177a076f394b1340c2a14034e44a0399b42",
     "testdata/verification/rfc6962-tree-size-3.v1.json": "0f1a0508e6ed51820e3162af56fae23c641f6a3d5ca2ab99ac3bfcb261f8a296",
-    "tools/go.mod": "6607d0a19d23e005f96af7b79cfbf97815de55db22d5dbdfa4505a234e90cf3d",
+    "tools/go.mod": "8cad75e793a8eb65e333755afa759823d6402d8970c36fbf861edae4d4063b8b",
     "tools/go.sum": "4485cc87fd5ff6aa5b0058bddf2636a1dab4662a2011974aded50ba9e17037a2",
     "tools/requirements-qa.txt": "0cd60730d0853259b18599b93ac6e7614ef183fb9f98914b97f99fe05c354c81"
   },

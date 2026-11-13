@@ -39,7 +39,7 @@ func TestCLICommandScopesIgnoreUnusedBuildAndLiveInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, command := range []CLICommand{CLIUpload, CLIPreflight} {
+	for _, command := range []CLICommand{CLIUpload, CLIPreflight, CLIOutbox} {
 		input, err := PrepareCLI(environment, command, nil)
 		if err != nil {
 			t.Fatal("unused build/live inputs became dependencies", err)

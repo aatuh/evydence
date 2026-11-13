@@ -6,7 +6,7 @@ stages:
   - evidence
 
 build:
-  image: golang:1.27.3-alpine3.23@sha256:895e5feab11a4b3774d24ee3c9579028456b82ad37f42a9eb6f82adaf776a201
+  image: golang:1.27.4-alpine3.23@sha256:146e3b9c7c1e2ec3d3f5348c8a686151a75e1976e50efac9fc022ebe446a9a82
   stage: build
   script:
     - go build -o dist/evydence ./cmd/evydence
@@ -17,7 +17,7 @@ build:
       - artifact.digest
 
 evydence:evidence:
-  image: golang:1.27.3-alpine3.23@sha256:895e5feab11a4b3774d24ee3c9579028456b82ad37f42a9eb6f82adaf776a201
+  image: golang:1.27.4-alpine3.23@sha256:146e3b9c7c1e2ec3d3f5348c8a686151a75e1976e50efac9fc022ebe446a9a82
   stage: evidence
   dependencies:
     - build

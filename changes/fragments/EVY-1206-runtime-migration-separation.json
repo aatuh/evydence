@@ -1,0 +1,23 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-runtime-migration-separation",
+  "category": "changed",
+  "summary": "Separate production migrations from API and worker lifetimes",
+  "details": [
+    "Require skip mode for production daemons and paired explicit target/checksum inputs for production migration commands before durable resources open.",
+    "Keep a shared schema lease from runtime startup through drain and owned-resource cleanup; reuse that exact connection for version checks so queued migrators cannot deadlock readiness.",
+    "Reject pools without room for pinned leases and work. Discard uncertain or falsely released sessions and preserve lease ownership on expired cleanup.",
+    "Add a database-only Helm migration hook and bounded independent ServiceAccount, bake migration checksums into the application image, and require a selected target for the production-like Compose migration service."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "Deployment configuration changes are required: stop old daemons before upgrading, provision the Helm migration database Secret and choose the release target explicitly. Production automatic migrations are rejected. API pool minima are three connections in production and two otherwise; worker and migration pools require two. Older runners do not participate in the lock protocol."
+  },
+  "security": "The schema coordinator excludes updated runtimes from migration SQL, cleanup retains locks while work remains, and migration manifests receive only the database credential. Checksums authenticate neither their own release nor historical legacy execution; database authorization remains operator-owned.",
+  "limitations": [
+    "Readiness checks version names rather than database contents or execution fingerprints. Live cluster permissions and rollouts are not proven by rendered manifests.",
+    "The remaining audited migration authorization profile, worker operations, broader Helm hardening and full-ticket production gates remain in EVY-1206."
+  ]
+}

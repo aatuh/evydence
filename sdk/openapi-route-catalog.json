@@ -1,5 +1,5 @@
 {
-  "route_count": 194,
+  "route_count": 195,
   "routes": [
     {
       "idempotency_key_required": false,
@@ -27,6 +27,24 @@
       "request_schema": "",
       "response_schemas": [
         "#/components/schemas/OutboxDiagnosticsEnvelope",
+        "#/components/schemas/Problem"
+      ],
+      "scopes": [
+        "instance:admin"
+      ],
+      "stability": "experimental",
+      "success_statuses": [
+        "200"
+      ]
+    },
+    {
+      "idempotency_key_required": false,
+      "method": "GET",
+      "operation_id": "listOutboxDeadLetters",
+      "path": "/v1/admin/outbox/dead-letters",
+      "request_schema": "",
+      "response_schemas": [
+        "#/components/schemas/OutboxDeadLetterListEnvelope",
         "#/components/schemas/Problem"
       ],
       "scopes": [

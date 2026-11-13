@@ -1,0 +1,24 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1206-managed-migration-operations",
+  "category": "added",
+  "summary": "Integrate managed database roles, operation audit and runtime admission under the migration coordinator",
+  "details": [
+    "Select an existing dedicated runtime login with EVYDENCE_MIGRATION_RUNTIME_ROLE and a verified target/checksum plan; validate authority before bookkeeping and prevent ordinary migration calls from bypassing activated managed history.",
+    "Commit initial grants and a started operation, retain per-file SQL/checksum/principal transactions, then atomically commit final grants and a succeeded operation before releasing the schema coordinator.",
+    "Record authenticated operation principals, target, runtime identity, policy digest and known committed count, preserving interrupted or uncertain outcomes with one bounded rollback/audit/unlock cleanup budget.",
+    "Require matching successful operation state at daemon startup and readiness, even after SQL versions are complete; protect operation/version metadata from runtime writes and exclude it from tenant backup commitments.",
+    "Expose optional migration-only Helm/Compose selection and check the exported operator policy and versioned audit DDL against canonical embedded sources."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "required",
+    "notes": "Add 20261104000100_migration_operation_audit, with the same bootstrap shape used before managed application SQL. Downgrade refuses recorded operations. Missing/empty managed history retains legacy version-only readiness; activating this optional profile requires a dedicated schema owner and runtime login. Policy changes require a managed rerun using the same selected image as daemons. Historical rows and tenant evidence commitments are unchanged."
+  },
+  "security": "Database ACLs and the schema coordinator enforce the migration/runtime boundary. Failed, interrupted, uncertain, wrong-role, wrong-target or wrong-policy operation state blocks updated runtimes. Role inputs and identifiers are bounded/quoted; logs correlate hashed operation IDs without role credentials or raw database errors. Privileged database administrators remain outside this boundary.",
+  "limitations": [
+    "Role creation and existing-schema ownership adoption remain operator-owned and need rehearsal. The default Compose database user is not a dedicated-role profile; deployment rendering does not verify a live cluster or provider.",
+    "EVY-1206 remains incomplete: remaining operational/deployment work and required full-ticket migration, deployment, restore and production gates are pending."
+  ]
+}
