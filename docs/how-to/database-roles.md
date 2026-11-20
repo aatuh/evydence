@@ -66,7 +66,6 @@ An existing administrator-owned or shared schema needs a rehearsed ownership
 transfer or restore before adopting this profile. Review that against a paired
 database/object backup. The policy refuses mismatched ownership; it does not
 rewrite old migration principals, backfill unknown checksums or move data.
-Verified adoption automation remains in EVY-1206.
 
 ## Run A Managed Migration
 

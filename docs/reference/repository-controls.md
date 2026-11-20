@@ -83,6 +83,40 @@ and retain the separate release-validation evidence.
 
 ## Verified observation
 
+### 2026-11-13: bounded adoption exception and restored profile
+
+The owner explicitly approved a one-head exception for
+[PR #61](https://github.com/aatuh/evydence/pull/61), head
+`b338d6b1d595fcb8458eb4c8f301762ce0d1e67d`. Its `Production Check`,
+`CodeQL Analyze` and `Race and Stress` passed. `Dependency Policy` failed:
+the trusted target classifier required Go 1.27.3 and rejected the proposed
+Go 1.27.4 patch, while the unchanged target also failed its vulnerability gate.
+The accepted assessment gaps included two changed source-built fixture recipes
+and ambiguous license identification for `github.com/oasdiff/yaml@v0.1.1` and
+`github.com/oasdiff/yaml3@v0.0.14`. This did not determine license rights or add
+policy waiver entries.
+
+Only the `Dependency Policy` requirement was temporarily removed. The other
+three checks retained Actions app `15368` and strict enforcement; every other
+protection field remained unchanged. The normal merge created
+`429151a755d6f2fa6836b24151f6946c579ade26`, with the reviewed head and target
+as its two parents and the qualified source tree unchanged. All four required
+checks were immediately restored and read back before the local checkout was
+fast-forwarded. This was an explicitly approved bypass of one failed check,
+not a passing dependency-admission result or a standing exception for later PRs.
+
+The [2026-11-13 13:08:07 UTC report](repository-controls-2026-11-13T130807Z.json)
+then passed all 18 observations for clean local and remote master
+`429151a755d6f2fa6836b24151f6946c579ade26`. It used unchanged verifier SHA-256
+`54cff1cc008f1335eeb9d787e2d7888da70da9b0c684e2e93b945640591ec9f8` and confirms
+the restored four-check branch profile, three-check release-tag profile,
+security features and CodeQL analysis for that master source. No tag, release,
+container publication, credential change or alert dismissal was included.
+This dated observation does not turn the accepted assessment gaps into passing
+evidence or claim independent review. Future PRs still require all four checks.
+
+### 2026-10-25: dependency check added
+
 After full hosted dependency controls #43/#44/#45 qualified against master
 `069fac5ee8613b5c3194a3a456fd42812fdb6ed2`, the maintainer approved adding
 `Dependency Policy` with Actions app `15368` to the existing required checks.

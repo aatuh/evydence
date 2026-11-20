@@ -22,9 +22,10 @@ The narrow supported topology is:
 The [database role procedure](../how-to/database-roles.md) provides a tested,
 schema-scoped migration/runtime permission profile. Managed migrations validate
 authority, record operation events and commit runtime grants under their schema
-lock. It requires separately provisioned dedicated identities and ownership;
-existing-schema adoption remains in EVY-1206. Do not infer deployed role separation from the chart's
-separate Secret reference alone.
+lock. It requires separately provisioned dedicated identities and ownership.
+Existing-schema adoption requires the operator's ownership-transfer or restore
+rehearsal in that procedure. Separate Secret references do not establish
+deployed role separation.
 
 Use the [pilot deployment checklist](../how-to/pilot-deployment-checklist.md)
 for the copy-paste go/no-go record and the
