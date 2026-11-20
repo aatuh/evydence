@@ -52,6 +52,21 @@ class SupportPolicyTests(unittest.TestCase):
         plan[0]["commands"].append("PRIVATE_MUTATION")
         self.assertEqual(policy, policy_fixture(), "query results must not mutate policy")
 
+    def test_schema_can_parse_an_explicit_linux_arm64_runtime_policy(self):
+        candidate = policy_fixture()
+        candidate['release']['runtime_targets'] = ['linux/amd64', 'linux/arm64']
+        candidate['release']['server_targets'] = ['linux/amd64', 'linux/arm64']
+        plan = support.release_plan(self.parse(candidate))
+        for row in plan:
+            if row['target'] in candidate['release']['runtime_targets']:
+                self.assertTrue(row['runtime_target'])
+                self.assertEqual(row['commands'], ['evydence', 'evydence-api', 'evydence-worker', 'evydence-migrate'])
+            else:
+                self.assertFalse(row['runtime_target'])
+                self.assertEqual(row['commands'], ['evydence'])
+        # Parser capability does not alter the selected source policy.
+        self.assertEqual(policy_fixture()['release']['runtime_targets'], ['linux/amd64'])
+
     def test_unsafe_inconsistent_and_unsupported_declarations_fail_closed(self):
         changes = [
             lambda p: p["go"].update(current="latest"),

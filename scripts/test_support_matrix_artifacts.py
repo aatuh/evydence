@@ -26,6 +26,16 @@ class SupportArtifactTests(unittest.TestCase):
     def test_repository_build_inputs_match_the_declared_policy(self):
         self.assertEqual(self.check(), [])
 
+    def test_native_build_platform_selector_preserves_exact_go_and_alpine_pin_checks(self):
+        for selector in ('$BUILDPLATFORM', '${BUILDPLATFORM}'):
+            files = dict(self.files)
+            source = files['Dockerfile']
+            files['Dockerfile'] = source.replace('FROM golang:', 'FROM --platform=' + selector + ' golang:') \
+                .replace('FROM alpine:', 'FROM --platform=' + selector + ' alpine:')
+            self.assertEqual(self.check(files), [])
+            files['Dockerfile'] = files['Dockerfile'].replace('golang:' + self.policy['go']['current'], 'golang:1.25.0')
+            self.assertTrue(any('Dockerfile: Go builder' in item for item in self.check(files)))
+
     def test_dependency_review_selects_current_before_locking_go(self):
         name = ".github/workflows/dependency-review.yml"
         self.assertIn(name, artifacts.ARTIFACTS, "trusted dependency compiler escaped the build policy")

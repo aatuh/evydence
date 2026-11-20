@@ -92275,8 +92275,8 @@
       "scripts/release_lifecycle.py": "674aea75e8fe1d631a4d50cffd5c5fbab32bbda46b3b70a8da79512855ca786e",
       "scripts/release_sbom.py": "ceb23c6e8a8477214fc05e08f4e738955f4c75b96007c0c149957a7132b8e9ba",
       "scripts/release_scanner.py": "aee713bfa20b48487d9d88ed0b53fc78d567dc0809464a6f791c5212bbb5d095",
-      "scripts/support_matrix.py": "47ed56d270c41e87221d700c2fcf4539ef1e4e62bf15c2ab99f3b8089976ae4b",
-      "scripts/support_matrix_artifacts.py": "d330ed4492199e1ae5f45fc93e5bb4ce412564ebd04a73dcea86822614a07ead",
+      "scripts/support_matrix.py": "c6894af8334ba9fca3e883330b09b15e24dc22b21434ed474690a7bf461bbf2a",
+      "scripts/support_matrix_artifacts.py": "84030d56cb5fbdabf649b065cad36aa50a8a97d32cc35dfcb2c0bfc1a0b0d90c",
       "tools/cmd/license-inventory/main.go": "637f1782cc4363869497303bfcae5374cb109009cd28a93e02e44fb7a89be1bd"
     },
     "go_version": "go1.27.4",

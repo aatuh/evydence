@@ -3,6 +3,7 @@
 from pathlib import Path
 import re
 import unittest
+import dependency_images
 
 import support_matrix as support
 
@@ -43,10 +44,10 @@ class LocalDependencyImageTests(unittest.TestCase):
 
     def test_application_and_fixtures_use_the_same_verified_base_pins(self):
         source = DOCKERFILE.read_text()
-        application = (ROOT / "Dockerfile").read_text()
+        application = dependency_images.docker_bases((ROOT / "Dockerfile").read_bytes())
         for prefix in ("golang:", "alpine:"):
             fixture = re.search(rf"^FROM ({prefix}[^ ]+) AS", source, re.M)[1]
-            self.assertContains(f"FROM {fixture}", application)
+            self.assertIn(fixture, application)
 
     def test_go_builds_bound_package_and_compiler_parallelism(self):
         for path in (ROOT / "Dockerfile", DOCKERFILE):
