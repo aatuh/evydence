@@ -127,6 +127,29 @@ to 512 MiB, each expanded layer to 512 MiB and total expansion to 1 GiB.
 Layer filesystem contents are read by the pinned scanner; they are not
 extracted by the verifier onto the host filesystem.
 
+`release_oci.inspect_index(..., platforms=(...))` separately validates a wrapped
+OCI image index for an explicitly requested matrix of `linux/amd64` and/or
+`linux/arm64`. The layout's single root descriptor must identify the expected
+index digest. Each child must be an OCI image manifest whose descriptor and
+configuration agree on the platform, with the same expected source, revision
+and version labels. The reader rejects missing, duplicate or unexpected
+platforms, nested indexes, attestation entries and unsupported CPU variants or
+OS requirements. Baseline `amd64/v1` and `arm64/v8` variants normalize to their
+architecture. It returns the index subject and sorted per-platform manifest
+subjects without copying config environment values or other arbitrary metadata.
+This is a restricted publication profile of the
+[OCI image index specification](https://github.com/opencontainers/image-spec/blob/v1.1.1/image-index.md),
+not a general-purpose OCI reader.
+
+The same archive and layer limits apply to index inspection. Total expansion
+is counted across every image, including repeated references to shared layers.
+An optional Docker compatibility index must describe exactly the same configs
+and layers. `make container-image-check` tests both readers and the existing
+container evidence binding offline. The v1 evidence generator and publication
+workflow still accept only the single Linux amd64 manifest. Index parsing does
+not qualify arm64 runtime support, generate multi-platform SBOMs, verify a
+publisher identity or establish publication; those remain EVY-1405 work.
+
 Image inventories include recognized Go modules and Alpine APK coordinates,
 including the optional bounded `upstream` package name for Alpine split
 packages, plus the vetted Alpine operating-system descriptor. File paths, arbitrary

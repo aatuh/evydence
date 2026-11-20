@@ -426,7 +426,7 @@
       "selected_version_timestamp": null,
       "source_commit_timestamp": null,
       "status": "unknown",
-      "version": "457434f44f12003a6241912c8b15e5fae6c9b9cd56720dbf9e495bf646790ac0"
+      "version": "58211aa8cd6419b51e92e1edfe8240666ea0de1e98df2cfced14c0176415f3c7"
     },
     {
       "canonical_repository": "openvex/spec",
@@ -61179,8 +61179,8 @@
     "docker-compose.yml": "10ccf4df8a1793fe883adaaaa73fe2fe5195c9a177fa67b24d95250998c196e6",
     "docs/github-actions/quickstart-release-evidence.yml": "eb8fd676581894080f16654539e1e18ef097961db0ea189cc7fc339836668b6b",
     "docs/github-actions/release-evidence-workflow.yml": "9d4d5178702e4089cfb4e01fc44877f5f692d5775a8b923eb6d04bf17f5b624b",
-    "docs/reference/dependency-image-inventory.json": "c95e858d91c26d51cb937c0a4b050cf20fcc1b95dc88dc02bac517fc51c0579e",
-    "docs/reference/dependency-inventory.json": "b4912cd6d0c863d344cb9b0101d9229348b63159c3197d84e60c53422a02ccf1",
+    "docs/reference/dependency-image-inventory.json": "83c450532533fa7c50174f49e9322db7e71303fbe430730f12497009246e42d0",
+    "docs/reference/dependency-inventory.json": "30a235968faa4e76550586ff1c369e36cd8db421a9bff72439871b2df23c3afc",
     "go.mod": "5d94a3d86d3b0c2e39c5827b2c3bd46742938aafd3de98f4d37f62160da2fc5d",
     "go.sum": "8491ea8e05ae7821b8a756ff25fcf219a2cab63b17580e25d8252338168342c3",
     "internal/adapters/verification/sigstore/testdata/official-othername.bundle.json": "e4d4db1b4cbd232fe2a021a7290345d24e6f07f447629cbff51c8cfc52492ed8",
@@ -61235,7 +61235,7 @@
     "internal/app/parsers/vex/testdata/SOURCE.md": "3c5dd2649e475558d8b50b6ba31c97cb2a813cb38ddcae7d3b1f148a03560c3a",
     "internal/app/parsers/vex/testdata/cyclonedx-vex/official-vex-1.4.json": "d99e4aba51a231e5c3428d00be05dd05be05e7287bc4998a7eb67daa2bf55a25",
     "internal/app/parsers/vex/testdata/openvex/openvex-spec-minimal.json": "8ff8b3d12ec9c8eefa191e62c3f97c788e720f684a299ca81035e131ccb862a7",
-    "internal/platform/config/testdata/native-boundary-review.json": "457434f44f12003a6241912c8b15e5fae6c9b9cd56720dbf9e495bf646790ac0",
+    "internal/platform/config/testdata/native-boundary-review.json": "58211aa8cd6419b51e92e1edfe8240666ea0de1e98df2cfced14c0176415f3c7",
     "release/support-matrix.json": "124e1880bac44fa1ec9a11e5e5a8b6d627705a53f145ac9159285fb32b041fc4",
     "release/tools/standalone-go.json": "aa3a3da6196a53433d9df794036cb392ad618ed75035d4c9572a6fbc36e11a18",
     "release/tools/syft.go.mod": "779a628967e4006a15bb531cbc0a0977be34ad05bd22b95e9d6bf6bd0f768bbc",
@@ -61268,7 +61268,7 @@
     "site/marketing/package-lock.json": "ba5846c44a4eb48a36e12751980bac6eb52822f3d4d45d97042ef17ae72cc197",
     "site/marketing/package.json": "593a3f76c4006d28098fe9bb5e69e835155e3f0f3a1c45622c2ae6e5b66a0c18",
     "testdata/dsse/unsupported-payload-type.json": "39ee2b8579b989286ff3445dc8591eb92334c7e111fc58343615812ebd46b2ac",
-    "testdata/fixture-provenance.v1.json": "11d192f0345e982ecb466cab7d97806c132147aa984c2a98fbcd58dd637f5480",
+    "testdata/fixture-provenance.v1.json": "9b5ed726c315d0aa072904f20be7ee8ebeae9f0331fec47b2f3f528664a2d61d",
     "testdata/intoto/slsa-provenance-v1.json": "e9f4be8eb74bafa70b31b50b7019f129dc952a06c42bf7acd40f15c302eb6e22",
     "testdata/licenses/bom-examples.LICENSE": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
     "testdata/licenses/cyclonedx-spec.LICENSE": "6c29f22a4a7385285c6f579ec9f33c5e989f00739d6b257243a0b082ec9447ae",
@@ -61516,7 +61516,7 @@
       "release_tag": null,
       "repository": null,
       "source_commit": null,
-      "version": "457434f44f12003a6241912c8b15e5fae6c9b9cd56720dbf9e495bf646790ac0",
+      "version": "58211aa8cd6419b51e92e1edfe8240666ea0de1e98df2cfced14c0176415f3c7",
       "version_timestamp": null
     },
     {

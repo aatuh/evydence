@@ -365,8 +365,8 @@
     },
     {
       "source": "scripts/release_oci.py",
-      "sha256": "17a2af362359f1c844c6922641a5017d57be7d324c3dadd59695641a9ba47a14",
-      "finding": "No environment or provider access. The bounded single-image OCI TAR envelope admits only layout/index/referenced content-addressed blobs and a consistent optional Docker compatibility index. It validates actual blob hashes/sizes, supported media types, compressed/expanded layer digests, aggregate expansion, Linux amd64 configuration and expected source/version labels. Outer links, traversal, duplicates and unreferenced payloads fail. The parser never extracts layer files onto the host and never serializes image Env or private config fields; fixed errors cover malformed compressed bytes."
+      "sha256": "66454270a8c9f0c6c917eb58af74aef856a9c96862507752fc9c06f7b65c2ea0",
+      "finding": "Scoped EVY-1405 source review: no environment, subprocess or provider access. The shared bounded OCI TAR reader preserves the single-manifest Linux amd64 v1 subject. The separate index entry point requires an explicit unique Linux amd64/arm64 matrix and verifies the expected wrapped index digest plus every child manifest, config, compressed/expanded layer digest and source/version label. Descriptor and config platforms must agree on a baseline CPU variant; duplicate, missing, unexpected, nested-index or attestation platforms fail. One expansion budget spans all images, including shared-layer references. Outer links, traversal, duplicates and unreferenced blobs fail, and an optional Docker compatibility index must match exactly the verified configs/layers. It never extracts layers or serializes config Env/private metadata, and fixed errors cover malformed input. Tests retain legacy v1 output, second-image substitution, matrix, byte-binding and cumulative-limit assertions. Index parsing does not qualify runtime architecture support, scanner coverage, signing identity or publication."
     },
     {
       "source": "scripts/release_sbom.py",

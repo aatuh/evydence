@@ -1,0 +1,22 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1405-oci-index-reader",
+  "category": "added",
+  "summary": "Validate OCI index and per-platform image subjects offline",
+  "details": [
+    "Add a separate reader that binds a wrapped OCI index and every requested Linux amd64/arm64 manifest, config and layer to expected digests and source labels, with one cumulative expansion limit.",
+    "Add the container-image-check target for offline OCI and container evidence tests while preserving the single-manifest v1 generator and publication path.",
+    "Refresh the scoped parser review and offline bindings for its project-authored fixture, preserving external dependency, license, image-scan and maintenance observations and their historical dates."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "The existing Linux amd64 OCI reader and v1 evidence output remain unchanged; index inspection is a separate internal tooling entry point with an explicit requested platform matrix."
+  },
+  "security": "Verify every referenced config and blob, per-platform source/version labels, supported baseline platform requirements and cumulative expansion without extracting layers or exposing config environment values.",
+  "limitations": [
+    "Index inspection alone does not qualify arm64 runtime support, multi-platform SBOM generation, signer identity or registry publication.",
+    "The new reader intentionally rejects nested indexes, attestation entries and platform requirements outside its restricted publication profile; EVY-1405 remains incomplete."
+  ]
+}
