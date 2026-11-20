@@ -138,12 +138,13 @@ def check_artifacts(policy, *, root=None, read_text=None):
     runtimes = []
     for name in ("Dockerfile", "deploy/local-dependencies/Dockerfile"):
         source = sources[name]
-        images = re.findall(r"^FROM (golang:\S+) AS \S+$", source, re.M)
+        native_from = r"^FROM(?: --platform=\$(?:BUILDPLATFORM|\{BUILDPLATFORM\}))? "
+        images = re.findall(native_from + r"(golang:\S+) AS \S+$", source, re.M)
         check(len(images) == 1 and re.fullmatch(r"golang:" + re.escape(current) + r"-alpine3\.23@sha256:[a-f0-9]{64}", images[0]) is not None,
               name + ": Go builder version or immutable digest drift")
         check(re.search(r"^ENV GOTOOLCHAIN=local(?:\s|$)", source, re.M) is not None, name + ": implicit toolchain switching")
         bases += images
-        runtime = re.findall(r"^FROM (alpine:\S+)(?: AS \S+)?$", source, re.M)
+        runtime = re.findall(native_from + r"(alpine:\S+)(?: AS \S+)?$", source, re.M)
         check(bool(runtime) and all(re.fullmatch(r"alpine:3\.23@sha256:[a-f0-9]{64}", image) for image in runtime), name + ": unpinned runtime")
         runtimes += runtime
     check(len(set(bases)) == 1, "Dockerfiles: Go builder digest disagreement")

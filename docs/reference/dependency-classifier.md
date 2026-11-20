@@ -11,6 +11,24 @@ separately from the input comparison's merge base. A valid Git ID proves source
 identity, not review or authorization. The builder does not make that provider
 decision, install a workflow or establish complete dependency admission.
 
+## Stage Parser Capability Before New Inputs
+
+The trusted collection caller interprets proposed data with the target base's
+parsers, including support-policy values and Docker base-image syntax. When a
+planned input needs a parser capability absent from that base, first deliver
+the bounded parser support through a normal PR while keeping the selected
+support policy, Dockerfile and publisher unchanged. After that PR passes the
+required checks and is adopted, propose the new inputs against the updated
+base. The proposed branch's parser does not authorize its own input format.
+
+For native build stages, the image reader accepts only the explicit
+`$BUILDPLATFORM` or `${BUILDPLATFORM}` selector. Local stage aliases and
+`scratch` add no external image dependency; undeclared image variables,
+other platform variables and unsupported flags still fail. The support schema
+recognizes Linux amd64 and arm64 runtime/server values, while
+`release/support-matrix.json` selects the actual targets. Parser capability is
+separate from runtime qualification, image evidence and publication authority.
+
 ## Source And Build Boundary
 
 The builder reads Git objects through the [immutable reader](dependency-inputs.md).

@@ -54,16 +54,18 @@ def require(value):
 def docker_bases(raw):
     try:
         require(isinstance(raw, bytes) and 0 < len(raw) <= 512 * 1024)
-        result, aliases = [], set()
+        result, aliases, has_stage = [], set(), False
         for line in raw.decode('utf-8').splitlines():
             if not re.match(r'(?i:^\s*FROM\s)', line): continue
-            match = re.fullmatch(r'(?i:FROM)\s+(\S+)(?:\s+(?i:AS)\s+([A-Za-z0-9_.-]+))?\s*', line.strip())
+            match = re.fullmatch(r'(?i:FROM)\s+(?:--platform=(\S+)\s+)?(\S+)(?:\s+(?i:AS)\s+([A-Za-z0-9_.-]+))?\s*', line.strip())
             require(match is not None)
-            value, alias = match.groups()
-            if value not in aliases:
+            platform, value, alias = match.groups()
+            require(platform in (None, '$BUILDPLATFORM', '${BUILDPLATFORM}'))
+            has_stage = True
+            if value != 'scratch' and value.lower() not in aliases:
                 registry.reference(value); result.append(value)
-            if alias: aliases.add(alias)
-        require(result)
+            if alias: aliases.add(alias.lower())
+        require(has_stage)
         return result
     except (ValueError, UnicodeError, TypeError):
         raise ImageInventoryError() from None

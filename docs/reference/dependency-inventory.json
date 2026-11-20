@@ -1185,7 +1185,7 @@
         "files": [
           {
             "path": "internal/platform/config/testdata/native-boundary-review.json",
-            "sha256": "457434f44f12003a6241912c8b15e5fae6c9b9cd56720dbf9e495bf646790ac0"
+            "sha256": "58211aa8cd6419b51e92e1edfe8240666ea0de1e98df2cfced14c0176415f3c7"
           }
         ],
         "introduced_commit": "e561c569bf78ed456ed50af2b8862e45be516436",
@@ -1195,7 +1195,7 @@
         ],
         "verification": "local-digests-checked"
       },
-      "version": "457434f44f12003a6241912c8b15e5fae6c9b9cd56720dbf9e495bf646790ac0"
+      "version": "58211aa8cd6419b51e92e1edfe8240666ea0de1e98df2cfced14c0176415f3c7"
     },
     {
       "ecosystem": "fixture",
@@ -92275,8 +92275,8 @@
       "scripts/release_lifecycle.py": "674aea75e8fe1d631a4d50cffd5c5fbab32bbda46b3b70a8da79512855ca786e",
       "scripts/release_sbom.py": "ceb23c6e8a8477214fc05e08f4e738955f4c75b96007c0c149957a7132b8e9ba",
       "scripts/release_scanner.py": "aee713bfa20b48487d9d88ed0b53fc78d567dc0809464a6f791c5212bbb5d095",
-      "scripts/support_matrix.py": "47ed56d270c41e87221d700c2fcf4539ef1e4e62bf15c2ab99f3b8089976ae4b",
-      "scripts/support_matrix_artifacts.py": "d330ed4492199e1ae5f45fc93e5bb4ce412564ebd04a73dcea86822614a07ead",
+      "scripts/support_matrix.py": "c6894af8334ba9fca3e883330b09b15e24dc22b21434ed474690a7bf461bbf2a",
+      "scripts/support_matrix_artifacts.py": "84030d56cb5fbdabf649b065cad36aa50a8a97d32cc35dfcb2c0bfc1a0b0d90c",
       "tools/cmd/license-inventory/main.go": "637f1782cc4363869497303bfcae5374cb109009cd28a93e02e44fb7a89be1bd"
     },
     "go_version": "go1.27.4",
@@ -92351,7 +92351,7 @@
     "internal/app/parsers/vex/testdata/SOURCE.md": "3c5dd2649e475558d8b50b6ba31c97cb2a813cb38ddcae7d3b1f148a03560c3a",
     "internal/app/parsers/vex/testdata/cyclonedx-vex/official-vex-1.4.json": "d99e4aba51a231e5c3428d00be05dd05be05e7287bc4998a7eb67daa2bf55a25",
     "internal/app/parsers/vex/testdata/openvex/openvex-spec-minimal.json": "8ff8b3d12ec9c8eefa191e62c3f97c788e720f684a299ca81035e131ccb862a7",
-    "internal/platform/config/testdata/native-boundary-review.json": "457434f44f12003a6241912c8b15e5fae6c9b9cd56720dbf9e495bf646790ac0",
+    "internal/platform/config/testdata/native-boundary-review.json": "58211aa8cd6419b51e92e1edfe8240666ea0de1e98df2cfced14c0176415f3c7",
     "release/support-matrix.json": "124e1880bac44fa1ec9a11e5e5a8b6d627705a53f145ac9159285fb32b041fc4",
     "release/tools/standalone-go.json": "aa3a3da6196a53433d9df794036cb392ad618ed75035d4c9572a6fbc36e11a18",
     "release/tools/syft.go.mod": "779a628967e4006a15bb531cbc0a0977be34ad05bd22b95e9d6bf6bd0f768bbc",
@@ -92363,7 +92363,7 @@
     "site/marketing/package-lock.json": "ba5846c44a4eb48a36e12751980bac6eb52822f3d4d45d97042ef17ae72cc197",
     "site/marketing/package.json": "593a3f76c4006d28098fe9bb5e69e835155e3f0f3a1c45622c2ae6e5b66a0c18",
     "testdata/dsse/unsupported-payload-type.json": "39ee2b8579b989286ff3445dc8591eb92334c7e111fc58343615812ebd46b2ac",
-    "testdata/fixture-provenance.v1.json": "11d192f0345e982ecb466cab7d97806c132147aa984c2a98fbcd58dd637f5480",
+    "testdata/fixture-provenance.v1.json": "9b5ed726c315d0aa072904f20be7ee8ebeae9f0331fec47b2f3f528664a2d61d",
     "testdata/intoto/slsa-provenance-v1.json": "e9f4be8eb74bafa70b31b50b7019f129dc952a06c42bf7acd40f15c302eb6e22",
     "testdata/licenses/bom-examples.LICENSE": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
     "testdata/licenses/cyclonedx-spec.LICENSE": "6c29f22a4a7385285c6f579ec9f33c5e989f00739d6b257243a0b082ec9447ae",

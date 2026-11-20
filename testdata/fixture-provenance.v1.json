@@ -598,7 +598,7 @@
       "files": [
         {
           "path": "internal/platform/config/testdata/native-boundary-review.json",
-          "sha256": "457434f44f12003a6241912c8b15e5fae6c9b9cd56720dbf9e495bf646790ac0"
+          "sha256": "58211aa8cd6419b51e92e1edfe8240666ea0de1e98df2cfced14c0176415f3c7"
         }
       ],
       "source": {

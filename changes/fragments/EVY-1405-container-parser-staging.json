@@ -1,0 +1,21 @@
+{
+  "schema": "evydence-change-fragment.v1",
+  "id": "EVY-1405-container-parser-staging",
+  "category": "changed",
+  "summary": "Prepare trusted parsers for native container build stages and Linux ARM targets",
+  "details": [
+    "Recognize explicit native BUILDPLATFORM stages, local stage aliases and the empty scratch base without treating them as external image dependencies; unknown platform variables, flags and image variables still fail closed.",
+    "Allow the support schema to parse explicit Linux arm64 runtime/server selections and preserve immutable Go/Alpine pin checks with native stage selectors. The selected support policy and current image workflow remain unchanged."
+  ],
+  "compatibility": {
+    "api": "unchanged",
+    "sdk": "unchanged",
+    "migrations": "none",
+    "notes": "This preparatory parser delivery changes neither the selected runtime matrix nor Dockerfile/publisher behavior; runtime qualification and image publication remain separate EVY-1405 work."
+  },
+  "security": "Keep exact pinned-base checks, explicit platform syntax, bounded parsing, declared dependency discovery and rejection of unresolved image inputs. Adopt parser capability through the normal required checks before proposing inputs that need it.",
+  "limitations": [
+    "Recognizing a platform or empty base is not native runtime qualification, registry verification or permission to publish.",
+    "The current source inventory still observes declared base images on its documented Linux amd64 scanner platform; final runtime image evidence is separate."
+  ]
+}

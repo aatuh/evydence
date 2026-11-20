@@ -15,7 +15,7 @@ GO_TOOLS = ("golangci_lint", "gosec", "govulncheck")
 ARCHIVE_TOOLS = ("helm", "oasdiff")
 TARGETS = frozenset(("linux/amd64", "linux/arm64", "darwin/amd64", "darwin/arm64", "windows/amd64"))
 # Extending runtime/server claims requires an explicit qualification change.
-RUNTIME_TARGETS = frozenset(("linux/amd64",))
+RUNTIME_TARGETS = frozenset(("linux/amd64", "linux/arm64"))
 SERVER_COMMANDS = frozenset(("evydence-api", "evydence-worker", "evydence-migrate"))
 COMPONENT = r"(?:0|[1-9][0-9]{0,2})"
 VERSION = rf"{COMPONENT}\.{COMPONENT}\.{COMPONENT}"

@@ -49,6 +49,23 @@ class DiscoveryTests(unittest.TestCase):
         for raw in [b'FROM unknown\n', b'FROM ${BASE}\n', b'FROM alpine:3.23 AS base\nFROM other\n']:
             with self.subTest(raw=raw), self.assertRaises(images.ImageInventoryError): images.docker_bases(raw)
 
+    def test_native_platform_stages_and_scratch_preserve_external_base_discovery(self):
+        for selector in ('$BUILDPLATFORM', '${BUILDPLATFORM}'):
+            source = ('FROM --platform=' + selector + ' golang:1.27.4-alpine3.23 AS build\n'
+                      'FROM --platform=' + selector + ' alpine:3.23 AS trust\n'
+                      'FROM scratch AS runtime\n').encode()
+            self.assertEqual(images.docker_bases(source), ['golang:1.27.4-alpine3.23', 'alpine:3.23'])
+        self.assertEqual(images.docker_bases(b'FROM scratch\n'), [])
+        self.assertEqual(images.docker_bases(b'FROM alpine:3.23 AS Base\nFROM BASE AS final\n'), ['alpine:3.23'])
+        for source in [b'FROM --platform=$PRIVATE alpine:3.23\n',
+                       b'FROM --platform=$TARGETPLATFORM alpine:3.23\n',
+                       b'FROM --network=host alpine:3.23\n',
+                       b'FROM --platform=$BUILDPLATFORM ${PRIVATE_BASE}\n',
+                       b'COPY fixture /fixture\n']:
+            with self.subTest(source=source), self.assertRaises(images.ImageInventoryError) as caught:
+                images.docker_bases(source)
+            self.assertNotIn('PRIVATE', str(caught.exception))
+
 
 class ProjectionTests(unittest.TestCase):
     def test_alpine_virtual_package_names_retain_coordinates_and_unknown_license(self):

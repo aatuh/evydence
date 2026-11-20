@@ -289,7 +289,7 @@ release-signing-policy-test: ## Test release publisher trust and protected workf
 release-signing-check: release-signing-policy-test ## Verify live release environment approval, branch and credential custody rules
 	@python3 scripts/release_signing.py check-provider
 
-release-evidence-policy-test: release-signing-policy-test ## Test release subject parsing and public SBOM metadata offline
+release-evidence-policy-test: release-signing-policy-test container-image-check ## Test release subject parsing and public SBOM metadata offline
 	@python3 scripts/test_release_evidence_tools.py
 	@python3 scripts/test_release_evidence_metadata.py
 	@python3 scripts/test_release_subjects.py
@@ -297,6 +297,10 @@ release-evidence-policy-test: release-signing-policy-test ## Test release subjec
 	@python3 scripts/test_release_evidence_profile.py
 	@python3 scripts/test_release_scanner.py
 	@python3 scripts/test_release_evidence_pipeline.py
+
+.PHONY: container-image-check
+
+container-image-check: ## Test offline OCI digest/platform parsing and container evidence binding
 	@python3 scripts/test_release_oci.py
 	@python3 scripts/test_container_evidence.py
 

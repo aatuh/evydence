@@ -218,7 +218,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "fa19fce2c9a91d7b2708b4b06a40f1893b9a3db53c1f7898624099637628b666",
+        "scanner_output_sha256": "449fc2cf3a61db393411a508dc59a0fb3ab875be50badf3f4a1e93d0ef139ec9",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "docker.io/library/alpine:3.23@sha256:85fe1e81d6758c208f3e1eed4338a1997e19d4be002d4dd32d3100c9a8c010a0",
@@ -554,7 +554,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "99ef7d45507c638a8d6df348b5f8169f0ccac8c9944e9ba29ac699a9c510a293",
+        "scanner_output_sha256": "bc43e6bcbae24604eecddbc36fae080509e295a41c0e7e2e6111f4023ebc02d6",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "docker.io/library/golang:1.27.4-alpine3.23@sha256:146e3b9c7c1e2ec3d3f5348c8a686151a75e1976e50efac9fc022ebe446a9a82",
@@ -1156,7 +1156,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "41d3a48f946938cbc9227f7b55e87e9e01abdfd055b08b4af9937bbb7735db9b",
+        "scanner_output_sha256": "74c2442518d5413ef4bf60f521ac2a3a72bfcbc4382fab7ba0f9e97087cb96db",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "docker.io/library/postgres:16-alpine@sha256:16bc17c64a573ef34162af9298258d1aec548232985b33ed7b1eac33ba35c229",
@@ -1917,7 +1917,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "6973a67930e753a0b03af6b75d33bbe1c7e8b5a8e9977807cca0ff32a5863946",
+        "scanner_output_sha256": "333dcdb2d6dbf6b1fbc8fb4e05e60ee6bdb2b17cef02db70719d5b1bc878e2c6",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "ghcr.io/aatuh/evydence:v0.1.0-rc.5@sha256:38188044a3e5ded3c6094564ab39ce989185f65e22cf4296985ec19ba0eb1888",
@@ -4734,7 +4734,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "8a9e7ddb09375626d337e829cbb6c7d4a031cba466e6cd94bed29c1c73b365f1",
+        "scanner_output_sha256": "ac48abf0bfc955175c3775c13de2362b956e561a9ed7f260fc5d5f0e4a95aae9",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "ghcr.io/ossf/scorecard-action:v2.4.3",
@@ -5935,7 +5935,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "b5066899a21f679158a91467d7431d1d6dbb1fe4e3e14135ae787b55a6a52d75",
+        "scanner_output_sha256": "c7b6e3a8c6c04b81eb88626f1891ca751da748930e27fb7a1586476d37065ab5",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "evydence-local-mc:20250813-7394ce0dd2a8",
@@ -8319,7 +8319,7 @@
           }
         ],
         "platform": "linux/amd64",
-        "scanner_output_sha256": "8f6466abe14881c93d364aa62390ef2aec44cf2d0e81f26ff6ae69f79e9b8ab4",
+        "scanner_output_sha256": "80773ad9828b86dca70483db0595bbdd25feec15c2cf45bb90218a31f64944be",
         "verification": "manifest-config-and-scanner-observations"
       },
       "reference": "evydence-local-minio:20251015-9e49d5e7a648",
@@ -8345,7 +8345,7 @@
     "docker-compose.yml": "10ccf4df8a1793fe883adaaaa73fe2fe5195c9a177fa67b24d95250998c196e6",
     "docs/github-actions/quickstart-release-evidence.yml": "eb8fd676581894080f16654539e1e18ef097961db0ea189cc7fc339836668b6b",
     "docs/github-actions/release-evidence-workflow.yml": "9d4d5178702e4089cfb4e01fc44877f5f692d5775a8b923eb6d04bf17f5b624b",
-    "docs/reference/dependency-inventory.json": "b4912cd6d0c863d344cb9b0101d9229348b63159c3197d84e60c53422a02ccf1",
+    "docs/reference/dependency-inventory.json": "dc707da10bf9612a2e3929907e16e3a0095b72c91e70b53b763cc599cb0bb59e",
     "release/support-matrix.json": "124e1880bac44fa1ec9a11e5e5a8b6d627705a53f145ac9159285fb32b041fc4",
     "release/tools/syft.go.mod": "779a628967e4006a15bb531cbc0a0977be34ad05bd22b95e9d6bf6bd0f768bbc",
     "release/tools/syft.go.sum": "c778b5ee7af2e3b7d2cac7896e9a48df4b50b3e431f0de77cdea60b2e2783868",
@@ -8353,7 +8353,7 @@
     "scripts/dependency_build_tools.py": "e9f3aea9d2459250e0df7c49e909c6b648675cffb45d7686dd2c609e5ec2594b",
     "scripts/dependency_go_tools.py": "2a782ecacbb058a1c142dec6ecc2f49f6074839a24cba3ba7b59e053b1457b38",
     "scripts/dependency_image_registry.py": "3ac538abc7b36f3a5908ae9423fd3368ca7e02634a6bf5702b9a6d3285af1378",
-    "scripts/dependency_images.py": "38bb1c8e812a855ede278baa75b05d11cf7f657f27d6f3c23083079345348eb3",
+    "scripts/dependency_images.py": "1b20195a08dc2e64f4e29be19b3beae3aa0d91a8d6ded57f718793b83f591ec0",
     "scripts/dependency_inventory.py": "9852bb5ca5f9e6f3997c09777f6e6dc19b71e331ac8a4f27d88b6d88744876e5",
     "scripts/dependency_node_sources.py": "0ff4336f384d2db8ba073d7b24745ca0bf5097232ca0a962043ccaa0847f7aae",
     "scripts/dependency_policy.py": "243d35f3d61ddf4aa7bc5f7a3dda72e6d5476e85f2ae12da17e87e687f8bdc9a",
@@ -8365,11 +8365,11 @@
     "scripts/release_lifecycle.py": "674aea75e8fe1d631a4d50cffd5c5fbab32bbda46b3b70a8da79512855ca786e",
     "scripts/release_sbom.py": "ceb23c6e8a8477214fc05e08f4e738955f4c75b96007c0c149957a7132b8e9ba",
     "scripts/release_scanner.py": "aee713bfa20b48487d9d88ed0b53fc78d567dc0809464a6f791c5212bbb5d095",
-    "scripts/support_matrix.py": "47ed56d270c41e87221d700c2fcf4539ef1e4e62bf15c2ab99f3b8089976ae4b",
-    "scripts/support_matrix_artifacts.py": "d330ed4492199e1ae5f45fc93e5bb4ce412564ebd04a73dcea86822614a07ead",
+    "scripts/support_matrix.py": "c6894af8334ba9fca3e883330b09b15e24dc22b21434ed474690a7bf461bbf2a",
+    "scripts/support_matrix_artifacts.py": "84030d56cb5fbdabf649b065cad36aa50a8a97d32cc35dfcb2c0bfc1a0b0d90c",
     "tools/cmd/license-inventory/main.go": "637f1782cc4363869497303bfcae5374cb109009cd28a93e02e44fb7a89be1bd"
   },
-  "observed_at": "2026-11-13T08:25:32.005334+00:00",
+  "observed_at": "2026-11-20T18:46:47.770264+00:00",
   "scanner": {
     "binary_sha256": "1c372cf56df11f0cb63775c71bfe5840df26ae1629a09d2972877e1c546f5d6c",
     "name": "syft",
